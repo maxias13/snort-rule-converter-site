@@ -496,6 +496,32 @@
           No external dependencies required.
         </p>
 
+        <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.06);">
+          <h3 style="margin-bottom:10px;">Network Variables</h3>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div>
+              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
+                Source IP / CIDR &nbsp;<span style="color:var(--primary);">($HOME_NET)</span>
+              </label>
+              <input id="srcIpInput" class="num-input" style="width:100%;"
+                     type="text" placeholder="e.g. 192.168.1.0/24" />
+            </div>
+            <div>
+              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
+                Destination IP / CIDR &nbsp;<span style="color:var(--primary);">($EXTERNAL_NET)</span>
+              </label>
+              <input id="dstIpInput" class="num-input" style="width:100%;"
+                     type="text" placeholder="e.g. 10.0.0.1" />
+            </div>
+          </div>
+          <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <button class="btn" id="commitIpBtn">Apply to Script</button>
+            <span class="muted" style="font-size:0.82rem;">
+              IP 값을 입력하고 Apply to Script 클릭 시 스크립트에 반영됩니다.
+            </span>
+          </div>
+        </div>
+
         <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
           <button class="btn success" id="downloadPyBtn">&#8595; Download validate_snort3.py</button>
           <button class="btn secondary" id="copyPyBtn">Copy Script</button>
@@ -551,7 +577,7 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
       const LOG_KEY = "snort_conversion_log";
       const SID_MAP_KEY = "snort_sid_map";
 
-      const PY_SCRIPT = `#!/usr/bin/env python3
+      const PY_SCRIPT_TEMPLATE = `#!/usr/bin/env python3
 """
 validate_snort3.py — Snort 3 Rule Validator
 Validates converted Snort 3 rules for syntax errors and deprecated Snort 2 constructs.
@@ -566,6 +592,24 @@ import re
 import sys
 import argparse
 from pathlib import Path
+
+# ── Network configuration ──────────────────────────────────────────────────
+# Set these to your actual network values so Snort variables are resolved
+# correctly when displaying rule headers in the validation output.
+SOURCE_IP = "__SOURCE_IP__"   # replaces $HOME_NET, $HTTP_SERVERS, etc.
+DEST_IP   = "__DEST_IP__"     # replaces $EXTERNAL_NET, $SQL_SERVERS, etc.
+
+VAR_MAP = {
+    "$HOME_NET":       SOURCE_IP,
+    "$EXTERNAL_NET":   DEST_IP,
+    "$HTTP_SERVERS":   DEST_IP,
+    "$SQL_SERVERS":    DEST_IP,
+    "$SMTP_SERVERS":   DEST_IP,
+    "$DNS_SERVERS":    DEST_IP,
+    "$TELNET_SERVERS": DEST_IP,
+    "$AIM_SERVERS":    DEST_IP,
+}
+# ───────────────────────────────────────────────────────────────────────────
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -585,7 +629,6 @@ SNORT2_DEPRECATED = {
     "sameip":        "use same_ip in Snort 3",
 }
 
-# Snort 2 PCRE uppercase HTTP buffer flags that must be converted to sticky buffers
 PCRE_HTTP_FLAGS = set("UIHBDPCMSYK")
 
 VALID_ACTIONS   = {"alert", "block", "drop", "log", "pass", "react", "rewrite"}
@@ -596,8 +639,16 @@ TAIL_ORDER = ["gid", "sid", "rev"]
 
 
 # ---------------------------------------------------------------------------
-# Parsing helpers
+# Helpers
 # ---------------------------------------------------------------------------
+
+def resolve_vars(text: str) -> str:
+    """Replace Snort rule variables with configured IP values."""
+    for var, ip in VAR_MAP.items():
+        if ip:
+            text = text.replace(var, ip)
+    return text
+
 
 def split_options(options_str: str) -> list[str]:
     """Split rule options string on semicolons, respecting quoted strings."""
@@ -605,7 +656,7 @@ def split_options(options_str: str) -> list[str]:
     for ch in options_str:
         if escaped:
             cur += ch; escaped = False; continue
-        if ch == "\\\":
+        if ch == "\\\\":
             cur += ch; escaped = True; continue
         if ch == '"':
             in_quote = not in_quote; cur += ch; continue
@@ -637,19 +688,20 @@ def parse_rule(line: str):
 
 
 # ---------------------------------------------------------------------------
-# Validation logic
+# Validation
 # ---------------------------------------------------------------------------
 
-def validate_rule(line: str) -> tuple[list[str], list[str]]:
-    """Return (errors, warnings) for a single rule line."""
+def validate_rule(line: str) -> tuple[list[str], list[str], str]:
+    """Return (errors, warnings, resolved_header)."""
     errors, warnings = [], []
 
     parsed = parse_rule(line)
     if not parsed:
         errors.append("Cannot parse rule structure — check parentheses and header format")
-        return errors, warnings
+        return errors, warnings, ""
 
     header, options_str = parsed
+    resolved_header = resolve_vars(header)
     header_parts = header.split()
 
     # --- Header checks ---
@@ -676,27 +728,19 @@ def validate_rule(line: str) -> tuple[list[str], list[str]]:
     options = split_options(options_str)
     keys    = [option_keyword(o) for o in options]
 
-    # Required fields
     for req in ("msg", "sid", "rev"):
         if req not in keys:
             errors.append(f"Missing required option: {req}")
 
-    # Deprecated Snort 2 keywords
     for opt in options:
         kw = option_keyword(opt)
         if kw in SNORT2_DEPRECATED:
-            errors.append(
-                f"Deprecated Snort 2 keyword '{kw}': {SNORT2_DEPRECATED[kw]}"
-            )
+            errors.append(f"Deprecated Snort 2 keyword '{kw}': {SNORT2_DEPRECATED[kw]}")
 
-    # fast_pattern:only
     for opt in options:
         if re.match(r"^fast_pattern\\s*:\\s*only\\s*$", opt, re.IGNORECASE):
-            errors.append(
-                "fast_pattern:only is not valid in Snort 3 — use plain fast_pattern"
-            )
+            errors.append("fast_pattern:only is not valid in Snort 3 — use plain fast_pattern")
 
-    # PCRE uppercase HTTP flags
     for opt in options:
         if option_keyword(opt) == "pcre":
             m = re.search(r'"/[^/]*/([^"]*)"', opt)
@@ -708,7 +752,6 @@ def validate_rule(line: str) -> tuple[list[str], list[str]]:
                         f"convert to sticky buffers (e.g. U -> http_uri)"
                     )
 
-    # metadata:service — should be a standalone service: option
     for opt in options:
         if option_keyword(opt) == "metadata":
             val = opt[opt.index(":") + 1:].strip()
@@ -718,16 +761,12 @@ def validate_rule(line: str) -> tuple[list[str], list[str]]:
                     "extract as standalone service:<value> option for Snort 3"
                 )
 
-    # gid / sid / rev should be at the end in order
     tail_indices = [(i, k) for i, k in enumerate(keys) if k in TAIL_ORDER]
     if tail_indices:
-        indices     = [i for i, _ in tail_indices]
-        n           = len(keys)
-        expected_start = n - len(tail_indices)
+        indices        = [i for i, _ in tail_indices]
+        expected_start = len(keys) - len(tail_indices)
         if min(indices) < expected_start:
-            warnings.append(
-                "gid/sid/rev should be the last options in the rule"
-            )
+            warnings.append("gid/sid/rev should be the last options in the rule")
         actual_order   = [k for _, k in tail_indices if k in TAIL_ORDER]
         expected_order = sorted(actual_order, key=lambda x: TAIL_ORDER.index(x))
         if actual_order != expected_order:
@@ -736,7 +775,7 @@ def validate_rule(line: str) -> tuple[list[str], list[str]]:
                 f"got: {' -> '.join(actual_order)}"
             )
 
-    return errors, warnings
+    return errors, warnings, resolved_header
 
 
 # ---------------------------------------------------------------------------
@@ -744,18 +783,16 @@ def validate_rule(line: str) -> tuple[list[str], list[str]]:
 # ---------------------------------------------------------------------------
 
 def main():
-    ap = argparse.ArgumentParser(
-        description="Validate Snort 3 rules for common issues."
-    )
-    ap.add_argument(
-        "file", nargs="?",
-        help="Rules file to validate (omit to read from stdin)"
-    )
-    ap.add_argument(
-        "--strict", action="store_true",
-        help="Exit with non-zero status if any warnings are found"
-    )
+    ap = argparse.ArgumentParser(description="Validate Snort 3 rules for common issues.")
+    ap.add_argument("file", nargs="?", help="Rules file (omit to read from stdin)")
+    ap.add_argument("--strict", action="store_true",
+                    help="Exit non-zero when warnings are found")
     args = ap.parse_args()
+
+    if SOURCE_IP or DEST_IP:
+        print(f"Network config — SOURCE_IP: {SOURCE_IP or '(not set)'}  "
+              f"DEST_IP: {DEST_IP or '(not set)'}")
+        print()
 
     if args.file:
         lines = Path(args.file).read_text(encoding="utf-8").splitlines()
@@ -771,11 +808,13 @@ def main():
             continue
 
         total += 1
-        errors, warnings = validate_rule(line)
+        errors, warnings, resolved = validate_rule(line)
 
-        preview = line[:90] + ("..." if len(line) > 90 else "")
+        preview = line[:80] + ("..." if len(line) > 80 else "")
         if errors or warnings:
             print(f"\\n[Line {lineno}] {preview}")
+            if resolved and resolved != line[:len(resolved)]:
+                print(f"  Resolved : {resolved}")
             for msg in errors:
                 print(f"  ERROR : {msg}")
                 error_count += 1
@@ -783,15 +822,11 @@ def main():
                 print(f"  WARN  : {msg}")
                 warn_count += 1
         else:
-            print(f"[Line {lineno}] OK  — {preview}")
+            print(f"[Line {lineno}] OK  {preview}")
 
     print()
     print("=" * 65)
-    print(
-        f"Rules checked : {total}  |  "
-        f"Errors : {error_count}  |  "
-        f"Warnings : {warn_count}"
-    )
+    print(f"Rules checked : {total}  |  Errors : {error_count}  |  Warnings : {warn_count}")
 
     if error_count > 0 or (args.strict and warn_count > 0):
         sys.exit(1)
@@ -800,6 +835,14 @@ def main():
 if __name__ == "__main__":
     main()
 `;
+      function buildPyScript(srcIp, dstIp) {
+        return PY_SCRIPT_TEMPLATE
+          .replace("__SOURCE_IP__", srcIp || "")
+          .replace("__DEST_IP__",   dstIp || "");
+      }
+
+      let currentPyScript = buildPyScript("", "");
+
       const HTTP_BUFFERS = new Set([
         "http_uri", "http_raw_uri", "http_header", "http_raw_header", "http_method",
         "http_stat_code", "http_stat_msg", "http_client_body", "http_cookie", "http_raw_cookie"
@@ -828,7 +871,10 @@ if __name__ == "__main__":
         sidOpenLink: document.getElementById("sidOpenLink"),
         pyScriptDisplay: document.getElementById("pyScriptDisplay"),
         downloadPyBtn: document.getElementById("downloadPyBtn"),
-        copyPyBtn: document.getElementById("copyPyBtn")
+        copyPyBtn: document.getElementById("copyPyBtn"),
+        srcIpInput: document.getElementById("srcIpInput"),
+        dstIpInput: document.getElementById("dstIpInput"),
+        commitIpBtn: document.getElementById("commitIpBtn")
       };
 
       init();
@@ -836,7 +882,7 @@ if __name__ == "__main__":
       function init() {
         bindEvents();
         renderLogTable();
-        el.pyScriptDisplay.textContent = PY_SCRIPT;
+        el.pyScriptDisplay.textContent = currentPyScript;
         // seedExample();
       }
 
@@ -853,6 +899,7 @@ if __name__ == "__main__":
         el.sidInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") searchSid(); });
         el.downloadPyBtn.addEventListener("click", downloadPyScript);
         el.copyPyBtn.addEventListener("click", copyPyScript);
+        el.commitIpBtn.addEventListener("click", commitIpToScript);
       }
 
       function seedExample() {
@@ -862,7 +909,7 @@ if __name__ == "__main__":
       }
 
       function downloadPyScript() {
-        const blob = new Blob([PY_SCRIPT], { type: "text/x-python" });
+        const blob = new Blob([currentPyScript], { type: "text/x-python" });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
         a.href     = url;
@@ -872,12 +919,28 @@ if __name__ == "__main__":
       }
 
       function copyPyScript() {
-        navigator.clipboard.writeText(PY_SCRIPT).then(() => {
+        navigator.clipboard.writeText(currentPyScript).then(() => {
           const btn = el.copyPyBtn;
           const orig = btn.textContent;
           btn.textContent = "Copied!";
           setTimeout(() => { btn.textContent = orig; }, 1500);
         });
+      }
+
+      function commitIpToScript() {
+        const src = el.srcIpInput.value.trim();
+        const dst = el.dstIpInput.value.trim();
+        currentPyScript = buildPyScript(src, dst);
+        el.pyScriptDisplay.textContent = currentPyScript;
+
+        const btn = el.commitIpBtn;
+        const orig = btn.textContent;
+        btn.textContent = "Applied!";
+        btn.style.borderColor = "var(--success)";
+        setTimeout(() => {
+          btn.textContent = orig;
+          btn.style.borderColor = "";
+        }, 1800);
       }
 
       function switchView(viewId, tabEl) {
