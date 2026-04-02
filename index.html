@@ -380,11 +380,7 @@
   <div class="app">
     <nav class="top-nav">
       <div class="logo">
-        <svg id="snortLogo" viewBox="0 0 160 56" xmlns="http://www.w3.org/2000/svg" style="height:56px; width:auto; display:block;" aria-label="Snort">
-          <rect width="160" height="56" rx="8" fill="#c0392b"/>
-          <text x="12" y="38" font-family="'Georgia', serif" font-size="30" font-weight="bold" fill="#ffffff" letter-spacing="2">SNORT</text>
-          <text x="12" y="52" font-family="'Segoe UI', Arial, sans-serif" font-size="10" fill="#f5a89a" letter-spacing="1">RULE CONVERTER</text>
-        </svg>
+        <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:72px; width:auto; display:block;" />
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-view="homeView">Home</button>
@@ -1047,7 +1043,7 @@ if __name__ == "__main__":
             });
             html += `</div>`;
           }
-          html += `<div class="result-card muted" style="padding:10px 14px;">SID 1000000 이상은 Snort Local Rule 이므로 검색을 제공하지 않습니다.</div>`;
+          html += `<div class="result-card muted" style="padding:10px 14px;">SID ${escapeHtml(rule.sid)} 이상은 Snort Local Rule 이므로 검색을 제공하지 않습니다.</div>`;
           el.explainOutput.innerHTML = html;
           el.explainOutput.querySelectorAll(".explain-rule-btn").forEach((btn) => {
             btn.addEventListener("click", async () => {
@@ -1166,18 +1162,11 @@ if __name__ == "__main__":
           if (resp.ok) return resp.text();
         } catch (_) { /* CORS blocked — fall through to proxy */ }
 
-        // Fallback: public CORS proxy (primary)
+        // Fallback: public CORS proxy
         const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url);
-        try {
-          const resp = await fetch(proxyUrl);
-          if (resp.ok) return resp.text();
-        } catch (_) { /* primary proxy failed — try backup */ }
-
-        // Fallback: backup CORS proxy
-        const backupUrl = "https://corsproxy.io/?" + encodeURIComponent(url);
-        const resp2 = await fetch(backupUrl);
-        if (!resp2.ok) throw new Error("HTTP " + resp2.status + " from backup proxy");
-        return resp2.text();
+        const resp = await fetch(proxyUrl);
+        if (!resp.ok) throw new Error("HTTP " + resp.status + " from proxy");
+        return resp.text();
       }
 
       function buildSnortSearchUrl(query) {
@@ -1623,6 +1612,69 @@ if __name__ == "__main__":
         return target.slice(target.indexOf(":") + 1).trim().replace(/^"|"$/g, "");
       }
 
+      function buildExplanationHtml(parsed, index) {
+        const h = parseHeader(parsed.header);
+        const options = splitOptions(parsed.options);
+
+        const msg = extractOptionValue(options, "msg") || "(none)";
+        const flow = extractOptionValue(options, "flow");
+        const sid = extractOptionValue(options, "sid") || "(none)";
+        const rev = extractOptionValue(options, "rev") || "(none)";
+        const classtype = extractOptionValue(options, "classtype") || "(none)";
+        const priority = extractOptionValue(options, "priority") || "(none)";
+        const threshold = options.filter((o) => ["threshold", "tag"].includes(optionKeyword(o)));
+        const metadata = extractOptionValue(options, "metadata") || "(none)";
+
+        const contents = options.filter((o) => optionKeyword(o) === "content").map((o) => extractQuotedValue(o));
+        const pcres = options.filter((o) => optionKeyword(o) === "pcre").map((o) => extractQuotedValue(o));
+
+        return `
+          <div class="rule-explain">
+            <h4>Rule ${index}</h4>
+            <ul>
+              <li><b>Action:</b> ${escapeHtml(h.action || "unknown")} ${actionDescription(h.action)}</li>
+              <li><b>Protocol:</b> ${escapeHtml(h.protocol || "unknown")}</li>
+              <li><b>Network:</b> ${escapeHtml(h.srcIp || "?")}:${escapeHtml(h.srcPort || "?")} ${escapeHtml(h.direction || "?")} ${escapeHtml(h.dstIp || "?")}:${escapeHtml(h.dstPort || "?")}</li>
+              <li><b>Message:</b> ${escapeHtml(msg)}</li>
+              <li><b>Detection criteria:</b>
+                <ul>
+                  ${contents.length ? contents.map((c) => `<li>content match: <code>${escapeHtml(c)}</code></li>`).join("") : "<li>No content keyword.</li>"}
+                  ${pcres.length ? pcres.map((p) => `<li>pcre pattern: <code>${escapeHtml(p)}</code></li>`).join("") : "<li>No pcre keyword.</li>"}
+                  ${flow ? `<li>flow condition: <code>${escapeHtml(flow)}</code></li>` : "<li>No flow condition.</li>"}
+                  ${threshold.length ? threshold.map((t) => `<li>${escapeHtml(t)}</li>`).join("") : "<li>No threshold/tag options.</li>"}
+                </ul>
+              </li>
+              <li><b>Metadata:</b> SID=${escapeHtml(sid)}, Rev=${escapeHtml(rev)}, Classtype=${escapeHtml(classtype)}, Priority=${escapeHtml(priority)}, Metadata=${escapeHtml(metadata)}</li>
+            </ul>
+          </div>
+        `;
+      }
+
+      function actionDescription(action) {
+        const map = {
+          alert: "(generates an alert when conditions match)",
+          log: "(logs matching traffic)",
+          pass: "(ignores matching traffic)",
+          drop: "(drops matching packet)",
+          reject: "(drops and sends reject response)",
+          sdrop: "(silently drops traffic)"
+        };
+        return map[(action || "").toLowerCase()] || "";
+      }
+
+      function parseHeader(header) {
+        const m = header.match(/^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(->|<>)\s+(\S+)\s+(\S+)$/);
+        if (!m) return {};
+        return {
+          action: m[1],
+          protocol: m[2],
+          srcIp: m[3],
+          srcPort: m[4],
+          direction: m[5],
+          dstIp: m[6],
+          dstPort: m[7]
+        };
+      }
 
       function renderDiff(inputText, outputText) {
         const leftLines = splitLines(inputText);
@@ -1834,6 +1886,14 @@ if __name__ == "__main__":
 
       function splitLines(text) { return String(text || "").split(/\r?\n/); }
 
+      function truncate(text, max) {
+        return text.length > max ? text.slice(0, max - 1) + "…" : text;
+      }
+
+      function extractQuotedValue(option) {
+        const m = option.match(/"([\s\S]*)"/);
+        return m ? m[1] : option;
+      }
 
       function escapeHtml(str) {
         return String(str)
