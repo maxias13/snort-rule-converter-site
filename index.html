@@ -342,6 +342,40 @@
       .tabs { width: 100%; }
       .tab-btn { flex: 1 1 auto; }
     }
+
+    .py-script-wrap {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #060c1a;
+    }
+
+    .py-script-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0, 102, 204, 0.1);
+    }
+
+    .py-script-body {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      max-height: 520px;
+      overflow-y: auto;
+      background: #060c1a;
+      white-space: pre;
+      line-height: 1.5;
+      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
+      font-size: 0.84rem;
+      padding: 14px;
+      color: var(--text);
+    }
+
+    .check-row-error { color: var(--error); font-weight: 600; }
+    .check-row-warn  { color: var(--warn);  font-weight: 600; }
   </style>
 </head>
 <body>
@@ -352,6 +386,7 @@
         <button class="tab-btn active" data-view="homeView">Home</button>
         <button class="tab-btn" data-view="sidView">Search by Snort 2 SID</button>
         <button class="tab-btn" data-view="docsView">How to write Snort 3 rules</button>
+        <button class="tab-btn" data-view="validatorView">Python Validator</button>
       </div>
     </nav>
 
@@ -452,12 +487,319 @@
         </div>
       </div>
     </section>
+
+    <section id="validatorView" class="view">
+      <div class="panel">
+        <h3>Python Rule Validator</h3>
+        <p class="muted" style="margin:0 0 14px;">
+          Offline Python 3 script to validate converted Snort 3 rules.
+          No external dependencies required.
+        </p>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+          <button class="btn success" id="downloadPyBtn">&#8595; Download validate_snort3.py</button>
+          <button class="btn secondary" id="copyPyBtn">Copy Script</button>
+        </div>
+
+        <div class="py-script-wrap">
+          <div class="py-script-header">
+            <span style="color:var(--primary); font-size:0.85rem; font-weight:600;">validate_snort3.py</span>
+            <span class="muted" style="font-size:0.82rem;">Python 3 &nbsp;·&nbsp; No dependencies</span>
+          </div>
+          <pre id="pyScriptDisplay" class="py-script-body"></pre>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <h3>Usage</h3>
+          <div class="codebox"># Validate a rules file
+python3 validate_snort3.py converted_rules.rules
+
+# Read from stdin
+cat converted_rules.rules | python3 validate_snort3.py
+
+# Strict mode — treat warnings as errors (non-zero exit)
+python3 validate_snort3.py --strict converted_rules.rules</div>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <h3>Validation Checks</h3>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Check</th><th>Severity</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Rule structure</td><td class="check-row-error">ERROR</td><td>Valid header and option parentheses</td></tr>
+                <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid, rev must be present</td></tr>
+                <tr><td>Direction operator</td><td class="check-row-error">ERROR</td><td>Must be <code>-&gt;</code> or <code>&lt;&gt;</code></td></tr>
+                <tr><td>Deprecated Snort 2 keywords</td><td class="check-row-error">ERROR</td><td>uricontent, rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session</td></tr>
+                <tr><td>fast_pattern:only</td><td class="check-row-error">ERROR</td><td>Removed in Snort 3 — use plain <code>fast_pattern</code></td></tr>
+                <tr><td>PCRE HTTP flags</td><td class="check-row-error">ERROR</td><td>Uppercase flags (U, I, H, D, P, C, M, S, Y, K) must be converted to sticky buffers</td></tr>
+                <tr><td>metadata:service</td><td class="check-row-warn">WARN</td><td>Should be extracted as standalone <code>service:</code> option</td></tr>
+                <tr><td>gid/sid/rev order</td><td class="check-row-warn">WARN</td><td>Should appear at end in gid &#8594; sid &#8594; rev order</td></tr>
+                <tr><td>Unusual action/protocol</td><td class="check-row-warn">WARN</td><td>Flags non-standard action or protocol values</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
     (function () {
       const LOG_KEY = "snort_conversion_log";
       const SID_MAP_KEY = "snort_sid_map";
+
+      const PY_SCRIPT = `#!/usr/bin/env python3
+"""
+validate_snort3.py — Snort 3 Rule Validator
+Validates converted Snort 3 rules for syntax errors and deprecated Snort 2 constructs.
+
+Usage:
+  python3 validate_snort3.py <rules_file>
+  cat rules.rules | python3 validate_snort3.py
+  python3 validate_snort3.py --strict <rules_file>
+"""
+
+import re
+import sys
+import argparse
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+SNORT2_DEPRECATED = {
+    "uricontent":    "use http_uri sticky buffer + content instead",
+    "rawbytes":      "removed in Snort 3",
+    "threshold":     "use detection_filter (inline) or event_filter (global) in Snort 3",
+    "resp":          "removed in Snort 3",
+    "react":         "removed in Snort 3",
+    "tag":           "removed in Snort 3",
+    "activates":     "removed in Snort 3",
+    "activated_by":  "removed in Snort 3",
+    "logto":         "removed in Snort 3",
+    "session":       "removed in Snort 3",
+    "sameip":        "use same_ip in Snort 3",
+}
+
+# Snort 2 PCRE uppercase HTTP buffer flags that must be converted to sticky buffers
+PCRE_HTTP_FLAGS = set("UIHBDPCMSYK")
+
+VALID_ACTIONS   = {"alert", "block", "drop", "log", "pass", "react", "rewrite"}
+VALID_PROTOCOLS = {"tcp", "udp", "icmp", "ip", "http", "ftp", "smb", "dns",
+                   "pkth", "file", "pkt_data"}
+
+TAIL_ORDER = ["gid", "sid", "rev"]
+
+
+# ---------------------------------------------------------------------------
+# Parsing helpers
+# ---------------------------------------------------------------------------
+
+def split_options(options_str: str) -> list[str]:
+    """Split rule options string on semicolons, respecting quoted strings."""
+    parts, cur, in_quote, escaped = [], "", False, False
+    for ch in options_str:
+        if escaped:
+            cur += ch; escaped = False; continue
+        if ch == "\\\":
+            cur += ch; escaped = True; continue
+        if ch == '"':
+            in_quote = not in_quote; cur += ch; continue
+        if ch == ";" and not in_quote:
+            t = cur.strip()
+            if t: parts.append(t)
+            cur = ""; continue
+        cur += ch
+    tail = cur.strip()
+    if tail: parts.append(tail)
+    return parts
+
+
+def option_keyword(opt: str) -> str:
+    return opt.split(":", 1)[0].strip().lower()
+
+
+def parse_rule(line: str):
+    """Return (header, options_str) or None if the line cannot be parsed."""
+    open_p  = line.find("(")
+    close_p = line.rfind(")")
+    if open_p <= 0 or close_p <= open_p:
+        return None
+    header      = line[:open_p].strip()
+    options_str = line[open_p + 1:close_p].strip()
+    if not header or not options_str:
+        return None
+    return header, options_str
+
+
+# ---------------------------------------------------------------------------
+# Validation logic
+# ---------------------------------------------------------------------------
+
+def validate_rule(line: str) -> tuple[list[str], list[str]]:
+    """Return (errors, warnings) for a single rule line."""
+    errors, warnings = [], []
+
+    parsed = parse_rule(line)
+    if not parsed:
+        errors.append("Cannot parse rule structure — check parentheses and header format")
+        return errors, warnings
+
+    header, options_str = parsed
+    header_parts = header.split()
+
+    # --- Header checks ---
+    if len(header_parts) < 7:
+        errors.append(
+            f"Rule header too short: expected action proto src_ip src_port "
+            f"direction dst_ip dst_port (7 fields), got {len(header_parts)}"
+        )
+    else:
+        action    = header_parts[0].lower()
+        proto     = header_parts[1].lower()
+        direction = header_parts[4]
+
+        if action not in VALID_ACTIONS:
+            warnings.append(f"Unusual rule action '{action}'")
+        if proto not in VALID_PROTOCOLS:
+            warnings.append(f"Unusual protocol '{proto}'")
+        if direction not in ("->", "<>"):
+            errors.append(
+                f"Invalid direction operator '{direction}' — expected '->' or '<>'"
+            )
+
+    # --- Option checks ---
+    options = split_options(options_str)
+    keys    = [option_keyword(o) for o in options]
+
+    # Required fields
+    for req in ("msg", "sid", "rev"):
+        if req not in keys:
+            errors.append(f"Missing required option: {req}")
+
+    # Deprecated Snort 2 keywords
+    for opt in options:
+        kw = option_keyword(opt)
+        if kw in SNORT2_DEPRECATED:
+            errors.append(
+                f"Deprecated Snort 2 keyword '{kw}': {SNORT2_DEPRECATED[kw]}"
+            )
+
+    # fast_pattern:only
+    for opt in options:
+        if re.match(r"^fast_pattern\\s*:\\s*only\\s*$", opt, re.IGNORECASE):
+            errors.append(
+                "fast_pattern:only is not valid in Snort 3 — use plain fast_pattern"
+            )
+
+    # PCRE uppercase HTTP flags
+    for opt in options:
+        if option_keyword(opt) == "pcre":
+            m = re.search(r'"/[^/]*/([^"]*)"', opt)
+            if m:
+                bad = [f for f in m.group(1) if f in PCRE_HTTP_FLAGS]
+                if bad:
+                    errors.append(
+                        f"PCRE contains Snort 2 HTTP flag(s) '{''.join(bad)}' — "
+                        f"convert to sticky buffers (e.g. U -> http_uri)"
+                    )
+
+    # metadata:service — should be a standalone service: option
+    for opt in options:
+        if option_keyword(opt) == "metadata":
+            val = opt[opt.index(":") + 1:].strip()
+            if re.search(r"\\bservice\\s+\\w+", val, re.IGNORECASE):
+                warnings.append(
+                    "metadata contains 'service' field — "
+                    "extract as standalone service:<value> option for Snort 3"
+                )
+
+    # gid / sid / rev should be at the end in order
+    tail_indices = [(i, k) for i, k in enumerate(keys) if k in TAIL_ORDER]
+    if tail_indices:
+        indices     = [i for i, _ in tail_indices]
+        n           = len(keys)
+        expected_start = n - len(tail_indices)
+        if min(indices) < expected_start:
+            warnings.append(
+                "gid/sid/rev should be the last options in the rule"
+            )
+        actual_order   = [k for _, k in tail_indices if k in TAIL_ORDER]
+        expected_order = sorted(actual_order, key=lambda x: TAIL_ORDER.index(x))
+        if actual_order != expected_order:
+            warnings.append(
+                f"gid/sid/rev order should be gid -> sid -> rev, "
+                f"got: {' -> '.join(actual_order)}"
+            )
+
+    return errors, warnings
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Validate Snort 3 rules for common issues."
+    )
+    ap.add_argument(
+        "file", nargs="?",
+        help="Rules file to validate (omit to read from stdin)"
+    )
+    ap.add_argument(
+        "--strict", action="store_true",
+        help="Exit with non-zero status if any warnings are found"
+    )
+    args = ap.parse_args()
+
+    if args.file:
+        lines = Path(args.file).read_text(encoding="utf-8").splitlines()
+    else:
+        print("Reading from stdin (Ctrl+D / Ctrl+Z to finish)...", file=sys.stderr)
+        lines = sys.stdin.read().splitlines()
+
+    total = error_count = warn_count = 0
+
+    for lineno, raw_line in enumerate(lines, 1):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        total += 1
+        errors, warnings = validate_rule(line)
+
+        preview = line[:90] + ("..." if len(line) > 90 else "")
+        if errors or warnings:
+            print(f"\\n[Line {lineno}] {preview}")
+            for msg in errors:
+                print(f"  ERROR : {msg}")
+                error_count += 1
+            for msg in warnings:
+                print(f"  WARN  : {msg}")
+                warn_count += 1
+        else:
+            print(f"[Line {lineno}] OK  — {preview}")
+
+    print()
+    print("=" * 65)
+    print(
+        f"Rules checked : {total}  |  "
+        f"Errors : {error_count}  |  "
+        f"Warnings : {warn_count}"
+    )
+
+    if error_count > 0 or (args.strict and warn_count > 0):
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+`;
       const HTTP_BUFFERS = new Set([
         "http_uri", "http_raw_uri", "http_header", "http_raw_header", "http_method",
         "http_stat_code", "http_stat_msg", "http_client_body", "http_cookie", "http_raw_cookie"
@@ -483,7 +825,10 @@
         sidSearchBtn: document.getElementById("sidSearchBtn"),
         sidResults: document.getElementById("sidResults"),
         sidFrame: document.getElementById("sidFrame"),
-        sidOpenLink: document.getElementById("sidOpenLink")
+        sidOpenLink: document.getElementById("sidOpenLink"),
+        pyScriptDisplay: document.getElementById("pyScriptDisplay"),
+        downloadPyBtn: document.getElementById("downloadPyBtn"),
+        copyPyBtn: document.getElementById("copyPyBtn")
       };
 
       init();
@@ -491,6 +836,7 @@
       function init() {
         bindEvents();
         renderLogTable();
+        el.pyScriptDisplay.textContent = PY_SCRIPT;
         // seedExample();
       }
 
@@ -505,12 +851,33 @@
         el.clearLogBtn.addEventListener("click", clearLog);
         el.sidSearchBtn.addEventListener("click", searchSid);
         el.sidInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") searchSid(); });
+        el.downloadPyBtn.addEventListener("click", downloadPyScript);
+        el.copyPyBtn.addEventListener("click", copyPyScript);
       }
 
       function seedExample() {
         if (!el.input.value.trim()) {
           el.input.value = 'alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"ET WEB_SERVER Possible SQL Injection"; content:"union"; nocase; http_uri; content:"select"; nocase; http_uri; uricontent:"/admin"; pcre:"/union.{0,10}select/Ui"; sid:1000001; rev:1;)';
         }
+      }
+
+      function downloadPyScript() {
+        const blob = new Blob([PY_SCRIPT], { type: "text/x-python" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = "validate_snort3.py";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function copyPyScript() {
+        navigator.clipboard.writeText(PY_SCRIPT).then(() => {
+          const btn = el.copyPyBtn;
+          const orig = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
       }
 
       function switchView(viewId, tabEl) {
