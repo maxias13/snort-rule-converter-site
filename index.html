@@ -325,7 +325,6 @@
       background: #0a0e1a;
     }
 
-    #docsFrame { min-height: calc(100vh - 220px); }
 
     .muted { color: var(--muted); }
     .hidden { display: none !important; }
@@ -334,7 +333,6 @@
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
       .textarea { min-height: 260px; }
-      #docsFrame { min-height: 65vh; }
     }
 
     @media (max-width: 700px) {
@@ -475,12 +473,25 @@
     <section id="docsView" class="view">
       <div class="panel">
         <h3>How to write Snort 3 Rules</h3>
-        <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <span class="muted">Embedded docs may be blocked by browser policy. Use the fallback button if needed.</span>
-          <a class="btn secondary" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">Open in new tab</a>
-        </div>
-        <div class="iframe-wrap">
-          <iframe id="docsFrame" src="https://docs.snort.org/welcome" title="Snort 3 Documentation"></iframe>
+        <p class="muted" style="margin:0 0 14px;">
+          docs.snort.org does not allow embedding. Use the links below to open the documentation directly.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <a class="btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer" style="width:fit-content;">
+            &#8599; Snort 3 Documentation (docs.snort.org)
+          </a>
+          <a class="btn secondary" href="https://docs.snort.org/rules/headers" target="_blank" rel="noopener noreferrer" style="width:fit-content;">
+            &#8599; Rule Headers
+          </a>
+          <a class="btn secondary" href="https://docs.snort.org/rules/options" target="_blank" rel="noopener noreferrer" style="width:fit-content;">
+            &#8599; Rule Options
+          </a>
+          <a class="btn secondary" href="https://docs.snort.org/rules/payload_detection" target="_blank" rel="noopener noreferrer" style="width:fit-content;">
+            &#8599; Payload Detection (content, pcre, buffers)
+          </a>
+          <a class="btn secondary" href="https://docs.snort.org/rules/services" target="_blank" rel="noopener noreferrer" style="width:fit-content;">
+            &#8599; Services &amp; Sticky Buffers
+          </a>
         </div>
       </div>
     </section>
