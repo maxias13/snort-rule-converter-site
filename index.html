@@ -1,0 +1,1352 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snort 2 → Snort 3 Local Rule Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --panel: #0f1629;
+      --panel-2: #121c33;
+      --border: #1e3a5f;
+      --primary: #00d4ff;
+      --secondary: #0066cc;
+      --success: #00ff88;
+      --warn: #ffaa00;
+      --error: #ff4444;
+      --text: #e0e8f0;
+      --muted: #8ea3ba;
+      --glass: rgba(255, 255, 255, 0.03);
+      --removed: rgba(255, 68, 68, 0.25);
+      --added: rgba(0, 255, 136, 0.2);
+      --modified: rgba(255, 170, 0, 0.22);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: radial-gradient(circle at top right, #0d1730 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      min-height: 100%;
+    }
+
+    .app {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .top-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(16, 26, 45, 0.95), rgba(9, 15, 28, 0.95));
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.3);
+      position: sticky;
+      top: 10px;
+      z-index: 20;
+      backdrop-filter: blur(4px);
+    }
+
+    .logo {
+      color: var(--primary);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      font-size: 1.05rem;
+      text-shadow: 0 0 12px rgba(0, 212, 255, 0.45);
+      white-space: nowrap;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .tab-btn {
+      border: 1px solid var(--border);
+      color: var(--text);
+      background: rgba(15, 22, 41, 0.9);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover { border-color: var(--primary); color: #fff; }
+
+    .tab-btn.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.3), inset 0 0 24px rgba(0, 212, 255, 0.08);
+      color: #fff;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(15, 22, 41, 0.75);
+    }
+
+    .btn {
+      border: 1px solid #19558f;
+      color: #ecf8ff;
+      background: linear-gradient(180deg, #0a68a8 0%, #054a7d 100%);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0, 102, 204, 0.34); }
+    .btn:active { transform: translateY(0); }
+
+    .btn.secondary {
+      background: linear-gradient(180deg, #102440 0%, #0a1a2f 100%);
+      border-color: var(--border);
+    }
+
+    .btn.success {
+      border-color: #167f55;
+      background: linear-gradient(180deg, #0e7e52 0%, #0a5f3e 100%);
+    }
+
+    .btn.warn {
+      border-color: #9e6c00;
+      background: linear-gradient(180deg, #946100 0%, #674500 100%);
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(18, 28, 51, 0.9) 0%, rgba(13, 20, 37, 0.95) 100%);
+      padding: 12px;
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.06), inset 0 0 20px rgba(0, 212, 255, 0.02);
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      color: var(--primary);
+      font-size: 0.96rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .textarea {
+      width: 100%;
+      min-height: 320px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0a1122;
+      color: var(--text);
+      padding: 12px;
+      resize: vertical;
+      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+
+    .textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.45), 0 0 14px rgba(0, 212, 255, 0.2);
+    }
+
+    .readonly-wrap {
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+    }
+
+    .explain-box, .diff-grid, .log-wrap {
+      margin-top: 12px;
+    }
+
+    .explain-content {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(10, 17, 34, 0.9);
+      line-height: 1.5;
+    }
+
+    .rule-explain {
+      border: 1px solid rgba(0, 212, 255, 0.2);
+      border-radius: 10px;
+      padding: 10px;
+      margin-bottom: 10px;
+      background: rgba(0, 212, 255, 0.03);
+    }
+
+    .rule-explain h4 { margin: 0 0 8px; color: #9beeff; font-size: 0.95rem; }
+    .rule-explain ul { margin: 6px 0 0 18px; }
+
+    .diff-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .codebox {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0a1122;
+      padding: 10px;
+      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
+      font-size: 0.84rem;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      overflow-wrap: anywhere;
+      min-height: 120px;
+    }
+
+    .removed { background: var(--removed); text-decoration: line-through; }
+    .added { background: var(--added); }
+    .modified { background: var(--modified); }
+
+    .legend {
+      margin-top: 8px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+
+    .tag {
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .tag.green { border-color: #1f7a56; }
+    .tag.red { border-color: #8e3232; }
+    .tag.yellow { border-color: #8f720c; }
+
+    .table-scroll { overflow: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      text-align: left;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    th {
+      background: rgba(0, 102, 204, 0.2);
+      color: #9ee8ff;
+      position: sticky;
+      top: 0;
+    }
+
+    tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
+
+    .sid-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .num-input {
+      width: 250px;
+      max-width: 100%;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #091124;
+      color: var(--text);
+      padding: 10px;
+      font-family: Consolas, Monaco, Menlo, monospace;
+    }
+
+    .num-input:focus { outline: none; border-color: var(--primary); }
+
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      background: rgba(10, 17, 34, 0.95);
+      margin-bottom: 10px;
+    }
+
+    .iframe-wrap {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #060b16;
+      min-height: 420px;
+    }
+
+    iframe {
+      width: 100%;
+      border: none;
+      min-height: 420px;
+      background: #0a0e1a;
+    }
+
+    #docsFrame { min-height: calc(100vh - 220px); }
+
+    .muted { color: var(--muted); }
+    .hidden { display: none !important; }
+    .danger { color: #ff9a9a; }
+
+    @media (max-width: 1000px) {
+      .split, .diff-grid { grid-template-columns: 1fr; }
+      .textarea { min-height: 260px; }
+      #docsFrame { min-height: 65vh; }
+    }
+
+    @media (max-width: 700px) {
+      .top-nav { flex-direction: column; align-items: flex-start; }
+      .tabs { width: 100%; }
+      .tab-btn { flex: 1 1 auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <nav class="top-nav">
+      <div class="logo">🐷 SNORT</div>
+      <div class="tabs">
+        <button class="tab-btn active" data-view="homeView">Home</button>
+        <button class="tab-btn" data-view="sidView">Search by Snort 2 SID</button>
+        <button class="tab-btn" data-view="docsView">How to write Snort 3 rules</button>
+      </div>
+    </nav>
+
+    <section id="homeView" class="view active">
+      <div class="toolbar">
+        <input type="file" id="rulesFileInput" accept=".rules,.txt" class="hidden" />
+        <button class="btn secondary" id="loadFileBtn">📁 File</button>
+        <button class="btn" id="convertBtn">Convert</button>
+        <button class="btn secondary" id="explainBtn">Explain</button>
+        <button class="btn warn" id="clearBtn">Clear</button>
+      </div>
+
+      <div class="split" style="margin-top: 12px;">
+        <div class="panel">
+          <h3>Snort 2 Rule Input</h3>
+          <textarea id="inputRules" class="textarea" placeholder="Paste Snort 2 local rules here (one rule per line)..."></textarea>
+        </div>
+        <div class="panel">
+          <h3>Snort 3 Rule Output</h3>
+          <div class="readonly-wrap">
+            <button class="btn success copy-btn" id="copyOutputBtn">Copy</button>
+            <textarea id="outputRules" class="textarea" readonly placeholder="Converted Snort 3 rules will appear here..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel explain-box" id="explainSection">
+        <h3>Snort 2 Rule Explanation</h3>
+        <div id="explainOutput" class="explain-content muted">Click <b>Explain</b> to search Snort.org Rule Documentation for each rule.</div>
+      </div>
+
+      <div class="panel">
+        <h3>Compare Input Snort 2 Rule vs Converted Snort 3 Rule</h3>
+        <div class="diff-grid">
+          <div>
+            <div class="muted" style="margin-bottom: 6px;">Original (Snort 2)</div>
+            <div id="diffLeft" class="codebox"></div>
+          </div>
+          <div>
+            <div class="muted" style="margin-bottom: 6px;">Converted (Snort 3)</div>
+            <div id="diffRight" class="codebox"></div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="tag red">Removed</span>
+          <span class="tag green">Added</span>
+          <span class="tag yellow">Modified</span>
+        </div>
+      </div>
+
+      <div class="panel log-wrap">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+          <h3 style="margin:0;">Conversion Log</h3>
+          <button class="btn warn" id="clearLogBtn">Clear Log</button>
+        </div>
+        <div class="table-scroll" style="margin-top: 10px; max-height: 320px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Input (truncated)</th>
+                <th>Output (truncated)</th>
+                <th>Changes</th>
+              </tr>
+            </thead>
+            <tbody id="logTableBody">
+              <tr><td colspan="4" class="muted">No conversions yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="sidView" class="view">
+      <div class="panel">
+        <h3>Search by Snort 2 SID</h3>
+        <div class="sid-tools">
+          <input id="sidInput" class="num-input" type="number" min="1" step="1" placeholder="Enter SID (e.g. 1000001)" />
+          <button id="sidSearchBtn" class="btn">Search</button>
+          <a id="sidOpenLink" class="btn secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+        </div>
+        <div id="sidResults" class="result-card muted">Enter a SID and click Search.</div>
+        <div class="iframe-wrap">
+          <iframe id="sidFrame" title="Snort Rule Documentation"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <section id="docsView" class="view">
+      <div class="panel">
+        <h3>How to write Snort 3 Rules</h3>
+        <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <span class="muted">Embedded docs may be blocked by browser policy. Use the fallback button if needed.</span>
+          <a class="btn secondary" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+        </div>
+        <div class="iframe-wrap">
+          <iframe id="docsFrame" src="https://docs.snort.org/welcome" title="Snort 3 Documentation"></iframe>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      const LOG_KEY = "snort_conversion_log";
+      const SID_MAP_KEY = "snort_sid_map";
+      const HTTP_BUFFERS = new Set([
+        "http_uri", "http_raw_uri", "http_header", "http_raw_header", "http_method",
+        "http_stat_code", "http_stat_msg", "http_client_body", "http_cookie", "http_raw_cookie"
+      ]);
+
+      const el = {
+        tabs: Array.from(document.querySelectorAll(".tab-btn")),
+        views: Array.from(document.querySelectorAll(".view")),
+        loadFileBtn: document.getElementById("loadFileBtn"),
+        fileInput: document.getElementById("rulesFileInput"),
+        convertBtn: document.getElementById("convertBtn"),
+        explainBtn: document.getElementById("explainBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        input: document.getElementById("inputRules"),
+        output: document.getElementById("outputRules"),
+        copyOutputBtn: document.getElementById("copyOutputBtn"),
+        explainOutput: document.getElementById("explainOutput"),
+        diffLeft: document.getElementById("diffLeft"),
+        diffRight: document.getElementById("diffRight"),
+        logTableBody: document.getElementById("logTableBody"),
+        clearLogBtn: document.getElementById("clearLogBtn"),
+        sidInput: document.getElementById("sidInput"),
+        sidSearchBtn: document.getElementById("sidSearchBtn"),
+        sidResults: document.getElementById("sidResults"),
+        sidFrame: document.getElementById("sidFrame"),
+        sidOpenLink: document.getElementById("sidOpenLink")
+      };
+
+      init();
+
+      function init() {
+        bindEvents();
+        renderLogTable();
+        seedExample();
+      }
+
+      function bindEvents() {
+        el.tabs.forEach((tab) => tab.addEventListener("click", () => switchView(tab.dataset.view, tab)));
+        el.loadFileBtn.addEventListener("click", () => el.fileInput.click());
+        el.fileInput.addEventListener("change", handleFileLoad);
+        el.convertBtn.addEventListener("click", runConversion);
+        el.explainBtn.addEventListener("click", runExplain);
+        el.clearBtn.addEventListener("click", clearMain);
+        el.copyOutputBtn.addEventListener("click", copyOutput);
+        el.clearLogBtn.addEventListener("click", clearLog);
+        el.sidSearchBtn.addEventListener("click", searchSid);
+        el.sidInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") searchSid(); });
+      }
+
+      function seedExample() {
+        if (!el.input.value.trim()) {
+          el.input.value = 'alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"ET WEB_SERVER Possible SQL Injection"; content:"union"; nocase; http_uri; content:"select"; nocase; http_uri; uricontent:"/admin"; pcre:"/union.{0,10}select/Ui"; sid:1000001; rev:1;)';
+        }
+      }
+
+      function switchView(viewId, tabEl) {
+        el.views.forEach((v) => v.classList.toggle("active", v.id === viewId));
+        el.tabs.forEach((t) => t.classList.remove("active"));
+        tabEl.classList.add("active");
+      }
+
+      function handleFileLoad(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => { el.input.value = String(reader.result || ""); };
+        reader.readAsText(file);
+      }
+
+      function runConversion() {
+        const inputText = el.input.value;
+        const result = convertAll(inputText);
+        el.output.value = result.output;
+        renderDiff(inputText, result.outputNoSummary);
+        addLogEntry({
+          timestamp: formatTimestamp(new Date()),
+          inputRules: truncate(inputText.replace(/\s+/g, " "), 100),
+          outputRules: truncate(result.output.replace(/\s+/g, " "), 100),
+          changeCount: result.totalChanges
+        });
+        persistSidMap(result.sidMap);
+      }
+
+      async function runExplain() {
+        const lines = splitLines(el.input.value);
+        const ruleItems = [];
+
+        lines.forEach((line, idx) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) return;
+          const parsed = parseRule(trimmed);
+          if (!parsed.ok) return;
+          const options = splitOptions(parsed.options);
+          const msg = extractOptionValue(options, "msg") || "";
+          const sid = extractOptionValue(options, "sid") || "";
+          ruleItems.push({ index: idx + 1, msg, sid });
+        });
+
+        if (!ruleItems.length) {
+          el.explainOutput.innerHTML = '<span class="muted">No parsable rules found in input.</span>';
+          return;
+        }
+
+        el.explainOutput.innerHTML = '<span class="muted">🔍 Searching Snort.org...</span>';
+        await renderExplainSearch(ruleItems, 0);
+      }
+
+      async function renderExplainSearch(ruleItems, activeIdx) {
+        const rule = ruleItems[activeIdx];
+
+        // Local rules (SID >= 1000000) are not indexed on Snort.org
+        if (rule.sid && parseInt(rule.sid, 10) >= 1000000) {
+          let html = "";
+          if (ruleItems.length > 1) {
+            html += `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">`;
+            ruleItems.forEach((r, i) => {
+              const label = `Rule ${r.index}${r.msg ? ": " + (r.msg.length > 35 ? r.msg.slice(0, 35) + "…" : r.msg) : ""}`;
+              html += `<button class="btn secondary explain-rule-btn" data-rule-idx="${i}" style="${i === activeIdx ? "border-color:var(--primary);" : ""}">${escapeHtml(label)}</button>`;
+            });
+            html += `</div>`;
+          }
+          html += `<div class="result-card muted" style="padding:10px 14px;">SID ${escapeHtml(rule.sid)} 이상은 Snort Local Rule 이므로 검색을 제공하지 않습니다.</div>`;
+          el.explainOutput.innerHTML = html;
+          el.explainOutput.querySelectorAll(".explain-rule-btn").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await renderExplainSearch(ruleItems, parseInt(btn.dataset.ruleIdx, 10));
+            });
+          });
+          return;
+        }
+
+        const query = rule.msg || rule.sid;
+        const searchUrl = buildSnortSearchUrl(query);
+
+        let html = "";
+
+        // Tab buttons when multiple rules
+        if (ruleItems.length > 1) {
+          html += `<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">`;
+          ruleItems.forEach((r, i) => {
+            const label = `Rule ${r.index}${r.msg ? ": " + (r.msg.length > 35 ? r.msg.slice(0, 35) + "…" : r.msg) : ""}`;
+            html += `<button class="btn secondary explain-rule-btn" data-rule-idx="${i}" style="${i === activeIdx ? "border-color:var(--primary);" : ""}">${escapeHtml(label)}</button>`;
+          });
+          html += `</div>`;
+        }
+
+        html += `
+          <div style="margin-bottom:10px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <span id="explainStatus" class="muted" style="font-size:0.85rem;">🔍 Searching for: <b>${escapeHtml(query)}</b></span>
+            <a class="btn secondary" href="${escapeHtml(searchUrl)}" target="_blank" rel="noopener noreferrer">Open on Snort.org ↗</a>
+          </div>
+          <div id="explainResults"></div>
+        `;
+
+        el.explainOutput.innerHTML = html;
+
+        // Wire tab buttons
+        el.explainOutput.querySelectorAll(".explain-rule-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            await renderExplainSearch(ruleItems, parseInt(btn.dataset.ruleIdx, 10));
+          });
+        });
+
+        const resultsEl = document.getElementById("explainResults");
+        const statusEl = document.getElementById("explainStatus");
+
+        try {
+          const searchHtml = await fetchSnortHtml(searchUrl);
+          const searchDoc = new DOMParser().parseFromString(searchHtml, "text/html");
+
+          const heading = (searchDoc.querySelector("h4")?.textContent || "").replace(/\s+/g, " ").trim();
+
+          // Extract result rows
+          const resultItems = [];
+          searchDoc.querySelectorAll("table tbody tr").forEach((tr) => {
+            const sidLink = tr.querySelector("a[href*='rule_docs/']");
+            const msgSpan = tr.querySelector(".snort_search_item, .results-col-message span");
+            if (sidLink) {
+              const href = sidLink.getAttribute("href") || "";
+              const fullUrl = href.startsWith("http")
+                ? href
+                : "https://www.snort.org/" + href.replace(/^\//, "");
+              resultItems.push({
+                sidText: sidLink.textContent.trim(),
+                message: msgSpan?.textContent?.trim() || "",
+                url: fullUrl
+              });
+            }
+          });
+
+          if (statusEl) statusEl.innerHTML = `✓ ${escapeHtml(heading || "Results from Snort.org")}`;
+
+          if (!resultItems.length) {
+            resultsEl.innerHTML = `<div class="result-card muted">No results found on Snort.org for: <b>${escapeHtml(query)}</b></div>`;
+            return;
+          }
+
+          // Build results list
+          let resultHtml = `<div class="result-card">
+            <b style="color:var(--primary);">${escapeHtml(heading)}</b>
+            <ul style="margin:8px 0 0 18px;">`;
+          resultItems.forEach((item) => {
+            resultHtml += `<li>
+              <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">${escapeHtml(item.sidText)}</a>
+              — ${escapeHtml(item.message)}
+            </li>`;
+          });
+          resultHtml += `</ul></div>`;
+
+          // Auto-load detail when exactly one result
+          if (resultItems.length === 1) {
+            resultHtml += `<div id="explainRuleDetail"><div class="muted" style="padding:8px 0;">Loading rule details...</div></div>`;
+            resultsEl.innerHTML = resultHtml;
+            try {
+              const ruleHtml = await fetchSnortHtml(resultItems[0].url);
+              const ruleDocEl = new DOMParser().parseFromString(ruleHtml, "text/html");
+              document.getElementById("explainRuleDetail").innerHTML = buildRuleDocHtml(ruleDocEl, resultItems[0].url);
+            } catch (e) {
+              document.getElementById("explainRuleDetail").innerHTML =
+                `<div class="muted" style="padding:8px 0;">Could not load rule detail: ${escapeHtml(e.message)}</div>`;
+            }
+          } else {
+            resultsEl.innerHTML = resultHtml;
+          }
+        } catch (e) {
+          if (statusEl) statusEl.innerHTML = `<span class="danger">Search failed: ${escapeHtml(e.message)}</span>`;
+          if (resultsEl) resultsEl.innerHTML = `<div class="result-card">
+            <span class="danger">Could not fetch Snort.org results.</span>
+            <span class="muted"> Please use <b>Open on Snort.org ↗</b> to view results directly.</span>
+          </div>`;
+        }
+      }
+
+      async function fetchSnortHtml(url) {
+        // Try direct first (works when served from same origin or without CORS restrictions)
+        try {
+          const resp = await fetch(url, { mode: "cors" });
+          if (resp.ok) return resp.text();
+        } catch (_) { /* CORS blocked — fall through to proxy */ }
+
+        // Fallback: public CORS proxy
+        const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url);
+        const resp = await fetch(proxyUrl);
+        if (!resp.ok) throw new Error("HTTP " + resp.status + " from proxy");
+        return resp.text();
+      }
+
+      function buildSnortSearchUrl(query) {
+        const q = encodeURIComponent(query || "");
+        return `https://www.snort.org/rule_docs?search_type=standard&simple_search%5Bsid_or_explanation_or_message_or_cves_cve_key_or_urls_url_i_cont%5D=${q}&submit_rule_search=`;
+      }
+
+      function buildRuleDocHtml(doc, sourceUrl) {
+        const SECTIONS = [
+          "Rule Category", "Alert Message", "Rule Explanation",
+          "What To Look For", "Known Usage", "False Positives",
+          "Contributors", "Rule Groups", "CVE", "Rule Vulnerability"
+        ];
+
+        let html = `<div class="rule-explain" style="margin-top:10px;">
+          <h4>Rule Details &nbsp;<a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem; color:var(--primary); font-weight:400;">↗ View on Snort.org</a></h4>
+          <ul>`;
+
+        doc.querySelectorAll("h3").forEach((h3) => {
+          const key = h3.textContent.trim();
+          if (!SECTIONS.includes(key)) return;
+          const val = h3.nextElementSibling?.textContent?.trim() || "(none)";
+          html += `<li><b>${escapeHtml(key)}:</b> ${escapeHtml(val)}</li>`;
+        });
+
+        html += `</ul></div>`;
+        return html;
+      }
+
+      function clearMain() {
+        el.input.value = "";
+        el.output.value = "";
+        el.explainOutput.innerHTML = 'Click <b>Explain</b> to parse and describe each Snort 2 rule.';
+        el.diffLeft.textContent = "";
+        el.diffRight.textContent = "";
+      }
+
+      async function copyOutput() {
+        const text = el.output.value;
+        if (!text.trim()) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          flashButton(el.copyOutputBtn, "Copied");
+        } catch (_) {
+          flashButton(el.copyOutputBtn, "Copy failed");
+        }
+      }
+
+      function flashButton(button, text) {
+        const original = button.textContent;
+        button.textContent = text;
+        setTimeout(() => { button.textContent = original; }, 1200);
+      }
+
+      function convertAll(inputText) {
+        const lines = splitLines(inputText);
+        const out = [];
+        const sidMap = {};
+        let totalChanges = 0;
+
+        out.push(`# Converted by Snort2to3 Converter on ${formatTimestamp(new Date())}`);
+
+        lines.forEach((line) => {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith("#")) {
+            out.push(line);
+            return;
+          }
+
+          const parsed = parseRule(line);
+          if (!parsed.ok) {
+            out.push(`# PARSE ERROR: Could not parse line`);
+            out.push(line);
+            totalChanges += 1;
+            return;
+          }
+
+          const converted = convertParsedRule(parsed);
+          totalChanges += converted.changeCount;
+          converted.warnings.forEach((w) => out.push(`# WARNING: ${w}`));
+          out.push(converted.rule);
+
+          if (converted.sid) sidMap[converted.sid] = converted.rule;
+        });
+
+        return {
+          output: out.join("\n"),
+          outputNoSummary: out.slice(1).join("\n"),
+          totalChanges,
+          sidMap
+        };
+      }
+
+      function convertParsedRule(parsed) {
+        let options = splitOptions(parsed.options);
+        let changeCount = 0;
+        const warnings = [];
+        const originalHasActivates = options.some((o) => optionKeyword(o) === "activates") || options.some((o) => optionKeyword(o) === "activated_by");
+
+        const transformed = [];
+
+        options.forEach((opt) => {
+          const key = optionKeyword(opt);
+          const lower = key.toLowerCase();
+
+          if (lower === "uricontent") {
+            const value = opt.slice(opt.indexOf(":") + 1).trim();
+            transformed.push("http_uri");
+            transformed.push(`content:${value}`);
+            changeCount += 1;
+            return;
+          }
+
+          if (lower === "sameip") {
+            transformed.push("same_ip");
+            changeCount += 1;
+            return;
+          }
+
+          if (lower === "metadata") {
+            warnings.push("metadata retained; review Snort 3 metadata field compatibility");
+            transformed.push(opt);
+            return;
+          }
+
+          if ((lower === "byte_test" || lower === "byte_jump") && /(^|,)\s*string\s*(,|$)/i.test(opt)) {
+            warnings.push(`${lower} uses string modifier; review Snort 3 parameter behavior`);
+            transformed.push(opt);
+            return;
+          }
+
+          if (lower === "rawbytes") {
+            warnings.push("rawbytes removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "threshold") {
+            warnings.push("threshold removed from rule; moved to event_filter config in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "resp") {
+            warnings.push("resp removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "react") {
+            warnings.push("react removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "tag") {
+            warnings.push("tag removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "activates") {
+            warnings.push("activates removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "activated_by") {
+            warnings.push("activated_by removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "count" && originalHasActivates) {
+            warnings.push("count with activates/activated_by removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "logto") {
+            warnings.push("logto removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+          if (lower === "session") {
+            warnings.push("session removed in Snort 3");
+            changeCount += 1;
+            return;
+          }
+
+          // pcre is intentionally left as-is in pass 1.
+          // Its HTTP flag conversion (which inserts sticky buffers) must happen
+          // AFTER content-sticky reordering in pass 2, so those buffers are not
+          // mistakenly "stolen" by the preceding content block.
+          transformed.push(opt);
+        });
+
+        // PASS 2: Reorder sticky buffers (content-level only, pcre untouched)
+        const reordered = reorderStickyForContent(transformed);
+        if (JSON.stringify(reordered) !== JSON.stringify(transformed)) changeCount += 1;
+
+        // PASS 3: Convert pcre HTTP flags → prepend sticky buffers right before each pcre
+        const final = [];
+        reordered.forEach((opt) => {
+          if (optionKeyword(opt) === "pcre") {
+            const pcreConv = convertPcreOption(opt);
+            if (pcreConv.changed) {
+              pcreConv.sticky.forEach((s) => final.push(s));
+              final.push(pcreConv.option);
+              changeCount += 1;
+            } else {
+              final.push(opt);
+            }
+          } else {
+            final.push(opt);
+          }
+        });
+
+        const optionsString = final.join("; ");
+        const outputRule = `${parsed.header} (${optionsString};)`;
+        const sid = extractOptionValue(final, "sid");
+
+        return {
+          rule: outputRule,
+          warnings,
+          changeCount,
+          sid
+        };
+      }
+
+      function reorderStickyForContent(options) {
+        const out = [];
+        let i = 0;
+        while (i < options.length) {
+          const token = options[i];
+          const key = optionKeyword(token);
+
+          if (key !== "content" && key !== "pcre") {
+            out.push(token);
+            i++;
+            continue;
+          }
+
+          // Collect all trailing modifiers for this content/pcre keyword
+          // (everything up to the next content or pcre boundary)
+          const trailing = [];
+          let j = i + 1;
+          while (j < options.length) {
+            const nk = optionKeyword(options[j]);
+            if (nk === "content" || nk === "pcre") break;
+            trailing.push(options[j]);
+            j++;
+          }
+
+          // Find the FIRST HTTP sticky buffer among the trailing modifiers.
+          // In Snort 2 these appear AFTER their content keyword (e.g. content:"x"; http_uri;).
+          // In Snort 3 they must precede the content keyword.
+          // We splice out exactly ONE buffer — the one belonging to THIS content — and
+          // leave any remaining ones in place for subsequent content/pcre keywords.
+          const httpBufIdx = trailing.findIndex((t) => HTTP_BUFFERS.has(optionKeyword(t)));
+
+          if (httpBufIdx >= 0) {
+            const movedBuf = trailing.splice(httpBufIdx, 1)[0]; // removes in-place
+            const movedKey = optionKeyword(movedBuf);
+            // Avoid adding a duplicate if an identical buffer already immediately precedes this token
+            const prevKey = out.length > 0 ? optionKeyword(out[out.length - 1]) : null;
+            if (prevKey !== movedKey) {
+              out.push(movedBuf);
+            }
+          }
+
+          out.push(token);       // content / pcre keyword
+          out.push(...trailing); // remaining modifiers (nocase, distance, etc.) + any leftover sticky
+          i = j;
+        }
+        return out;
+      }
+
+      function convertPcreOption(opt) {
+        const m = opt.match(/^pcre\s*:\s*(!?)"([\s\S]*)"\s*$/i);
+        if (!m) return { changed: false, option: opt, sticky: [] };
+        const neg = m[1] || "";
+        const content = m[2];
+        if (!content.startsWith("/")) return { changed: false, option: opt, sticky: [] };
+
+        const parsed = parseDelimitedRegex(content);
+        if (!parsed) return { changed: false, option: opt, sticky: [] };
+
+        // Snort 2 PCRE HTTP flags are UPPERCASE only.
+        // Lowercase letters (i, s, m, x, g) are standard PCRE regex flags and must be kept.
+        const flagMap = {
+          U: "http_uri",       // normalized URI buffer
+          I: "http_raw_uri",   // raw/unnormalized URI buffer
+          H: "http_header",    // HTTP request header
+          B: null,             // rawbytes (unnormalized) — no direct Snort 3 equiv; drop
+          D: "http_client_body", // HTTP client request body raw
+          P: "http_client_body", // HTTP client request body
+          C: "http_cookie",    // HTTP cookie
+          M: "http_method",    // HTTP request method
+          S: "http_stat_code", // HTTP response status code
+          Y: "http_stat_msg",  // HTTP response status message
+          K: "http_raw_cookie" // HTTP raw cookie
+        };
+
+        const sticky = [];
+        let keptFlags = "";
+        for (const ch of parsed.flags) {
+          // Only UPPERCASE letters are Snort-specific HTTP buffer flags.
+          // Lowercase letters (i, s, m, x, g, etc.) are standard PCRE modifiers — always keep them.
+          if (/[A-Z]/.test(ch) && flagMap[ch] !== undefined) {
+            if (flagMap[ch] && !sticky.includes(flagMap[ch])) sticky.push(flagMap[ch]);
+            // flagMap[ch] === null means rawbytes — drop silently
+          } else {
+            keptFlags += ch;
+          }
+        }
+
+        if (!sticky.length) return { changed: false, option: opt, sticky: [] };
+
+        const rebuilt = `/${parsed.body}/${keptFlags}`;
+        return {
+          changed: true,
+          sticky,
+          option: `pcre:${neg}"${rebuilt}"`
+        };
+      }
+
+      function parseDelimitedRegex(text) {
+        if (!text || text[0] !== "/") return null;
+        let i = 1;
+        let escaped = false;
+        while (i < text.length) {
+          const ch = text[i];
+          if (!escaped && ch === "/") break;
+          escaped = !escaped && ch === "\\";
+          if (ch !== "\\") escaped = false;
+          i += 1;
+        }
+        if (i >= text.length) return null;
+        const body = text.slice(1, i);
+        const flags = text.slice(i + 1);
+        return { body, flags };
+      }
+
+      function parseRule(line) {
+        const open = line.indexOf("(");
+        const close = line.lastIndexOf(")");
+        if (open <= 0 || close <= open) return { ok: false };
+        const header = line.slice(0, open).trim();
+        const options = line.slice(open + 1, close).trim();
+        if (!header || !options) return { ok: false };
+        return { ok: true, header, options };
+      }
+
+      function splitOptions(optionsStr) {
+        const parts = [];
+        let cur = "";
+        let inQuote = false;
+        let escaped = false;
+
+        for (let i = 0; i < optionsStr.length; i += 1) {
+          const ch = optionsStr[i];
+          if (escaped) {
+            cur += ch;
+            escaped = false;
+            continue;
+          }
+          if (ch === "\\") {
+            cur += ch;
+            escaped = true;
+            continue;
+          }
+          if (ch === '"') {
+            inQuote = !inQuote;
+            cur += ch;
+            continue;
+          }
+          if (ch === ";" && !inQuote) {
+            const t = cur.trim();
+            if (t) parts.push(t);
+            cur = "";
+            continue;
+          }
+          cur += ch;
+        }
+
+        const tail = cur.trim();
+        if (tail) parts.push(tail);
+        return parts;
+      }
+
+      function optionKeyword(option) {
+        const key = option.split(":", 1)[0].trim().toLowerCase();
+        return key;
+      }
+
+      function extractOptionValue(options, key) {
+        const target = options.find((o) => optionKeyword(o) === key.toLowerCase());
+        if (!target || !target.includes(":")) return "";
+        return target.slice(target.indexOf(":") + 1).trim().replace(/^"|"$/g, "");
+      }
+
+      function buildExplanationHtml(parsed, index) {
+        const h = parseHeader(parsed.header);
+        const options = splitOptions(parsed.options);
+
+        const msg = extractOptionValue(options, "msg") || "(none)";
+        const flow = extractOptionValue(options, "flow");
+        const sid = extractOptionValue(options, "sid") || "(none)";
+        const rev = extractOptionValue(options, "rev") || "(none)";
+        const classtype = extractOptionValue(options, "classtype") || "(none)";
+        const priority = extractOptionValue(options, "priority") || "(none)";
+        const threshold = options.filter((o) => ["threshold", "tag"].includes(optionKeyword(o)));
+        const metadata = extractOptionValue(options, "metadata") || "(none)";
+
+        const contents = options.filter((o) => optionKeyword(o) === "content").map((o) => extractQuotedValue(o));
+        const pcres = options.filter((o) => optionKeyword(o) === "pcre").map((o) => extractQuotedValue(o));
+
+        return `
+          <div class="rule-explain">
+            <h4>Rule ${index}</h4>
+            <ul>
+              <li><b>Action:</b> ${escapeHtml(h.action || "unknown")} ${actionDescription(h.action)}</li>
+              <li><b>Protocol:</b> ${escapeHtml(h.protocol || "unknown")}</li>
+              <li><b>Network:</b> ${escapeHtml(h.srcIp || "?")}:${escapeHtml(h.srcPort || "?")} ${escapeHtml(h.direction || "?")} ${escapeHtml(h.dstIp || "?")}:${escapeHtml(h.dstPort || "?")}</li>
+              <li><b>Message:</b> ${escapeHtml(msg)}</li>
+              <li><b>Detection criteria:</b>
+                <ul>
+                  ${contents.length ? contents.map((c) => `<li>content match: <code>${escapeHtml(c)}</code></li>`).join("") : "<li>No content keyword.</li>"}
+                  ${pcres.length ? pcres.map((p) => `<li>pcre pattern: <code>${escapeHtml(p)}</code></li>`).join("") : "<li>No pcre keyword.</li>"}
+                  ${flow ? `<li>flow condition: <code>${escapeHtml(flow)}</code></li>` : "<li>No flow condition.</li>"}
+                  ${threshold.length ? threshold.map((t) => `<li>${escapeHtml(t)}</li>`).join("") : "<li>No threshold/tag options.</li>"}
+                </ul>
+              </li>
+              <li><b>Metadata:</b> SID=${escapeHtml(sid)}, Rev=${escapeHtml(rev)}, Classtype=${escapeHtml(classtype)}, Priority=${escapeHtml(priority)}, Metadata=${escapeHtml(metadata)}</li>
+            </ul>
+          </div>
+        `;
+      }
+
+      function actionDescription(action) {
+        const map = {
+          alert: "(generates an alert when conditions match)",
+          log: "(logs matching traffic)",
+          pass: "(ignores matching traffic)",
+          drop: "(drops matching packet)",
+          reject: "(drops and sends reject response)",
+          sdrop: "(silently drops traffic)"
+        };
+        return map[(action || "").toLowerCase()] || "";
+      }
+
+      function parseHeader(header) {
+        const m = header.match(/^(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(->|<>)\s+(\S+)\s+(\S+)$/);
+        if (!m) return {};
+        return {
+          action: m[1],
+          protocol: m[2],
+          srcIp: m[3],
+          srcPort: m[4],
+          direction: m[5],
+          dstIp: m[6],
+          dstPort: m[7]
+        };
+      }
+
+      function renderDiff(inputText, outputText) {
+        const leftLines = splitLines(inputText);
+        const rightLines = splitLines(outputText);
+        const max = Math.max(leftLines.length, rightLines.length);
+
+        const leftRendered = [];
+        const rightRendered = [];
+
+        for (let i = 0; i < max; i += 1) {
+          const l = leftLines[i] || "";
+          const r = rightLines[i] || "";
+          const pair = diffLine(l, r);
+          leftRendered.push(pair.left);
+          rightRendered.push(pair.right);
+        }
+
+        el.diffLeft.innerHTML = leftRendered.join("\n");
+        el.diffRight.innerHTML = rightRendered.join("\n");
+      }
+
+      function diffLine(a, b) {
+        const A = tokenize(a);
+        const B = tokenize(b);
+        const dp = Array.from({ length: A.length + 1 }, () => Array(B.length + 1).fill(0));
+
+        for (let i = A.length - 1; i >= 0; i -= 1) {
+          for (let j = B.length - 1; j >= 0; j -= 1) {
+            if (A[i] === B[j]) dp[i][j] = dp[i + 1][j + 1] + 1;
+            else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+          }
+        }
+
+        const ops = [];
+        let i = 0;
+        let j = 0;
+        while (i < A.length && j < B.length) {
+          if (A[i] === B[j]) {
+            ops.push({ type: "same", text: A[i] });
+            i += 1;
+            j += 1;
+          } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+            ops.push({ type: "remove", text: A[i++] });
+          } else {
+            ops.push({ type: "add", text: B[j++] });
+          }
+        }
+        while (i < A.length) ops.push({ type: "remove", text: A[i++] });
+        while (j < B.length) ops.push({ type: "add", text: B[j++] });
+
+        const left = [];
+        const right = [];
+
+        for (let k = 0; k < ops.length; k += 1) {
+          const cur = ops[k];
+          const next = ops[k + 1];
+          if (cur && next && ((cur.type === "remove" && next.type === "add") || (cur.type === "add" && next.type === "remove"))) {
+            const rem = cur.type === "remove" ? cur.text : next.text;
+            const add = cur.type === "add" ? cur.text : next.text;
+            left.push(`<span class="modified">${escapeHtml(rem)}</span>`);
+            right.push(`<span class="modified">${escapeHtml(add)}</span>`);
+            k += 1;
+            continue;
+          }
+
+          if (cur.type === "same") {
+            left.push(escapeHtml(cur.text));
+            right.push(escapeHtml(cur.text));
+          } else if (cur.type === "remove") {
+            left.push(`<span class="removed">${escapeHtml(cur.text)}</span>`);
+          } else if (cur.type === "add") {
+            right.push(`<span class="added">${escapeHtml(cur.text)}</span>`);
+          }
+        }
+
+        return { left: left.join(""), right: right.join("") };
+      }
+
+      function tokenize(text) {
+        return text.match(/\s+|[A-Za-z0-9_$]+|[^\sA-Za-z0-9_$]/g) || [];
+      }
+
+      function addLogEntry(entry) {
+        const log = getLog();
+        log.unshift(entry);
+        if (log.length > 50) log.length = 50;
+        localStorage.setItem(LOG_KEY, JSON.stringify(log));
+        renderLogTable();
+      }
+
+      function getLog() {
+        try {
+          const raw = localStorage.getItem(LOG_KEY);
+          return raw ? JSON.parse(raw) : [];
+        } catch (_) {
+          return [];
+        }
+      }
+
+      function renderLogTable() {
+        const log = getLog();
+        if (!log.length) {
+          el.logTableBody.innerHTML = '<tr><td colspan="4" class="muted">No conversions yet.</td></tr>';
+          return;
+        }
+        el.logTableBody.innerHTML = log.map((item) => `
+          <tr>
+            <td>${escapeHtml(item.timestamp || "")}</td>
+            <td>${escapeHtml(item.inputRules || "")}</td>
+            <td>${escapeHtml(item.outputRules || "")}</td>
+            <td>${Number(item.changeCount || 0)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function clearLog() {
+        localStorage.removeItem(LOG_KEY);
+        renderLogTable();
+      }
+
+      function persistSidMap(newMap) {
+        if (!newMap || !Object.keys(newMap).length) return;
+        const current = getSidMap();
+        Object.assign(current, newMap);
+        localStorage.setItem(SID_MAP_KEY, JSON.stringify(current));
+      }
+
+      function getSidMap() {
+        try {
+          const raw = localStorage.getItem(SID_MAP_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function searchSid() {
+        const sidRaw = String(el.sidInput.value || "").trim();
+        if (!sidRaw) {
+          el.sidResults.innerHTML = '<span class="danger">Please enter a SID.</span>';
+          return;
+        }
+        const sid = sidRaw.replace(/\D/g, "");
+        if (!sid) {
+          el.sidResults.innerHTML = '<span class="danger">SID must be numeric.</span>';
+          return;
+        }
+
+        const url = `https://www.snort.org/rule_docs/1-${sid}`;
+        el.sidOpenLink.href = url;
+        el.sidOpenLink.classList.remove("hidden");
+        el.sidFrame.src = url;
+
+        const sidMap = getSidMap();
+        const localRule = sidMap[sid];
+        el.sidResults.innerHTML = `
+          <div><b>Snort.org:</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>
+          ${localRule ? `<div style="margin-top:8px;"><b>Locally converted rule for SID ${escapeHtml(sid)}:</b><div class="codebox" style="margin-top:6px;">${escapeHtml(localRule)}</div></div>` : `<div style="margin-top:8px;" class="muted">No local converted rule found for SID ${escapeHtml(sid)}.</div>`}
+        `;
+      }
+
+      function splitLines(text) { return String(text || "").split(/\r?\n/); }
+
+      function truncate(text, max) {
+        return text.length > max ? text.slice(0, max - 1) + "…" : text;
+      }
+
+      function extractQuotedValue(option) {
+        const m = option.match(/"([\s\S]*)"/);
+        return m ? m[1] : option;
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function formatTimestamp(date) {
+        const d = date instanceof Date ? date : new Date(date);
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    })();
+  </script>
+</body>
+</html>
