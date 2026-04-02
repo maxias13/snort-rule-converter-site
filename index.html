@@ -469,9 +469,6 @@
           <a id="sidOpenLink" class="btn secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Open in new tab</a>
         </div>
         <div id="sidResults" class="result-card muted">Enter a SID and click Search.</div>
-        <div class="iframe-wrap">
-          <iframe id="sidFrame" title="Snort Rule Documentation"></iframe>
-        </div>
       </div>
     </section>
 
@@ -895,7 +892,6 @@ if __name__ == "__main__":
         sidInput: document.getElementById("sidInput"),
         sidSearchBtn: document.getElementById("sidSearchBtn"),
         sidResults: document.getElementById("sidResults"),
-        sidFrame: document.getElementById("sidFrame"),
         sidOpenLink: document.getElementById("sidOpenLink"),
         pyScriptDisplay: document.getElementById("pyScriptDisplay"),
         downloadPyBtn: document.getElementById("downloadPyBtn"),
@@ -1847,13 +1843,20 @@ if __name__ == "__main__":
         const url = `https://www.snort.org/rule_docs/1-${sid}`;
         el.sidOpenLink.href = url;
         el.sidOpenLink.classList.remove("hidden");
-        el.sidFrame.src = url;
 
         const sidMap = getSidMap();
         const localRule = sidMap[sid];
         el.sidResults.innerHTML = `
-          <div><b>Snort.org:</b> <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a></div>
-          ${localRule ? `<div style="margin-top:8px;"><b>Locally converted rule for SID ${escapeHtml(sid)}:</b><div class="codebox" style="margin-top:6px;">${escapeHtml(localRule)}</div></div>` : `<div style="margin-top:8px;" class="muted">No local converted rule found for SID ${escapeHtml(sid)}.</div>`}
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <b>Snort.org:</b>
+            <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>
+          </div>
+          <div style="margin-top:4px;" class="muted" style="font-size:0.82rem;">
+            snort.org does not allow embedding — use the <b>Open in new tab</b> button above to view the full documentation.
+          </div>
+          ${localRule
+            ? `<div style="margin-top:10px;"><b>Locally converted rule for SID ${escapeHtml(sid)}:</b><div class="codebox" style="margin-top:6px;">${escapeHtml(localRule)}</div></div>`
+            : `<div style="margin-top:8px;" class="muted">No locally converted rule found for SID ${escapeHtml(sid)}. Convert a rule with this SID on the Home tab first.</div>`}
         `;
       }
 
