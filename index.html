@@ -470,23 +470,23 @@
     </nav>
 
     <section id="homeView" class="view active">
-      <div class="toolbar">
-        <input type="file" id="rulesFileInput" accept=".rules,.txt" class="hidden" />
-        <button class="btn secondary" id="loadFileBtn">📁 File</button>
-        <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;color:var(--muted);">
-          Start SID
-          <input type="number" id="startSidInput" min="1" placeholder="(keep original)"
-            style="width:148px;border-radius:8px;border:1px solid var(--border);background:#091124;
-                   color:var(--text);padding:8px 10px;font-size:0.88rem;" />
-        </label>
-        <button class="btn" id="convertBtn">Convert</button>
-        <button class="btn secondary" id="explainBtn">Explain</button>
-        <button class="btn warn" id="clearBtn">Clear</button>
-      </div>
-
       <div class="split">
         <div class="panel drop-zone" id="inputDropZone">
-          <h3>Snort 2 Rule Input</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+            <h3 style="margin:0;">Snort 2 Rule Input</h3>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <input type="file" id="rulesFileInput" accept=".rules,.txt" class="hidden" />
+              <button class="btn secondary" id="loadFileBtn">📁 File</button>
+              <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;color:var(--muted);">
+                Start SID
+                <input type="number" id="startSidInput" min="1" placeholder="(keep original)"
+                  style="width:130px;border-radius:8px;border:1px solid var(--border);background:#091124;
+                         color:var(--text);padding:7px 10px;font-size:0.88rem;" />
+              </label>
+              <button class="btn" id="convertBtn">Convert</button>
+              <button class="btn warn" id="clearBtn">Clear</button>
+            </div>
+          </div>
           <div style="position:relative;">
             <div class="drop-overlay" id="dropOverlay">&#8595; Drop .rules / .txt file</div>
             <textarea id="inputRules" class="textarea" placeholder="Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"></textarea>
@@ -524,7 +524,10 @@
       </div>
 
       <div class="panel explain-box" id="explainSection">
-        <h3>Snort 2 Rule Explanation</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <h3 style="margin:0;">Snort 2 Rule Explanation</h3>
+          <button class="btn secondary" id="explainBtn">Explain</button>
+        </div>
         <div id="explainOutput" class="explain-content muted">Convert rules to automatically search <b>Snort.org Rule Docs</b>, or click <b>Explain</b> manually.</div>
       </div>
 
