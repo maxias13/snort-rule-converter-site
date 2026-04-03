@@ -136,7 +136,11 @@
     }
 
     .view { display: none; }
-    .view.active { display: block; }
+    .view.active {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
 
     .panel {
       border: 1px solid var(--border);
@@ -218,7 +222,7 @@
       z-index: 2;
     }
 
-    .explain-box, .diff-grid {
+    .diff-grid {
       margin-top: 12px;
     }
 
@@ -480,7 +484,7 @@
         <button class="btn warn" id="clearBtn">Clear</button>
       </div>
 
-      <div class="split" style="margin-top: 12px;">
+      <div class="split">
         <div class="panel drop-zone" id="inputDropZone">
           <h3>Snort 2 Rule Input</h3>
           <div style="position:relative;">
@@ -561,7 +565,7 @@
             placeholder="Paste Snort 2 or 3 rules here, or drag & drop a .rules / .txt file…"></textarea>
         </div>
 
-        <div id="optResults" style="margin-top:14px;"></div>
+        <div id="optResults"></div>
       </div>
     </section>
 
