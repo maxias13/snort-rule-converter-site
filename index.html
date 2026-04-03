@@ -1069,13 +1069,17 @@ if __name__ == "__main__":
       }
 
       function runConversion() {
-        const inputText = el.input.value;
-        const startSidRaw = parseInt(el.startSidInput.value, 10);
-        const startSid = isNaN(startSidRaw) || startSidRaw < 1 ? null : startSidRaw;
-        const result = convertAll(inputText, startSid);
-        el.output.value = result.output;
-        renderDiff(inputText, result.outputNoSummary);
-        persistSidMap(result.sidMap);
+        try {
+          const inputText = el.input.value;
+          const startSidRaw = parseInt(el.startSidInput.value, 10);
+          const startSid = isNaN(startSidRaw) || startSidRaw < 1 ? null : startSidRaw;
+          const result = convertAll(inputText, startSid);
+          el.output.value = result.output;
+          try { renderDiff(inputText, result.outputNoSummary); } catch (_) {}
+          persistSidMap(result.sidMap);
+        } catch (err) {
+          el.output.value = `# ERROR: ${err.message}\n# Stack: ${err.stack}`;
+        }
       }
 
       async function runExplain() {
