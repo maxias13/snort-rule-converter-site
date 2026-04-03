@@ -421,6 +421,12 @@
       <div class="toolbar">
         <input type="file" id="rulesFileInput" accept=".rules,.txt" class="hidden" />
         <button class="btn secondary" id="loadFileBtn">📁 File</button>
+        <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;color:var(--muted);">
+          Start SID
+          <input type="number" id="startSidInput" min="1" placeholder="(keep original)"
+            style="width:148px;border-radius:8px;border:1px solid var(--border);background:#091124;
+                   color:var(--text);padding:8px 10px;font-size:0.88rem;" />
+        </label>
         <button class="btn" id="convertBtn">Convert</button>
         <button class="btn secondary" id="explainBtn">Explain</button>
         <button class="btn warn" id="clearBtn">Clear</button>
@@ -892,12 +898,18 @@ if __name__ == "__main__":
         copyPyBtn: document.getElementById("copyPyBtn"),
         srcIpInput: document.getElementById("srcIpInput"),
         dstIpInput: document.getElementById("dstIpInput"),
-        commitIpBtn: document.getElementById("commitIpBtn")
+        commitIpBtn: document.getElementById("commitIpBtn"),
+        startSidInput: document.getElementById("startSidInput")
       };
 
       init();
 
       function init() {
+        // Always start fresh on load — no stale textarea content or SID map
+        el.input.value = "";
+        el.output.value = "";
+        localStorage.removeItem(SID_MAP_KEY);
+
         bindEvents();
         el.pyScriptDisplay.textContent = currentPyScript;
         removeWhiteBg(document.getElementById("snortLogo"), 230);
@@ -1057,7 +1069,9 @@ if __name__ == "__main__":
 
       function runConversion() {
         const inputText = el.input.value;
-        const result = convertAll(inputText);
+        const startSidRaw = parseInt(el.startSidInput.value, 10);
+        const startSid = isNaN(startSidRaw) || startSidRaw < 1 ? null : startSidRaw;
+        const result = convertAll(inputText, startSid);
         el.output.value = result.output;
         renderDiff(inputText, result.outputNoSummary);
         persistSidMap(result.sidMap);
@@ -1279,11 +1293,12 @@ if __name__ == "__main__":
         setTimeout(() => { button.textContent = original; }, 1200);
       }
 
-      function convertAll(inputText) {
+      function convertAll(inputText, startSid) {
         const lines = splitLines(inputText);
         const out = [];
         const sidMap = {};
         let totalChanges = 0;
+        let sidCounter = startSid || null;
 
         out.push(`# Converted by Snort2to3 Converter on ${formatTimestamp(new Date())}`);
 
@@ -1302,7 +1317,8 @@ if __name__ == "__main__":
             return;
           }
 
-          const converted = convertParsedRule(parsed);
+          const assignedSid = sidCounter !== null ? sidCounter++ : null;
+          const converted = convertParsedRule(parsed, assignedSid);
           totalChanges += converted.changeCount;
           converted.warnings.forEach((w) => out.push(`# WARNING: ${w}`));
           out.push(converted.rule);
@@ -1318,7 +1334,7 @@ if __name__ == "__main__":
         };
       }
 
-      function convertParsedRule(parsed) {
+      function convertParsedRule(parsed, newSid) {
         let options = splitOptions(parsed.options);
         let changeCount = 0;
         const warnings = [];
@@ -1477,7 +1493,11 @@ if __name__ == "__main__":
           return true;
         });
         tail.sort((a, b) => TAIL_ORDER.indexOf(optionKeyword(a)) - TAIL_ORDER.indexOf(optionKeyword(b)));
-        const ordered = [...body, ...tail];
+        // Replace SID if a new one was assigned
+        if (newSid !== null && newSid !== undefined) {
+          const sidIdx = ordered.findIndex((o) => optionKeyword(o) === "sid");
+          if (sidIdx !== -1) ordered[sidIdx] = `sid:${newSid}`;
+        }
 
         const optionsString = ordered.join("; ");
         const outputRule = `${parsed.header} (${optionsString};)`;
