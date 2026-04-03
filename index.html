@@ -500,6 +500,19 @@
           No external dependencies required.
         </p>
 
+        <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.04);">
+          <h3 style="margin-bottom:10px;">Snort 3 Rules Input</h3>
+          <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+            <button class="btn secondary" id="valLoadFileBtn">&#128193; Load File</button>
+            <input type="file" id="valFileInput" accept=".rules,.txt" style="display:none;" />
+            <button class="btn secondary" id="valClearBtn">Clear</button>
+            <span id="valRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
+          </div>
+          <textarea id="valRulesInput" class="textarea" rows="8"
+            placeholder="Paste converted Snort 3 rules here, or use Load File to import a .rules file…"
+            style="width:100%; resize:vertical; font-family:monospace; font-size:0.83rem;"></textarea>
+        </div>
+
         <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.06);">
           <h3 style="margin-bottom:10px;">Network Variables</h3>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -904,7 +917,12 @@ if __name__ == "__main__":
         dstIpInput: document.getElementById("dstIpInput"),
         commitIpBtn: document.getElementById("commitIpBtn"),
         startSidInput: document.getElementById("startSidInput"),
-        downloadRulesBtn: document.getElementById("downloadRulesBtn")
+        downloadRulesBtn: document.getElementById("downloadRulesBtn"),
+        valLoadFileBtn: document.getElementById("valLoadFileBtn"),
+        valFileInput: document.getElementById("valFileInput"),
+        valClearBtn: document.getElementById("valClearBtn"),
+        valRulesInput: document.getElementById("valRulesInput"),
+        valRuleCountBadge: document.getElementById("valRuleCountBadge")
       };
 
       init();
@@ -913,6 +931,7 @@ if __name__ == "__main__":
         // Always start fresh on load — no stale textarea content or SID map
         el.input.value = "";
         el.output.value = "";
+        el.valRulesInput.value = "";
         localStorage.removeItem(SID_MAP_KEY);
 
         bindEvents();
@@ -961,6 +980,25 @@ if __name__ == "__main__":
         el.copyPyBtn.addEventListener("click", copyPyScript);
         el.commitIpBtn.addEventListener("click", commitIpToScript);
         el.downloadRulesBtn.addEventListener("click", downloadRulesFile);
+
+        // ── Validator rules input ────────────────────────────────────────
+        el.valLoadFileBtn.addEventListener("click", () => el.valFileInput.click());
+        el.valFileInput.addEventListener("change", (ev) => {
+          const file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            el.valRulesInput.value = String(reader.result || "");
+            updateValRuleCount();
+          };
+          reader.readAsText(file);
+          ev.target.value = "";
+        });
+        el.valClearBtn.addEventListener("click", () => {
+          el.valRulesInput.value = "";
+          updateValRuleCount();
+        });
+        el.valRulesInput.addEventListener("input", updateValRuleCount);
 
         // ── Drag & Drop on Snort 2 input panel ──────────────────────────
         const dropZone = document.getElementById("inputDropZone");
@@ -1070,6 +1108,19 @@ if __name__ == "__main__":
         } else {
           el2.textContent = "No converted rules yet — convert rules on the Home tab first";
           el2.style.color = "var(--warn)";
+        }
+      }
+
+      function updateValRuleCount() {
+        const badge = el.valRuleCountBadge;
+        if (!badge) return;
+        const text = el.valRulesInput.value;
+        const count = text.split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length;
+        if (count > 0) {
+          badge.textContent = count + " rule" + (count > 1 ? "s" : "") + " loaded";
+          badge.style.color = "var(--success)";
+        } else {
+          badge.textContent = "";
         }
       }
 
