@@ -443,7 +443,10 @@
         <div class="panel">
           <h3>Snort 3 Rule Output</h3>
           <div class="readonly-wrap">
-            <button class="btn success copy-btn" id="copyOutputBtn">Copy</button>
+            <div style="position:absolute;top:8px;right:8px;z-index:2;display:flex;gap:6px;">
+              <button class="btn secondary" id="downloadRulesBtn">&#8595; Download .rules</button>
+              <button class="btn success" id="copyOutputBtn">Copy</button>
+            </div>
             <textarea id="outputRules" class="textarea" readonly placeholder="Converted Snort 3 rules will appear here..."></textarea>
           </div>
         </div>
@@ -900,7 +903,8 @@ if __name__ == "__main__":
         srcIpInput: document.getElementById("srcIpInput"),
         dstIpInput: document.getElementById("dstIpInput"),
         commitIpBtn: document.getElementById("commitIpBtn"),
-        startSidInput: document.getElementById("startSidInput")
+        startSidInput: document.getElementById("startSidInput"),
+        downloadRulesBtn: document.getElementById("downloadRulesBtn")
       };
 
       init();
@@ -956,6 +960,7 @@ if __name__ == "__main__":
         el.downloadPyBtn.addEventListener("click", downloadPyScript);
         el.copyPyBtn.addEventListener("click", copyPyScript);
         el.commitIpBtn.addEventListener("click", commitIpToScript);
+        el.downloadRulesBtn.addEventListener("click", downloadRulesFile);
 
         // ── Drag & Drop on Snort 2 input panel ──────────────────────────
         const dropZone = document.getElementById("inputDropZone");
@@ -989,6 +994,22 @@ if __name__ == "__main__":
         if (!el.input.value.trim()) {
           el.input.value = 'alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"ET WEB_SERVER Possible SQL Injection"; content:"union"; nocase; http_uri; content:"select"; nocase; http_uri; uricontent:"/admin"; pcre:"/union.{0,10}select/Ui"; sid:1000001; rev:1;)';
         }
+      }
+
+      function downloadRulesFile() {
+        const content = el.output.value.trim();
+        if (!content) return;
+        // FMC naming rule: start with alphanumeric or _, followed by alphanumeric/._-+
+        const now = new Date();
+        const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+        const filename = `snort3_local_rules_${ts}.rules`;
+        const blob = new Blob([content], { type: "text/plain" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
       }
 
       function downloadPyScript() {
