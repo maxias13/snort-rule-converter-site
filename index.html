@@ -357,6 +357,53 @@
     .hidden { display: none !important; }
     .danger { color: #ff9a9a; }
 
+    /* ── Rule Optimization ── */
+    .opt-rule-block {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .opt-rule-header {
+      padding: 8px 12px;
+      background: rgba(0, 102, 204, 0.12);
+      border-bottom: 1px solid var(--border);
+      font-family: Consolas, Monaco, Menlo, monospace;
+      font-size: 0.82rem;
+      color: var(--primary);
+      word-break: break-all;
+    }
+    .opt-rule-body { padding: 10px 12px; }
+    .opt-item {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(30, 58, 95, 0.5);
+      font-size: 0.875rem;
+      line-height: 1.45;
+    }
+    .opt-item:last-child { border-bottom: none; }
+    .opt-badge {
+      flex-shrink: 0;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid;
+      margin-top: 1px;
+    }
+    .opt-badge.perf  { color: #ff9a9a; border-color: #7a2929; background: rgba(255,68,68,0.1); }
+    .opt-badge.warn  { color: #ffc84d; border-color: #7a5200; background: rgba(255,170,0,0.1); }
+    .opt-badge.info  { color: #7fd4ff; border-color: #1a4a7a; background: rgba(0,212,255,0.07); }
+    .opt-badge.ok    { color: #4dffa0; border-color: #0d5e38; background: rgba(0,255,136,0.07); }
+    .opt-rule-ok {
+      color: var(--success);
+      font-size: 0.875rem;
+      padding: 6px 0;
+    }
+
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
       .textarea { min-height: 260px; }
@@ -412,6 +459,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-view="homeView">Home</button>
         <button class="tab-btn" data-view="sidView">Search by Snort 2 SID</button>
+        <button class="tab-btn" data-view="optimizerView">Rule Optimization</button>
         <button class="tab-btn" data-view="validatorView">Python Validator</button>
         <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">How to write Snort 3 rules &#8599;</a>
       </div>
@@ -491,6 +539,31 @@
       </div>
     </section>
 
+
+    <section id="optimizerView" class="view">
+      <div class="panel">
+        <h3>Rule Optimization</h3>
+        <p class="muted" style="margin:0 0 14px;">
+          Snort 2 또는 Snort 3 rule 을 입력하면 성능·정확성·Best Practice 관점에서 최적화 제안을 제공합니다.
+        </p>
+
+        <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
+          <button class="btn secondary" id="optLoadFileBtn">&#128193; File</button>
+          <input type="file" id="optFileInput" accept=".rules,.txt" style="display:none;" />
+          <button class="btn" id="optimizeBtn">Optimize</button>
+          <button class="btn secondary" id="optClearBtn">Clear</button>
+          <span id="optRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
+        </div>
+
+        <div class="drop-zone" id="optDropZone">
+          <div class="drop-overlay" id="optDropOverlay">&#8595; Drop .rules / .txt file</div>
+          <textarea id="optInput" class="textarea" rows="10"
+            placeholder="Paste Snort 2 or Snort 3 rules here, or drag & drop a .rules / .txt file…"></textarea>
+        </div>
+
+        <div id="optResults" style="margin-top:14px;"></div>
+      </div>
+    </section>
 
     <section id="validatorView" class="view">
       <div class="panel">
@@ -922,7 +995,14 @@ if __name__ == "__main__":
         valFileInput: document.getElementById("valFileInput"),
         valClearBtn: document.getElementById("valClearBtn"),
         valRulesInput: document.getElementById("valRulesInput"),
-        valRuleCountBadge: document.getElementById("valRuleCountBadge")
+        valRuleCountBadge: document.getElementById("valRuleCountBadge"),
+        optLoadFileBtn: document.getElementById("optLoadFileBtn"),
+        optFileInput: document.getElementById("optFileInput"),
+        optimizeBtn: document.getElementById("optimizeBtn"),
+        optClearBtn: document.getElementById("optClearBtn"),
+        optInput: document.getElementById("optInput"),
+        optResults: document.getElementById("optResults"),
+        optRuleCountBadge: document.getElementById("optRuleCountBadge")
       };
 
       init();
@@ -932,6 +1012,7 @@ if __name__ == "__main__":
         el.input.value = "";
         el.output.value = "";
         el.valRulesInput.value = "";
+        el.optInput.value = "";
         localStorage.removeItem(SID_MAP_KEY);
 
         bindEvents();
@@ -999,6 +1080,44 @@ if __name__ == "__main__":
           updateValRuleCount();
         });
         el.valRulesInput.addEventListener("input", updateValRuleCount);
+
+        // ── Optimizer ────────────────────────────────────────────────────
+        el.optLoadFileBtn.addEventListener("click", () => el.optFileInput.click());
+        el.optFileInput.addEventListener("change", (ev) => {
+          const file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            el.optInput.value = String(reader.result || "");
+            updateOptRuleCount();
+          };
+          reader.readAsText(file);
+          ev.target.value = "";
+        });
+        el.optClearBtn.addEventListener("click", () => {
+          el.optInput.value = "";
+          el.optResults.innerHTML = "";
+          updateOptRuleCount();
+        });
+        el.optimizeBtn.addEventListener("click", runOptimize);
+        el.optInput.addEventListener("input", updateOptRuleCount);
+
+        // ── Drag & Drop on optimizer input ───────────────────────────────
+        const optDropZone = document.getElementById("optDropZone");
+        const optDropOverlay = document.getElementById("optDropOverlay");
+        ["dragenter","dragover"].forEach(evt => {
+          optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.add("drag-over"); });
+        });
+        ["dragleave","drop"].forEach(evt => {
+          optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.remove("drag-over"); });
+        });
+        optDropZone.addEventListener("drop", (e) => {
+          const file = e.dataTransfer.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => { el.optInput.value = String(reader.result || ""); updateOptRuleCount(); };
+          reader.readAsText(file);
+        });
 
         // ── Drag & Drop on Snort 2 input panel ──────────────────────────
         const dropZone = document.getElementById("inputDropZone");
@@ -1122,6 +1241,186 @@ if __name__ == "__main__":
         } else {
           badge.textContent = "";
         }
+      }
+
+      function updateOptRuleCount() {
+        const badge = el.optRuleCountBadge;
+        if (!badge) return;
+        const count = el.optInput.value.split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length;
+        badge.textContent = count > 0 ? `${count} rule${count > 1 ? "s" : ""} loaded` : "";
+        badge.style.color = count > 0 ? "var(--success)" : "var(--muted)";
+      }
+
+      // ════════════════════════════════════════════════════════════════════
+      //  Rule Optimization Engine
+      // ════════════════════════════════════════════════════════════════════
+
+      function runOptimize() {
+        const lines = el.optInput.value.split("\n");
+        const ruleLines = lines.filter(l => l.trim() && !l.trim().startsWith("#"));
+        if (!ruleLines.length) {
+          el.optResults.innerHTML = '<div class="result-card muted">분석할 rule 이 없습니다. Rule 을 입력해 주세요.</div>';
+          return;
+        }
+        let html = "";
+        ruleLines.forEach((line, idx) => {
+          const trimmed = line.trim();
+          const suggestions = analyzeRule(trimmed);
+          const label = `Rule ${idx + 1}`;
+          const preview = trimmed.length > 120 ? trimmed.slice(0, 120) + "…" : trimmed;
+          html += `<div class="opt-rule-block">
+            <div class="opt-rule-header">${escapeHtml(label)}: ${escapeHtml(preview)}</div>
+            <div class="opt-rule-body">`;
+          if (!suggestions.length) {
+            html += `<div class="opt-rule-ok">&#10003; 최적화 제안 없음 — rule 이 양호합니다.</div>`;
+          } else {
+            suggestions.forEach(s => {
+              html += `<div class="opt-item">
+                <span class="opt-badge ${s.level}">${s.level.toUpperCase()}</span>
+                <span>${escapeHtml(s.msg)}${s.fix ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; ${escapeHtml(s.fix)}</span>` : ""}</span>
+              </div>`;
+            });
+          }
+          html += `</div></div>`;
+        });
+        el.optResults.innerHTML = html;
+      }
+
+      function analyzeRule(line) {
+        const suggestions = [];
+
+        // ── 기본 구조 확인 ──────────────────────────────────────────────
+        const ACTIONS = /^(alert|log|pass|drop|reject|sdrop|block|rewrite)\s/i;
+        if (!ACTIONS.test(line)) {
+          suggestions.push({ level:"warn", msg:"Rule 액션을 인식할 수 없습니다. alert/drop/pass 등으로 시작해야 합니다." });
+          return suggestions;
+        }
+
+        // 옵션 추출 (괄호 안)
+        const parenStart = line.indexOf("(");
+        const parenEnd   = line.lastIndexOf(")");
+        if (parenStart === -1 || parenEnd === -1) {
+          suggestions.push({ level:"warn", msg:"Rule 옵션 괄호 ( ) 가 없거나 올바르지 않습니다." });
+          return suggestions;
+        }
+        const optStr = line.slice(parenStart + 1, parenEnd);
+        const opts   = splitOptions(optStr);
+
+        const get = (kw) => {
+          for (const o of opts) {
+            const k = optionKeyword(o).toLowerCase();
+            if (k === kw.toLowerCase()) {
+              const col = o.indexOf(":");
+              return col === -1 ? "" : o.slice(col + 1).trim().replace(/^"(.*)"$/, "$1");
+            }
+          }
+          return null;
+        };
+        const has = (kw) => opts.some(o => optionKeyword(o).toLowerCase() === kw.toLowerCase());
+        const all = (kw) => opts.filter(o => optionKeyword(o).toLowerCase() === kw.toLowerCase());
+
+        // ── 필수 필드 ───────────────────────────────────────────────────
+        if (!has("msg"))
+          suggestions.push({ level:"warn", msg:"msg 옵션이 없습니다.", fix:'msg:"설명 추가";' });
+        if (!has("sid"))
+          suggestions.push({ level:"warn", msg:"sid 옵션이 없습니다.", fix:"sid:XXXXXXX;" });
+        if (!has("rev"))
+          suggestions.push({ level:"info", msg:"rev 옵션이 없습니다. 버전 관리를 위해 추가를 권장합니다.", fix:"rev:1;" });
+
+        // ── Deprecated Snort 2 키워드 ───────────────────────────────────
+        const deprecated = [
+          ["uricontent",    "http_uri sticky buffer 와 content 로 대체", 'content:"..."; http_uri;'],
+          ["rawbytes",      "Snort 3 에서 제거됨. raw_data sticky buffer 사용"],
+          ["threshold",     "rate_filter 또는 detection_filter 로 대체"],
+          ["activates",     "Dynamic rule 은 Snort 3 에서 제거됨"],
+          ["activated_by",  "Dynamic rule 은 Snort 3 에서 제거됨"],
+          ["resp",          "Snort 3 에서 제거됨"],
+          ["react",         "Snort 3 에서 제거됨"],
+          ["logto",         "Snort 3 에서 제거됨"],
+          ["session",       "Snort 3 에서 제거됨"],
+          ["tag",           "Snort 3 에서 지원 제한됨"],
+        ];
+        deprecated.forEach(([kw, msg, fix]) => {
+          if (has(kw))
+            suggestions.push({ level:"warn", msg:`'${kw}' 는 Snort 3 에서 deprecated: ${msg}.`, fix });
+        });
+
+        // ── fast_pattern:only ───────────────────────────────────────────
+        opts.forEach(o => {
+          if (/fast_pattern\s*:\s*only/i.test(o))
+            suggestions.push({ level:"warn", msg:"'fast_pattern:only' 는 Snort 3 에서 제거됨.", fix:"fast_pattern; 으로 변경" });
+        });
+
+        // ── PCRE uppercase HTTP flags ────────────────────────────────────
+        opts.forEach(o => {
+          if (optionKeyword(o).toLowerCase() !== "pcre") return;
+          const val = o.slice(o.indexOf(":") + 1).trim();
+          if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
+            suggestions.push({ level:"warn", msg:"PCRE 에 Snort 2 HTTP 플래그(U,I,H,D,P,C,M,S,Y,K)가 있습니다. Snort 3 sticky buffer 로 변환 필요.", fix:"http_uri; http_header; 등 sticky buffer 사용" });
+        });
+
+        // ── metadata:service → service: ─────────────────────────────────
+        opts.forEach(o => {
+          if (optionKeyword(o).toLowerCase() === "metadata") {
+            const val = (o.slice(o.indexOf(":") + 1) || "").toLowerCase();
+            if (val.includes("service"))
+              suggestions.push({ level:"info", msg:"metadata 내 service 값은 독립적인 service: 옵션으로 분리하는 것이 권장됩니다.", fix:"service:http,dns; 형식으로 추가" });
+          }
+        });
+
+        // ── flow 없음 ────────────────────────────────────────────────────
+        if (!has("flow"))
+          suggestions.push({ level:"perf", msg:"flow 옵션이 없습니다. flow 를 지정하면 불필요한 패킷 검사를 줄여 성능이 향상됩니다.", fix:"flow:to_server,established; 또는 flow:to_client,established;" });
+
+        // ── PCRE without content anchor ──────────────────────────────────
+        const hasPcre    = has("pcre");
+        const hasContent = has("content");
+        if (hasPcre && !hasContent)
+          suggestions.push({ level:"perf", msg:"pcre 앞에 content 앵커가 없습니다. content 를 먼저 지정하면 pcre 실행 횟수를 크게 줄일 수 있습니다.", fix:'content:"고유한 문자열"; pcre:"/패턴/";' });
+
+        // ── fast_pattern 권장 ────────────────────────────────────────────
+        const contents = all("content");
+        if (contents.length >= 2 && !opts.some(o => /fast_pattern/i.test(o)))
+          suggestions.push({ level:"perf", msg:`content 가 ${contents.length}개 있지만 fast_pattern 이 지정되지 않았습니다. 가장 고유한 content 에 fast_pattern 을 추가하면 검색 성능이 향상됩니다.`, fix:"fast_pattern; 을 해당 content 옵션 다음에 추가" });
+
+        // ── 너무 짧은 content ────────────────────────────────────────────
+        contents.forEach(o => {
+          const val = o.slice(o.indexOf(":") + 1).trim().replace(/^"(.*)"$/, "$1");
+          // 이진 패턴(|xx xx|) 제외, 순수 문자열 길이 확인
+          const textOnly = val.replace(/\|[0-9A-Fa-f\s]+\|/g, "").replace(/!/g, "");
+          if (textOnly.length > 0 && textOnly.length < 4)
+            suggestions.push({ level:"perf", msg:`짧은 content "${textOnly}" (${textOnly.length}자) 는 너무 많은 패킷에 매칭되어 성능 저하를 유발할 수 있습니다.`, fix:"4자 이상의 고유한 문자열 사용 권장" });
+        });
+
+        // ── 검사 기준 없음 ───────────────────────────────────────────────
+        if (!hasContent && !hasPcre && !has("byte_test") && !has("byte_jump") && !has("isdataat"))
+          suggestions.push({ level:"warn", msg:"content, pcre 등 패킷 페이로드 검사 기준이 없습니다. 모든 해당 트래픽에 alert 가 발생합니다.", fix:"content 또는 pcre 추가 권장" });
+
+        // ── gid:1 불필요 ─────────────────────────────────────────────────
+        const gidVal = get("gid");
+        if (gidVal === "1")
+          suggestions.push({ level:"info", msg:"gid:1 은 기본값이므로 생략 가능합니다." });
+
+        // ── SID 범위 안내 ────────────────────────────────────────────────
+        const sidVal = parseInt(get("sid") || "0", 10);
+        if (sidVal > 0 && sidVal < 1000000)
+          suggestions.push({ level:"info", msg:`SID ${sidVal} 는 Snort 공식 built-in rule 범위(1~999999)입니다. 커스텀 로컬 rule 은 SID 1000000 이상을 사용하세요.` });
+
+        // ── distance:0 → within 권장 ────────────────────────────────────
+        opts.forEach(o => {
+          if (optionKeyword(o).toLowerCase() === "distance") {
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (val === "0")
+              suggestions.push({ level:"info", msg:"distance:0 은 within 과 동일한 효과를 가집니다. 가독성을 위해 within 사용을 권장합니다." });
+          }
+        });
+
+        // ── nocase 남용 ─────────────────────────────────────────────────
+        const nocaseCount = opts.filter(o => optionKeyword(o).toLowerCase() === "nocase").length;
+        if (nocaseCount > 3)
+          suggestions.push({ level:"perf", msg:`nocase 가 ${nocaseCount}번 사용됩니다. nocase 는 대소문자 변환 비용이 있으므로 꼭 필요한 경우에만 사용하세요.` });
+
+        return suggestions;
       }
 
       function switchView(viewId, tabEl) {
