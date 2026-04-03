@@ -454,7 +454,7 @@
 
       <div class="panel explain-box" id="explainSection">
         <h3>Snort 2 Rule Explanation</h3>
-        <div id="explainOutput" class="explain-content muted">Click <b>Explain</b> to search Snort.org Rule Documentation for each rule.</div>
+        <div id="explainOutput" class="explain-content muted">Convert rules to automatically search <b>Snort.org Rule Docs</b>, or click <b>Explain</b> manually.</div>
       </div>
 
       <div class="panel">
@@ -1149,13 +1149,17 @@ if __name__ == "__main__":
           el.output.value = result.output;
           try { renderDiff(inputText, result.outputNoSummary); } catch (_) {}
           persistSidMap(result.sidMap);
+          // Auto-explain after conversion
+          runExplain();
         } catch (err) {
           el.output.value = `# ERROR: ${err.message}\n# Stack: ${err.stack}`;
         }
       }
 
       async function runExplain() {
-        const lines = splitLines(el.input.value);
+        // Read from the converted Snort 3 output; fall back to Snort 2 input if empty
+        const sourceText = el.output.value.trim() ? el.output.value : el.input.value;
+        const lines = splitLines(sourceText);
         const ruleItems = [];
 
         lines.forEach((line, idx) => {
@@ -1170,11 +1174,11 @@ if __name__ == "__main__":
         });
 
         if (!ruleItems.length) {
-          el.explainOutput.innerHTML = '<span class="muted">No parsable rules found in input.</span>';
+          el.explainOutput.innerHTML = '<span class="muted">No parsable rules found.</span>';
           return;
         }
 
-        el.explainOutput.innerHTML = '<span class="muted">🔍 Searching Snort.org...</span>';
+        el.explainOutput.innerHTML = '<span class="muted">🔍 Searching Snort.org Rule Docs...</span>';
         await renderExplainSearch(ruleItems, 0);
       }
 
@@ -1241,27 +1245,14 @@ if __name__ == "__main__":
           const searchHtml = await fetchSnortHtml(searchUrl);
           const searchDoc = new DOMParser().parseFromString(searchHtml, "text/html");
 
-          const heading = (searchDoc.querySelector("h4")?.textContent || "").replace(/\s+/g, " ").trim();
+          // Extract result items — supports both rule-docs-search and legacy rule_docs layouts
+          const resultItems = parseSnortSearchResults(searchDoc);
 
-          // Extract result rows
-          const resultItems = [];
-          searchDoc.querySelectorAll("table tbody tr").forEach((tr) => {
-            const sidLink = tr.querySelector("a[href*='rule_docs/']");
-            const msgSpan = tr.querySelector(".snort_search_item, .results-col-message span");
-            if (sidLink) {
-              const href = sidLink.getAttribute("href") || "";
-              const fullUrl = href.startsWith("http")
-                ? href
-                : "https://www.snort.org/" + href.replace(/^\//, "");
-              resultItems.push({
-                sidText: sidLink.textContent.trim(),
-                message: msgSpan?.textContent?.trim() || "",
-                url: fullUrl
-              });
-            }
-          });
+          const heading = (
+            searchDoc.querySelector(".search-results-heading, h4, h3")?.textContent || ""
+          ).replace(/\s+/g, " ").trim();
 
-          if (statusEl) statusEl.innerHTML = `✓ ${escapeHtml(heading || "Results from Snort.org")}`;
+          if (statusEl) statusEl.innerHTML = `✓ ${escapeHtml(heading || `Results from Snort.org for: ${query}`)}`;
 
           if (!resultItems.length) {
             resultsEl.innerHTML = `<div class="result-card muted">No results found on Snort.org for: <b>${escapeHtml(query)}</b></div>`;
@@ -1270,12 +1261,12 @@ if __name__ == "__main__":
 
           // Build results list
           let resultHtml = `<div class="result-card">
-            <b style="color:var(--primary);">${escapeHtml(heading)}</b>
+            <b style="color:var(--primary);">${escapeHtml(heading || "Matching Rules")}</b>
             <ul style="margin:8px 0 0 18px;">`;
           resultItems.forEach((item) => {
             resultHtml += `<li>
               <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">${escapeHtml(item.sidText)}</a>
-              — ${escapeHtml(item.message)}
+              ${item.message ? "— " + escapeHtml(item.message) : ""}
             </li>`;
           });
           resultHtml += `</ul></div>`;
@@ -1304,6 +1295,48 @@ if __name__ == "__main__":
         }
       }
 
+      function parseSnortSearchResults(doc) {
+        const items = [];
+        const seen = new Set();
+
+        function addItem(href, sidText, message) {
+          if (!href || seen.has(href)) return;
+          seen.add(href);
+          const fullUrl = href.startsWith("http")
+            ? href
+            : "https://www.snort.org/" + href.replace(/^\//, "");
+          items.push({ sidText: sidText.trim(), message: (message || "").trim(), url: fullUrl });
+        }
+
+        // Layout 1: rule-docs-search — result cards / list items with rule_docs links
+        doc.querySelectorAll("a[href*='rule_docs/'], a[href*='rule-docs/']").forEach((a) => {
+          const href = a.getAttribute("href") || "";
+          const sidText = a.textContent.trim();
+          const parent = a.closest("li, tr, .result, .rule-result, div");
+          const message = parent
+            ? (parent.textContent || "").replace(sidText, "").replace(/\s+/g, " ").trim().slice(0, 120)
+            : "";
+          addItem(href, sidText || href, message);
+        });
+
+        // Layout 2: legacy rule_docs table rows
+        if (!items.length) {
+          doc.querySelectorAll("table tbody tr").forEach((tr) => {
+            const sidLink = tr.querySelector("a[href*='rule_docs/'], a[href*='rule-docs/']");
+            const msgSpan = tr.querySelector(".snort_search_item, .results-col-message span");
+            if (sidLink) {
+              addItem(
+                sidLink.getAttribute("href") || "",
+                sidLink.textContent.trim(),
+                msgSpan?.textContent?.trim() || ""
+              );
+            }
+          });
+        }
+
+        return items;
+      }
+
       async function fetchSnortHtml(url) {
         // Try direct first (works when served from same origin or without CORS restrictions)
         try {
@@ -1320,7 +1353,7 @@ if __name__ == "__main__":
 
       function buildSnortSearchUrl(query) {
         const q = encodeURIComponent(query || "");
-        return `https://www.snort.org/rule_docs?search_type=standard&simple_search%5Bsid_or_explanation_or_message_or_cves_cve_key_or_urls_url_i_cont%5D=${q}&submit_rule_search=`;
+        return `https://www.snort.org/rule-docs-search?query=${q}`;
       }
 
       function buildRuleDocHtml(doc, sourceUrl) {
@@ -1348,7 +1381,7 @@ if __name__ == "__main__":
       function clearMain() {
         el.input.value = "";
         el.output.value = "";
-        el.explainOutput.innerHTML = 'Click <b>Explain</b> to parse and describe each Snort 2 rule.';
+        el.explainOutput.innerHTML = 'Convert rules to automatically search <b>Snort.org Rule Docs</b>, or click <b>Explain</b> manually.';
         el.diffLeft.textContent = "";
         el.diffRight.textContent = "";
       }
