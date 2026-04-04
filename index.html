@@ -505,6 +505,95 @@
       border-top-color: var(--primary); border-radius: 50%;
       animation: spin 0.8s linear infinite; flex-shrink: 0;
     }
+
+    /* ── Feedback modal ──────────────────────────────────────────────── */
+    .fb-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .fb-overlay.open { display: flex; }
+    .fb-modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 32px;
+      width: min(560px, 94vw);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      position: relative;
+    }
+    .fb-modal h2 {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      color: var(--primary);
+    }
+    .fb-modal p.fb-sub {
+      margin: 0 0 20px;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .fb-close {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none;
+      color: var(--muted); font-size: 1.3rem;
+      cursor: pointer; line-height: 1;
+    }
+    .fb-close:hover { color: #fff; }
+    .fb-field { margin-bottom: 14px; }
+    .fb-field label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .fb-field select,
+    .fb-field input,
+    .fb-field textarea {
+      width: 100%;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.92rem;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .fb-field select:focus,
+    .fb-field input:focus,
+    .fb-field textarea:focus { border-color: var(--primary); }
+    .fb-field textarea { resize: vertical; min-height: 110px; }
+    .fb-row { display: flex; gap: 10px; }
+    .fb-row .fb-field { flex: 1; }
+    .fb-actions {
+      display: flex; gap: 10px; justify-content: flex-end;
+      margin-top: 20px;
+    }
+    .fb-note {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .fb-note a { color: var(--primary); text-decoration: none; }
+    .tab-btn.feedback-btn {
+      border-color: var(--warn);
+      color: var(--warn);
+    }
+    .tab-btn.feedback-btn:hover {
+      background: rgba(255,170,0,0.08);
+      border-color: var(--warn);
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -520,8 +609,52 @@
         <button class="tab-btn" data-view="sruView">Snort SRU Updates</button>
         <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
         <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">How to write Snort 3 rules &#8599;</a>
+        <button class="tab-btn feedback-btn" id="feedbackBtn">&#128172; Feedback</button>
       </div>
     </nav>
+
+    <!-- ── Feedback Modal ──────────────────────────────────────────────── -->
+    <div class="fb-overlay" id="fbOverlay">
+      <div class="fb-modal" role="dialog" aria-modal="true" aria-labelledby="fbTitle">
+        <button class="fb-close" id="fbClose" aria-label="Close">&times;</button>
+        <h2 id="fbTitle">&#128172; Share Feedback</h2>
+        <p class="fb-sub">Report a bug, request a feature, or share any suggestion. Your feedback will be submitted as a GitHub Issue.</p>
+
+        <div class="fb-row">
+          <div class="fb-field">
+            <label for="fbType">Type</label>
+            <select id="fbType">
+              <option value="추가 (Feature Request)">&#10133; Feature Request</option>
+              <option value="수정 (Bug Report)">&#128027; Bug Report</option>
+              <option value="제안 (Suggestion)">&#128161; Suggestion</option>
+            </select>
+          </div>
+          <div class="fb-field">
+            <label for="fbAuthor">Author</label>
+            <input id="fbAuthor" type="text" placeholder="Your name or alias" maxlength="60" />
+          </div>
+        </div>
+
+        <div class="fb-field">
+          <label for="fbTitle2">Title</label>
+          <input id="fbTitle2" type="text" placeholder="Brief summary of your feedback" maxlength="120" />
+        </div>
+
+        <div class="fb-field">
+          <label for="fbContent">Content</label>
+          <textarea id="fbContent" placeholder="Describe in detail — steps to reproduce, expected vs actual behavior, or your idea..."></textarea>
+        </div>
+
+        <div class="fb-actions">
+          <button class="btn secondary" id="fbCancel">Cancel</button>
+          <button class="btn" id="fbSubmit">Submit via GitHub &#8599;</button>
+        </div>
+
+        <p class="fb-note">
+          Submitting will open <a href="https://github.com/maxias13/snort-rule-converter/issues" target="_blank" rel="noopener">GitHub Issues</a> in a new tab with your feedback pre-filled. A GitHub account is required to post.
+        </p>
+      </div>
+    </div>
 
     <section id="homeView" class="view active">
       <div class="split">
@@ -1259,6 +1392,51 @@ if __name__ == "__main__":
         // ── SRU / LSP news ───────────────────────────────────────────────
         el.sruLoadBtn.addEventListener("click", () => loadSnortUpdates("sru"));
         el.lspLoadBtn.addEventListener("click", () => loadSnortUpdates("lsp"));
+
+        // ── Feedback modal ────────────────────────────────────────────────
+        const fbOverlay = document.getElementById("fbOverlay");
+        const fbClose   = document.getElementById("fbClose");
+        const fbCancel  = document.getElementById("fbCancel");
+        const fbSubmit  = document.getElementById("fbSubmit");
+
+        function openFeedback() { fbOverlay.classList.add("open"); document.getElementById("fbTitle2").focus(); }
+        function closeFeedback() { fbOverlay.classList.remove("open"); }
+
+        document.getElementById("feedbackBtn").addEventListener("click", openFeedback);
+        fbClose.addEventListener("click", closeFeedback);
+        fbCancel.addEventListener("click", closeFeedback);
+        fbOverlay.addEventListener("click", (e) => { if (e.target === fbOverlay) closeFeedback(); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeFeedback(); });
+
+        fbSubmit.addEventListener("click", () => {
+          const type    = document.getElementById("fbType").value;
+          const author  = document.getElementById("fbAuthor").value.trim();
+          const title   = document.getElementById("fbTitle2").value.trim();
+          const content = document.getElementById("fbContent").value.trim();
+
+          if (!title) { document.getElementById("fbTitle2").focus(); return; }
+          if (!content) { document.getElementById("fbContent").focus(); return; }
+
+          const issueTitle = `[${type}] ${title}`;
+          const issueBody  = [
+            `**Type:** ${type}`,
+            `**Author:** ${author || "Anonymous"}`,
+            "",
+            "## Description",
+            content,
+            "",
+            "---",
+            "*Submitted via [Snort Rule Converter](https://maxias13.github.io/snort-rule-converter/)*",
+          ].join("\n");
+
+          const url = "https://github.com/maxias13/snort-rule-converter/issues/new?"
+            + "labels=feedback&"
+            + "title=" + encodeURIComponent(issueTitle) + "&"
+            + "body="  + encodeURIComponent(issueBody);
+
+          window.open(url, "_blank", "noopener,noreferrer");
+          closeFeedback();
+        });
       }
 
       function seedExample() {
