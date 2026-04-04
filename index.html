@@ -618,6 +618,8 @@
     .fb-type-feature { background: rgba(0,212,255,0.15); color: var(--primary); border: 1px solid rgba(0,212,255,0.3); }
     .fb-type-bug     { background: rgba(255,68,68,0.15);  color: var(--error);   border: 1px solid rgba(255,68,68,0.3); }
     .fb-type-suggest { background: rgba(255,170,0,0.15);  color: var(--warn);    border: 1px solid rgba(255,170,0,0.3); }
+    .fb-type-notice  { background: rgba(255,220,50,0.18); color: #ffd700;        border: 1px solid rgba(255,220,50,0.5); font-weight:800; }
+    .fb-post.fb-notice { border-color: rgba(255,220,50,0.4); background: rgba(255,220,50,0.04); }
     .fb-post-body {
       display: none;
       padding: 0 16px 14px;
@@ -915,12 +917,17 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
                 <option value="Feature Request">&#10133; Feature Request</option>
                 <option value="Bug Report">&#128027; Bug Report</option>
                 <option value="Suggestion">&#128161; Suggestion</option>
+                <option value="Notice">&#128274; Notice (Admin only)</option>
               </select>
             </div>
             <div class="fb-field">
               <label for="fbAuthor">Author</label>
               <input id="fbAuthor" type="text" placeholder="Your name or alias" maxlength="60" />
             </div>
+          </div>
+          <div class="fb-field" id="fbPasswordField" style="display:none;">
+            <label for="fbPassword">Admin Password <span style="color:var(--error);">*</span></label>
+            <input id="fbPassword" type="password" placeholder="Enter admin password" />
           </div>
           <div class="fb-field">
             <label for="fbTitle2">Title <span style="color:var(--error);">*</span></label>
@@ -1472,6 +1479,7 @@ if __name__ == "__main__":
         function typeBadgeClass(t) {
           if (t === "Bug Report")      return "fb-type-bug";
           if (t === "Feature Request") return "fb-type-feature";
+          if (t === "Notice")          return "fb-type-notice";
           return "fb-type-suggest";
         }
 
@@ -1487,10 +1495,15 @@ if __name__ == "__main__":
             fbPostList.innerHTML = '<div class="fb-empty">아직 등록된 피드백이 없습니다. 첫 번째로 글을 남겨보세요!</div>';
             return;
           }
-          fbPostList.innerHTML = posts.map(p => `
-            <div class="fb-post">
+          const sorted = [...posts].sort((a, b) => {
+            if (a.type === "Notice" && b.type !== "Notice") return -1;
+            if (a.type !== "Notice" && b.type === "Notice") return  1;
+            return 0;
+          });
+          fbPostList.innerHTML = sorted.map(p => `
+            <div class="fb-post${p.type === "Notice" ? " fb-notice" : ""}">
               <div class="fb-post-header" onclick="this.closest('.fb-post').classList.toggle('open')">
-                <span class="fb-type-badge ${typeBadgeClass(p.type)}">${escapeHtml(p.type)}</span>
+                <span class="fb-type-badge ${typeBadgeClass(p.type)}">${p.type === "Notice" ? "&#128274; Notice" : escapeHtml(p.type)}</span>
                 <span class="fb-post-title">${escapeHtml(p.title)}</span>
                 <span class="fb-chevron">&#9660;</span>
               </div>
@@ -1514,6 +1527,13 @@ if __name__ == "__main__":
           }
         }
 
+        // Show/hide password field when Notice is selected
+        document.getElementById("fbType").addEventListener("change", function () {
+          const pwField = document.getElementById("fbPasswordField");
+          pwField.style.display = this.value === "Notice" ? "block" : "none";
+          if (this.value !== "Notice") document.getElementById("fbPassword").value = "";
+        });
+
         fbToggleForm.addEventListener("click", () => {
           const open = fbFormPanel.style.display === "none";
           fbFormPanel.style.display = open ? "block" : "none";
@@ -1534,15 +1554,22 @@ if __name__ == "__main__":
 
           if (!title)   { document.getElementById("fbTitle2").focus(); return; }
           if (!content) { document.getElementById("fbContent").focus(); return; }
+          if (type === "Notice") {
+            const pw = document.getElementById("fbPassword").value;
+            if (pw !== "maxias") { alert("관리자 비밀번호가 올바르지 않습니다."); document.getElementById("fbPassword").focus(); return; }
+          }
 
           fbSubmit.disabled = true;
           fbSubmit.textContent = "Submitting...";
           try {
             await window.__fbSubmit(type, title, author, content);
             // clear form
-            document.getElementById("fbTitle2").value  = "";
-            document.getElementById("fbAuthor").value  = "";
-            document.getElementById("fbContent").value = "";
+            document.getElementById("fbTitle2").value    = "";
+            document.getElementById("fbAuthor").value    = "";
+            document.getElementById("fbContent").value   = "";
+            document.getElementById("fbPassword").value  = "";
+            document.getElementById("fbPasswordField").style.display = "none";
+            document.getElementById("fbType").value = "Feature Request";
             fbFormPanel.style.display = "none";
             fbToggleForm.textContent  = "+ Write Feedback";
             await loadPosts();
