@@ -498,7 +498,7 @@
 <body>
   <div class="app">
     <nav class="top-nav">
-      <div class="logo">
+      <div class="logo" style="cursor:pointer;" id="logoBtn">
         <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:72px; width:auto; display:block;" />
       </div>
       <div class="tabs">
@@ -1089,6 +1089,10 @@ if __name__ == "__main__":
           if (!tab.dataset.view) return; // external link — let the browser handle it
           switchView(tab.dataset.view, tab);
         }));
+        document.getElementById("logoBtn").addEventListener("click", () => {
+          const homeTab = el.tabs.find(t => t.dataset.view === "homeView");
+          if (homeTab) switchView("homeView", homeTab);
+        });
         el.loadFileBtn.addEventListener("click", () => el.fileInput.click());
         el.fileInput.addEventListener("change", handleFileLoad);
         el.convertBtn.addEventListener("click", runConversion);
