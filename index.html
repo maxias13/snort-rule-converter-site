@@ -317,13 +317,6 @@
 
     tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
 
-    .sid-tools {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-bottom: 12px;
-    }
 
     .num-input {
       width: 250px;
@@ -365,6 +358,14 @@
     .muted { color: var(--muted); }
     .hidden { display: none !important; }
     .danger { color: #ff9a9a; }
+
+    /* ── Version toggle buttons ── */
+    .btn.active-version {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px rgba(0,212,255,0.35), inset 0 0 20px rgba(0,212,255,0.1);
+      color: var(--primary);
+      font-weight: 600;
+    }
 
     /* ── Rule Optimization ── */
     .opt-rule-block {
@@ -503,7 +504,6 @@
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-view="homeView">Home</button>
-        <button class="tab-btn" data-view="sidView">Search by Snort 2 SID</button>
         <button class="tab-btn" data-view="optimizerView">Rule Optimization</button>
         <button class="tab-btn" data-view="validatorView">Python Validator</button>
         <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">How to write Snort 3 rules &#8599;</a>
@@ -568,26 +568,19 @@
 
     </section>
 
-    <section id="sidView" class="view">
-      <div class="panel">
-        <h3>Search by Snort 2 SID</h3>
-        <div class="sid-tools">
-          <input id="sidInput" class="num-input" type="number" min="1" step="1" placeholder="Enter SID (e.g. 12345)" />
-          <button id="sidSearchBtn" class="btn">Search</button>
-          <span style="font-size:0.83rem;color:var(--muted);">※ SID 1,000,000+ (local rules) are not indexed on Snort.org.</span>
-          <a id="sidOpenLink" class="btn secondary hidden" href="#" target="_blank" rel="noopener noreferrer">Open in new tab</a>
-        </div>
-        <div id="sidResults" class="result-card muted">Enter a Snort 2 SID and click Search.</div>
-      </div>
-    </section>
-
 
     <section id="optimizerView" class="view">
       <div class="panel">
         <h3>Rule Optimization</h3>
         <p class="muted" style="margin:0 0 14px;">
-          Paste Snort 2 or Snort 3 rules to receive optimization suggestions covering performance, correctness, and best practices.
+          Select the rule version, paste local rules, and click Optimize to receive optimization suggestions covering performance, correctness, and best practices.
         </p>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap;">
+          <span style="font-size:0.88rem; color:var(--muted); margin-right:2px;">Rule Version:</span>
+          <button id="optVersionSnort2" class="btn active-version" style="padding:6px 16px; font-size:0.88rem;">Snort 2</button>
+          <button id="optVersionSnort3" class="btn secondary" style="padding:6px 16px; font-size:0.88rem;">Snort 3</button>
+        </div>
 
         <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center; flex-wrap:wrap;">
           <button class="btn secondary" id="optLoadFileBtn">&#128193; File</button>
@@ -1019,10 +1012,6 @@ if __name__ == "__main__":
         copyOutputBtn: document.getElementById("copyOutputBtn"),
         diffLeft: document.getElementById("diffLeft"),
         diffRight: document.getElementById("diffRight"),
-        sidInput: document.getElementById("sidInput"),
-        sidSearchBtn: document.getElementById("sidSearchBtn"),
-        sidResults: document.getElementById("sidResults"),
-        sidOpenLink: document.getElementById("sidOpenLink"),
         pyScriptDisplay: document.getElementById("pyScriptDisplay"),
         downloadPyBtn: document.getElementById("downloadPyBtn"),
         copyPyBtn: document.getElementById("copyPyBtn"),
@@ -1042,7 +1031,9 @@ if __name__ == "__main__":
         optClearBtn: document.getElementById("optClearBtn"),
         optInput: document.getElementById("optInput"),
         optResults: document.getElementById("optResults"),
-        optRuleCountBadge: document.getElementById("optRuleCountBadge")
+        optRuleCountBadge: document.getElementById("optRuleCountBadge"),
+        optVersionSnort2: document.getElementById("optVersionSnort2"),
+        optVersionSnort3: document.getElementById("optVersionSnort3")
       };
 
       init();
@@ -1098,8 +1089,6 @@ if __name__ == "__main__":
         el.convertBtn.addEventListener("click", runConversion);
         el.clearBtn.addEventListener("click", clearMain);
         el.copyOutputBtn.addEventListener("click", copyOutput);
-        el.sidSearchBtn.addEventListener("click", searchSid);
-        el.sidInput.addEventListener("keydown", (ev) => { if (ev.key === "Enter") searchSid(); });
         el.downloadPyBtn.addEventListener("click", downloadPyScript);
         el.copyPyBtn.addEventListener("click", copyPyScript);
         el.commitIpBtn.addEventListener("click", commitIpToScript);
@@ -1123,6 +1112,19 @@ if __name__ == "__main__":
           updateValRuleCount();
         });
         el.valRulesInput.addEventListener("input", updateValRuleCount);
+
+        // ── Optimizer version toggle ─────────────────────────────────────
+        let optVersion = 2; // default: Snort 2
+        function setOptVersion(v) {
+          optVersion = v;
+          el.optVersionSnort2.className = v === 2 ? "btn active-version" : "btn secondary";
+          el.optVersionSnort3.className = v === 3 ? "btn active-version" : "btn secondary";
+          el.optInput.placeholder = v === 2
+            ? "Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"
+            : "Paste Snort 3 local rules here, or drag & drop a .rules / .txt file…";
+        }
+        el.optVersionSnort2.addEventListener("click", () => setOptVersion(2));
+        el.optVersionSnort3.addEventListener("click", () => setOptVersion(3));
 
         // ── Optimizer ────────────────────────────────────────────────────
         el.optLoadFileBtn.addEventListener("click", () => el.optFileInput.click());
@@ -1305,10 +1307,11 @@ if __name__ == "__main__":
           el.optResults.innerHTML = '<div class="result-card muted">No rules to analyze. Paste rules above and click Optimize.</div>';
           return;
         }
-        let html = "";
+        const versionLabel = optVersion === 2 ? "Snort 2" : "Snort 3";
+        let html = `<div class="muted" style="font-size:0.82rem;margin-bottom:10px;">Analyzing as <b style="color:var(--primary);">${versionLabel}</b> local rules — ${ruleLines.length} rule${ruleLines.length > 1 ? "s" : ""}</div>`;
         ruleLines.forEach((line, idx) => {
           const trimmed = line.trim();
-          const suggestions = analyzeRule(trimmed);
+          const suggestions = analyzeRule(trimmed, optVersion);
           const label = `Rule ${idx + 1}`;
           const preview = trimmed.length > 120 ? trimmed.slice(0, 120) + "…" : trimmed;
           html += `<div class="opt-rule-block">
@@ -1329,13 +1332,19 @@ if __name__ == "__main__":
         el.optResults.innerHTML = html;
       }
 
-      function analyzeRule(line) {
+      function analyzeRule(line, version) {
         const suggestions = [];
+        const isSnort2 = (version === 2);
 
         // ── Basic structure check ───────────────────────────────────────
-        const ACTIONS = /^(alert|log|pass|drop|reject|sdrop|block|rewrite)\s/i;
+        const ACTIONS_S2 = /^(alert|log|pass|drop|reject|sdrop)\s/i;
+        const ACTIONS_S3 = /^(alert|log|pass|drop|reject|block|rewrite)\s/i;
+        const ACTIONS = isSnort2 ? ACTIONS_S2 : ACTIONS_S3;
         if (!ACTIONS.test(line)) {
-          suggestions.push({ level:"warn", msg:"Unrecognized rule action. Must start with alert, drop, pass, log, reject, sdrop, block, or rewrite." });
+          if (isSnort2)
+            suggestions.push({ level:"warn", msg:"Unrecognized rule action. Snort 2 actions: alert, drop, pass, log, reject, sdrop." });
+          else
+            suggestions.push({ level:"warn", msg:"Unrecognized rule action. Snort 3 actions: alert, drop, pass, log, reject, block, rewrite." });
           return suggestions;
         }
 
@@ -1369,94 +1378,190 @@ if __name__ == "__main__":
         if (!has("rev"))
           suggestions.push({ level:"info", msg:"Missing rev option. Recommended for version tracking.", fix:"rev:1;" });
 
-        // ── Deprecated Snort 2 keywords ─────────────────────────────────
-        const deprecated = [
-          ["uricontent",    "replaced by content with http_uri sticky buffer", 'content:"..."; http_uri;'],
-          ["rawbytes",      "removed in Snort 3 — use raw_data sticky buffer"],
-          ["threshold",     "replaced by rate_filter or detection_filter"],
-          ["activates",     "dynamic rules removed in Snort 3"],
-          ["activated_by",  "dynamic rules removed in Snort 3"],
-          ["resp",          "removed in Snort 3"],
-          ["react",         "removed in Snort 3"],
-          ["logto",         "removed in Snort 3"],
-          ["session",       "removed in Snort 3"],
-          ["tag",           "limited support in Snort 3"],
-        ];
-        deprecated.forEach(([kw, msg, fix]) => {
-          if (has(kw))
-            suggestions.push({ level:"warn", msg:`'${kw}' is deprecated in Snort 3: ${msg}.`, fix });
-        });
-
-        // ── fast_pattern:only ───────────────────────────────────────────
-        opts.forEach(o => {
-          if (/fast_pattern\s*:\s*only/i.test(o))
-            suggestions.push({ level:"warn", msg:"'fast_pattern:only' was removed in Snort 3.", fix:"Use plain fast_pattern;" });
-        });
-
-        // ── PCRE uppercase HTTP flags ────────────────────────────────────
-        opts.forEach(o => {
-          if (optionKeyword(o).toLowerCase() !== "pcre") return;
-          const val = o.slice(o.indexOf(":") + 1).trim();
-          if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
-            suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags (U,I,H,D,P,C,M,S,Y,K). Must be converted to Snort 3 sticky buffers.", fix:"Use http_uri; http_header; etc. before pcre" });
-        });
-
-        // ── metadata:service → service: ─────────────────────────────────
-        opts.forEach(o => {
-          if (optionKeyword(o).toLowerCase() === "metadata") {
-            const val = (o.slice(o.indexOf(":") + 1) || "").toLowerCase();
-            if (val.includes("service"))
-              suggestions.push({ level:"info", msg:"service value inside metadata should be extracted as a standalone service: option.", fix:"service:http,dns;" });
-          }
-        });
-
-        // ── Missing flow ─────────────────────────────────────────────────
-        if (!has("flow"))
-          suggestions.push({ level:"perf", msg:"No flow option. Specifying flow reduces unnecessary packet inspection and improves performance.", fix:"flow:to_server,established; or flow:to_client,established;" });
-
-        // ── PCRE without content anchor ──────────────────────────────────
-        const hasPcre    = has("pcre");
-        const hasContent = has("content");
-        if (hasPcre && !hasContent)
-          suggestions.push({ level:"perf", msg:"pcre has no preceding content anchor. Adding a content match before pcre significantly reduces the number of times pcre is evaluated.", fix:'content:"unique string"; pcre:"/pattern/";' });
-
-        // ── fast_pattern recommendation ──────────────────────────────────
-        const contents = all("content");
-        if (contents.length >= 2 && !opts.some(o => /fast_pattern/i.test(o)))
-          suggestions.push({ level:"perf", msg:`Rule has ${contents.length} content options but no fast_pattern. Adding fast_pattern to the most unique content improves search performance.`, fix:"Add fast_pattern; after the most unique content option" });
-
-        // ── Short content patterns ───────────────────────────────────────
-        contents.forEach(o => {
-          const val = o.slice(o.indexOf(":") + 1).trim().replace(/^"(.*)"$/, "$1");
-          const textOnly = val.replace(/\|[0-9A-Fa-f\s]+\|/g, "").replace(/!/g, "");
-          if (textOnly.length > 0 && textOnly.length < 4)
-            suggestions.push({ level:"perf", msg:`Short content "${textOnly}" (${textOnly.length} chars) matches too many packets and degrades performance.`, fix:"Use a string of 4+ characters for better specificity" });
-        });
-
-        // ── No detection criteria ────────────────────────────────────────
-        if (!hasContent && !hasPcre && !has("byte_test") && !has("byte_jump") && !has("isdataat"))
-          suggestions.push({ level:"warn", msg:"No payload inspection criteria (content, pcre, byte_test, etc.). This rule will alert on all matching traffic.", fix:"Add at least one content or pcre option" });
+        // ── SID range advisory (both versions) ──────────────────────────
+        const sidVal = parseInt(get("sid") || "0", 10);
+        if (sidVal > 0 && sidVal < 1000000)
+          suggestions.push({ level:"info", msg:`SID ${sidVal} falls in the Snort built-in range (1–999,999). Local rules should use SID 1,000,000 or higher.` });
 
         // ── gid:1 is default ─────────────────────────────────────────────
         const gidVal = get("gid");
         if (gidVal === "1")
           suggestions.push({ level:"info", msg:"gid:1 is the default value and can be omitted." });
 
-        // ── SID range advisory ───────────────────────────────────────────
-        const sidVal = parseInt(get("sid") || "0", 10);
-        if (sidVal > 0 && sidVal < 1000000)
-          suggestions.push({ level:"info", msg:`SID ${sidVal} falls in the Snort built-in range (1–999,999). Custom local rules should use SID 1,000,000 or higher.` });
+        // ══ SNORT 2 specific checks ══════════════════════════════════════
+        if (isSnort2) {
+          // ── Snort 2 deprecated / will-not-migrate keywords ─────────────
+          const deprecated2 = [
+            ["uricontent",    "replaced by content + http_uri sticky buffer in Snort 3", 'content:"..."; http_uri;'],
+            ["rawbytes",      "removed in Snort 3 — use raw_data sticky buffer"],
+            ["threshold",     "replaced by rate_filter or detection_filter in Snort 3"],
+            ["activates",     "dynamic rules removed in Snort 3"],
+            ["activated_by",  "dynamic rules removed in Snort 3"],
+            ["resp",          "removed in Snort 3"],
+            ["react",         "removed in Snort 3"],
+            ["logto",         "removed in Snort 3"],
+            ["session",       "removed in Snort 3"],
+            ["tag",           "limited support in Snort 3"],
+            ["stream_reassemble", "removed in Snort 3 — configure in snort.lua"],
+            ["replace",       "removed in Snort 3 — use rewrite action or DAQ module"],
+          ];
+          deprecated2.forEach(([kw, msg, fix]) => {
+            if (has(kw))
+              suggestions.push({ level:"warn", msg:`'${kw}' will not migrate to Snort 3: ${msg}.`, fix });
+          });
 
-        // ── distance:0 → within ──────────────────────────────────────────
+          // ── flowbits → should migrate to xbits ──────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() === "flowbits") {
+              const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
+              if (val.startsWith("reset"))
+                suggestions.push({ level:"warn", msg:"flowbits:reset has no equivalent in Snort 3 and will be dropped during migration." });
+              else
+                suggestions.push({ level:"info", msg:"flowbits will be converted to xbits with track ip_src during Snort 3 migration.", fix:"xbits:<action>,<name>,track ip_src;" });
+            }
+          });
+
+          // ── fast_pattern:only ─────────────────────────────────────────
+          opts.forEach(o => {
+            if (/fast_pattern\s*:\s*only/i.test(o))
+              suggestions.push({ level:"warn", msg:"'fast_pattern:only' is removed in Snort 3.", fix:"Use plain fast_pattern;" });
+          });
+
+          // ── PCRE uppercase HTTP flags ─────────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
+              suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags (U,I,H,D,P,C,M,S,Y,K). These must be converted to Snort 3 sticky buffers.", fix:"Use http_uri; http_header; etc. before pcre" });
+          });
+
+          // ── metadata:service → service: ──────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() === "metadata") {
+              const val = (o.slice(o.indexOf(":") + 1) || "").toLowerCase();
+              if (val.includes("service"))
+                suggestions.push({ level:"info", msg:"service value inside metadata should be extracted as a standalone service: option in Snort 3.", fix:"service:http,dns;" });
+            }
+          });
+
+          // ── file_data:mime ────────────────────────────────────────────
+          if (has("file_data")) {
+            opts.forEach(o => {
+              if (optionKeyword(o).toLowerCase() === "file_data" && /:\s*mime/i.test(o))
+                suggestions.push({ level:"warn", msg:"file_data:mime is not supported in Snort 3 — use plain file_data." });
+            });
+          }
+
+          // ── byte_test/byte_jump migration notes ───────────────────────
+          opts.forEach(o => {
+            const kw = optionKeyword(o).toLowerCase();
+            if (kw !== "byte_test" && kw !== "byte_jump") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (/(^|,)\s*string\s*(,|$)/i.test(val))
+              suggestions.push({ level:"info", msg:`${kw}: verify dec/hex/oct sub-option position when migrating to Snort 3.` });
+            if (kw === "byte_jump" && /(from_beginning|from_end|post_offset)/i.test(val))
+              suggestions.push({ level:"info", msg:"byte_jump: from_beginning/from_end/post_offset — verify Snort 3 compatibility." });
+          });
+
+        // ══ SNORT 3 specific checks ══════════════════════════════════════
+        } else {
+          // ── Snort 2 remnants in Snort 3 rule ─────────────────────────
+          const remnants = [
+            ["uricontent",    "this is a Snort 2 keyword — use content + http_uri;"],
+            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
+            ["flowbits",      "Snort 3 uses xbits — replace with xbits:<action>,<name>,track ip_src;"],
+            ["threshold",     "replaced by rate_filter or detection_filter"],
+            ["activates",     "dynamic rules are not supported in Snort 3"],
+            ["activated_by",  "dynamic rules are not supported in Snort 3"],
+            ["resp",          "removed in Snort 3"],
+            ["react",         "removed in Snort 3"],
+            ["logto",         "removed in Snort 3"],
+            ["stream_reassemble", "removed in Snort 3 — configure in snort.lua"],
+            ["replace",       "removed in Snort 3 — use rewrite action"],
+          ];
+          remnants.forEach(([kw, msg]) => {
+            if (has(kw))
+              suggestions.push({ level:"warn", msg:`'${kw}' found in Snort 3 rule: ${msg}.` });
+          });
+
+          // ── fast_pattern:only ─────────────────────────────────────────
+          opts.forEach(o => {
+            if (/fast_pattern\s*:\s*only/i.test(o))
+              suggestions.push({ level:"warn", msg:"'fast_pattern:only' is not valid in Snort 3.", fix:"Use plain fast_pattern;" });
+          });
+
+          // ── PCRE uppercase HTTP flags ─────────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
+              suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags (U,I,H,D,P,C,M,S,Y,K). Use sticky buffers (http_uri; http_header; etc.) instead.", fix:"Use http_uri; http_header; etc. before pcre" });
+          });
+
+          // ── metadata:service → service: ──────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() === "metadata") {
+              const val = (o.slice(o.indexOf(":") + 1) || "").toLowerCase();
+              if (val.includes("service"))
+                suggestions.push({ level:"info", msg:"Prefer standalone service: option over embedding service inside metadata.", fix:"service:http,dns;" });
+            }
+          });
+
+          // ── xbits syntax check ────────────────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() === "xbits") {
+              const val = o.slice(o.indexOf(":") + 1).trim();
+              if (!/track\s+ip_(src|dst|src_dst|both)/i.test(val))
+                suggestions.push({ level:"warn", msg:"xbits requires a track clause (e.g. track ip_src).", fix:"xbits:set,<name>,track ip_src;" });
+              if (!/expire\s+\d+/i.test(val))
+                suggestions.push({ level:"info", msg:"xbits without expire will use the default timeout. Consider adding expire:<seconds>.", fix:"xbits:set,<name>,track ip_src,expire 3600;" });
+            }
+          });
+
+          // ── dce_stub_data inspector dependency ───────────────────────
+          if (has("dce_stub_data"))
+            suggestions.push({ level:"info", msg:"dce_stub_data requires the dce2 inspector to be enabled in snort.lua." });
+        }
+
+        // ══ Common checks (both versions) ═══════════════════════════════
+
+        // ── Missing flow ──────────────────────────────────────────────
+        if (!has("flow"))
+          suggestions.push({ level:"perf", msg:"No flow option. Specifying flow reduces unnecessary packet inspection.", fix:"flow:to_server,established;" });
+
+        // ── PCRE without content anchor ───────────────────────────────
+        const hasPcre    = has("pcre");
+        const hasContent = has("content");
+        if (hasPcre && !hasContent)
+          suggestions.push({ level:"perf", msg:"pcre with no preceding content match. A content anchor before pcre significantly reduces evaluation cost.", fix:'content:"unique string"; pcre:"/pattern/";' });
+
+        // ── fast_pattern recommendation ───────────────────────────────
+        const contents = all("content");
+        if (contents.length >= 2 && !opts.some(o => /fast_pattern/i.test(o)))
+          suggestions.push({ level:"perf", msg:`${contents.length} content options but no fast_pattern. Mark the most unique content to improve search performance.`, fix:"Add fast_pattern; after the most unique content option" });
+
+        // ── Short content patterns ────────────────────────────────────
+        contents.forEach(o => {
+          const val = o.slice(o.indexOf(":") + 1).trim().replace(/^"(.*)"$/, "$1");
+          const textOnly = val.replace(/\|[0-9A-Fa-f\s]+\|/g, "").replace(/!/g, "");
+          if (textOnly.length > 0 && textOnly.length < 4)
+            suggestions.push({ level:"perf", msg:`Short content "${textOnly}" (${textOnly.length} chars) is too broad and degrades performance.`, fix:"Use a string of 4+ characters for better specificity" });
+        });
+
+        // ── No detection criteria ─────────────────────────────────────
+        if (!hasContent && !hasPcre && !has("byte_test") && !has("byte_jump") && !has("isdataat"))
+          suggestions.push({ level:"warn", msg:"No payload inspection criteria (content, pcre, byte_test, etc.). This rule alerts on all matching traffic.", fix:"Add at least one content or pcre option" });
+
+        // ── distance:0 → within ───────────────────────────────────────
         opts.forEach(o => {
           if (optionKeyword(o).toLowerCase() === "distance") {
             const val = o.slice(o.indexOf(":") + 1).trim();
             if (val === "0")
-              suggestions.push({ level:"info", msg:"distance:0 is equivalent to within. Consider using within for clarity." });
+              suggestions.push({ level:"info", msg:"distance:0 is equivalent to within. Use within for clarity." });
           }
         });
 
-        // ── Excessive nocase ─────────────────────────────────────────────
+        // ── Excessive nocase ──────────────────────────────────────────
         const nocaseCount = opts.filter(o => optionKeyword(o).toLowerCase() === "nocase").length;
         if (nocaseCount > 3)
           suggestions.push({ level:"perf", msg:`nocase appears ${nocaseCount} times. Case-insensitive matching carries a performance cost — use only where necessary.` });
@@ -2233,115 +2338,6 @@ if __name__ == "__main__":
         }
       }
 
-      async function searchSid() {
-        const sidRaw = String(el.sidInput.value || "").trim();
-        if (!sidRaw) {
-          el.sidResults.innerHTML = '<span class="danger">Please enter a SID.</span>';
-          return;
-        }
-        const sid = sidRaw.replace(/\D/g, "");
-        if (!sid) {
-          el.sidResults.innerHTML = '<span class="danger">SID must be numeric.</span>';
-          return;
-        }
-
-        const url = `https://www.snort.org/rule_docs/1-${sid}`;
-        el.sidOpenLink.href = url;
-        el.sidOpenLink.classList.remove("hidden");
-
-        // Show loading state
-        el.sidResults.classList.remove("muted");
-        el.sidResults.innerHTML = `<span class="muted">Fetching rule information from Snort.org...</span>`;
-
-        // Fetch & parse snort.org rule doc page
-        let remoteHtml = "";
-        try {
-          remoteHtml = await fetchSnortHtml(url);
-        } catch (e) {
-          remoteHtml = "";
-        }
-
-        let remoteSection = "";
-        if (remoteHtml) {
-          const ruleDoc = new DOMParser().parseFromString(remoteHtml, "text/html");
-
-          // Check for 404 / "not found" page
-          const bodyText = (ruleDoc.body?.textContent || "").toLowerCase();
-          if (bodyText.includes("not found") || bodyText.includes("404") || !ruleDoc.querySelector("h3, h2")) {
-            remoteSection = `<div class="muted" style="margin-bottom:10px;">No rule documentation found on Snort.org for SID ${escapeHtml(sid)}.</div>`;
-          } else {
-            remoteSection = buildSidDocHtml(ruleDoc, url);
-          }
-        } else {
-          remoteSection = `
-            <div class="muted" style="margin-bottom:10px;">
-              Could not fetch Snort.org data (CORS or network error).
-              <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Open directly ↗</a>
-            </div>`;
-        }
-
-        // Locally converted rule (from localStorage)
-        const sidMap = getSidMap();
-        const localRule = sidMap[sid];
-        const localSection = localRule
-          ? `<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:14px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-                <b>Locally converted Snort 3 rule (SID ${escapeHtml(sid)})</b>
-                <button class="btn secondary" style="padding:4px 10px; font-size:0.8rem;"
-                  onclick="navigator.clipboard.writeText(${JSON.stringify(localRule)}).then(()=>{this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)})">Copy</button>
-              </div>
-              <div class="codebox">${escapeHtml(localRule)}</div>
-            </div>`
-          : `<div class="muted" style="margin-top:14px; border-top:1px solid var(--border); padding-top:14px; font-size:0.85rem;">
-              No locally converted rule for SID ${escapeHtml(sid)} — convert a Snort 2 rule with this SID on the Home tab.
-            </div>`;
-
-        el.sidResults.innerHTML = remoteSection + localSection;
-      }
-
-      function buildSidDocHtml(doc, sourceUrl) {
-        const SECTIONS = [
-          "Rule Category", "Alert Message", "Rule Explanation",
-          "What To Look For", "Known Usage", "False Positives",
-          "Contributors", "Rule Groups", "CVE", "Rule Vulnerability",
-          "Affected Products"
-        ];
-
-        // Try to get the page title / rule message
-        const title =
-          doc.querySelector("h1, h2, .rule-title, .page-title")?.textContent?.trim() ||
-          doc.querySelector("title")?.textContent?.replace("Snort - Rule Docs", "").trim() || "";
-
-        let rows = "";
-        doc.querySelectorAll("h3, h2").forEach((h) => {
-          const key = h.textContent.trim();
-          if (!SECTIONS.includes(key)) return;
-          const next = h.nextElementSibling;
-          if (!next) return;
-          // For CVE/references grab all links too
-          const links = Array.from(next.querySelectorAll("a"))
-            .map(a => `<a href="${escapeHtml(a.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">${escapeHtml(a.textContent.trim())}</a>`)
-            .join(", ");
-          const text = escapeHtml(next.textContent.trim());
-          rows += `<tr>
-            <td style="color:var(--muted); width:160px; white-space:nowrap;">${escapeHtml(key)}</td>
-            <td>${links || text}</td>
-          </tr>`;
-        });
-
-        if (!rows) {
-          return `<div class="muted">Could not parse rule details. <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open on Snort.org ↗</a></div>`;
-        }
-
-        return `
-          <div style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;">
-            <span style="color:var(--primary); font-weight:700;">${escapeHtml(title)}</span>
-            <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem; color:var(--muted);">Open on Snort.org ↗</a>
-          </div>
-          <div class="table-scroll">
-            <table><tbody>${rows}</tbody></table>
-          </div>`;
-      }
 
       function splitLines(text) { return String(text || "").split(/\r?\n/); }
 
