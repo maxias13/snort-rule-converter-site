@@ -705,16 +705,16 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
           <div>
             <h3 style="margin:0 0 4px;">Snort SRU Updates</h3>
             <p class="muted" style="margin:0; font-size:0.85rem;">
-              Latest Snort Rule Update (SRU) release notes from Snort.org
+              Weekly Snort 2 Rule Update (SRU) — added, modified, and deleted rules from Cisco / Snort.org
             </p>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <button class="btn" id="sruLoadBtn">&#8635; Load Latest</button>
-            <a href="https://www.snort.org/snort-3-rule-updates" target="_blank" rel="noopener noreferrer" class="btn secondary">Open on Snort.org &#8599;</a>
+            <a href="https://www.snort.org/snort_suas" target="_blank" rel="noopener noreferrer" class="btn secondary">Open on Snort.org &#8599;</a>
           </div>
         </div>
         <div id="sruResults" class="result-card muted" style="min-height:120px;">
-          Click <b>Load Latest</b> to fetch the current SRU release notes from Snort.org.
+          Click <b>Load Latest</b> to fetch this week's SRU release notes (Snort 2 rules: added / modified / deleted).
         </div>
       </div>
     </section>
@@ -726,7 +726,7 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
           <div>
             <h3 style="margin:0 0 4px;">Snort LSP Updates</h3>
             <p class="muted" style="margin:0; font-size:0.85rem;">
-              Latest Snort Lightweight Security Package (LSP) release notes from Snort.org
+              Weekly Snort 3 Lightweight Security Package (LSP) — added, modified, and deleted rules from Cisco / Snort.org
             </p>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -735,7 +735,7 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
           </div>
         </div>
         <div id="lspResults" class="result-card muted" style="min-height:120px;">
-          Click <b>Load Latest</b> to fetch the current LSP release notes from Snort.org.
+          Click <b>Load Latest</b> to fetch this week's LSP release notes (Snort 3 rules: added / modified / deleted).
         </div>
       </div>
     </section>
@@ -1667,95 +1667,186 @@ if __name__ == "__main__":
       }
 
       // ── SRU / LSP update fetcher ─────────────────────────────────────
+      const SRU_URL = "https://www.snort.org/snort_suas";
+      const LSP_URL = "https://www.snort.org/snort-3-rule-updates";
+
       async function loadSnortUpdates(type) {
-        const isSru = type === "sru";
+        const isSru    = type === "sru";
         const resultsEl = isSru ? el.sruResults : el.lspResults;
         const loadBtn   = isSru ? el.sruLoadBtn  : el.lspLoadBtn;
-        const url = "https://www.snort.org/snort-3-rule-updates";
+        const url       = isSru ? SRU_URL : LSP_URL;
 
         resultsEl.className = "result-card";
         resultsEl.innerHTML = '<span class="muted">&#8635; Fetching latest updates from Snort.org&hellip;</span>';
         loadBtn.disabled = true;
 
         let html = "";
-        try {
-          html = await fetchSnortHtml(url);
-        } catch (e) {
-          html = "";
-        }
+        try { html = await fetchSnortHtml(url); } catch (_) {}
         loadBtn.disabled = false;
 
         if (!html) {
-          resultsEl.innerHTML = `
-            <div class="muted">Could not fetch data (CORS or network error).</div>
-            <div style="margin-top:10px;">
-              <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn secondary" style="font-size:0.85rem;">Open directly on Snort.org &#8599;</a>
-            </div>`;
+          resultsEl.innerHTML = renderUpdateFetchError(url, type);
           return;
         }
 
         const doc = new DOMParser().parseFromString(html, "text/html");
-        resultsEl.innerHTML = parseSnortUpdatesPage(doc, type, url);
+        resultsEl.innerHTML = parseUpdatePage(doc, type, url);
       }
 
-      function parseSnortUpdatesPage(doc, type, sourceUrl) {
+      function renderUpdateFetchError(url, type) {
+        const label = type === "sru" ? "SRU (Snort 2)" : "LSP (Snort 3)";
+        return `
+          <div style="color:var(--warn); margin-bottom:10px;">
+            &#9888; Could not fetch ${escapeHtml(label)} update data — CORS restrictions prevent direct browser access to Snort.org.
+          </div>
+          <div class="muted" style="font-size:0.88rem; margin-bottom:14px;">
+            The update notes are published on Snort.org. Please open the page directly to view this week's added, modified, and deleted rules.
+          </div>
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="btn" style="font-size:0.85rem;">
+            Open ${escapeHtml(type.toUpperCase())} Update Page on Snort.org &#8599;
+          </a>`;
+      }
+
+      // ── Extract rule-change stats (added / modified / deleted) from text ──
+      function extractRuleStats(text) {
+        const stats = { added: null, modified: null, deleted: null };
+        const patterns = {
+          added:    [/(\d[\d,]*)\s+(?:new\s+)?rules?\s+added/i,    /added[:\s]+(\d[\d,]*)\s+rules?/i,    /new\s+rules?[:\s]+(\d[\d,]*)/i],
+          modified: [/(\d[\d,]*)\s+rules?\s+(?:modified|changed|updated)/i, /modified[:\s]+(\d[\d,]*)\s+rules?/i, /(?:modified|changed|updated)\s+rules?[:\s]+(\d[\d,]*)/i],
+          deleted:  [/(\d[\d,]*)\s+rules?\s+(?:deleted|removed|retired)/i,  /deleted[:\s]+(\d[\d,]*)\s+rules?/i,  /(?:deleted|removed|retired)\s+rules?[:\s]+(\d[\d,]*)/i],
+        };
+        for (const [key, pats] of Object.entries(patterns)) {
+          for (const pat of pats) {
+            const m = text.match(pat);
+            if (m) { stats[key] = parseInt(m[1].replace(/,/g, ""), 10); break; }
+          }
+        }
+        return stats;
+      }
+
+      function renderStatsBadges(stats) {
+        const items = [
+          { label: "Added",    val: stats.added,    color: "var(--success)" },
+          { label: "Modified", val: stats.modified, color: "var(--warn)"    },
+          { label: "Deleted",  val: stats.deleted,  color: "var(--error)"   },
+        ];
+        return items.filter(i => i.val !== null).map(i =>
+          `<span style="display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:6px;
+            border:1px solid ${i.color}33; background:${i.color}18; font-size:0.83rem; font-weight:600; color:${i.color};">
+            ${escapeHtml(i.label)}&nbsp;<b>${i.val.toLocaleString()}</b>
+          </span>`
+        ).join("");
+      }
+
+      // ── Parse an update page HTML document ────────────────────────────
+      function parseUpdatePage(doc, type, sourceUrl) {
         const isSru = type === "sru";
-        // The page lists both SRU and LSP entries — differentiate by heading text
-        const keyword = isSru ? "SRU" : "LSP";
-        const altKeyword = isSru ? "Snort 3 Rule Update" : "Lightweight Security Package";
+        // Keywords that identify a relevant release block on each page
+        const blockKw  = isSru
+          ? /SRU\s*[\d\-]+|Snort\s+2.*Rule\s+Update|Subscriber\s+Rule\s+Update/i
+          : /LSP\s*[\d\-]+|Lightweight\s+Security\s+Package|Snort\s+3.*Rule\s+Update/i;
 
-        // Collect all headings + their following sibling content
-        const headings = Array.from(doc.querySelectorAll("h1, h2, h3, h4, h5"));
-        const matchedBlocks = [];
+        // Collect article/section blocks or heading-grouped content
+        const entries = [];
 
-        headings.forEach((h) => {
-          const txt = h.textContent.trim();
-          if (!txt.toUpperCase().includes(keyword) && !txt.includes(altKeyword)) return;
+        // Strategy 1: semantic article/section containers
+        doc.querySelectorAll("article, .release, .entry, .post, .update-block, section").forEach(block => {
+          const heading = block.querySelector("h1,h2,h3,h4,h5");
+          if (!heading) return;
+          const title = heading.textContent.trim();
+          if (!blockKw.test(title)) return;
+          const bodyText = block.textContent.trim();
+          const stats = extractRuleStats(bodyText);
 
-          let contentHtml = "";
-          let sibling = h.nextElementSibling;
-          let count = 0;
-          while (sibling && !["H1","H2","H3","H4","H5"].includes(sibling.tagName) && count < 8) {
-            contentHtml += `<div style="margin-bottom:6px; font-size:0.88rem; color:var(--text);">${escapeHtml(sibling.textContent.trim())}</div>`;
-            sibling = sibling.nextElementSibling;
-            count++;
-          }
+          // Grab meaningful paragraphs and list items
+          const lines = Array.from(block.querySelectorAll("p, li"))
+            .map(e => e.textContent.trim())
+            .filter(t => t.length > 20 && t.length < 800)
+            .slice(0, 10);
 
-          if (txt || contentHtml) {
-            matchedBlocks.push({ title: txt, body: contentHtml });
-          }
+          entries.push({ title, stats, lines });
         });
 
-        // If nothing matched, try grabbing paragraphs/list items that contain the keyword
-        if (!matchedBlocks.length) {
-          const paragraphs = Array.from(doc.querySelectorAll("p, li"))
-            .filter(el => el.textContent.toUpperCase().includes(keyword))
-            .slice(0, 20);
-          if (paragraphs.length) {
-            const items = paragraphs.map(p => `<div style="padding:6px 0; border-bottom:1px solid var(--border); font-size:0.88rem;">${escapeHtml(p.textContent.trim())}</div>`).join("");
-            return `
-              <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-                <span style="color:var(--primary); font-weight:700;">${escapeHtml(keyword)} entries found</span>
-                <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem; color:var(--muted);">Open full page &#8599;</a>
-              </div>
-              <div>${items}</div>`;
-          }
-          return `
-            <div class="muted">No ${escapeHtml(keyword)} entries could be parsed from the page.
-              <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">Open on Snort.org &#8599;</a>
-            </div>`;
+        // Strategy 2: heading-based grouping (for flat-page layouts)
+        if (!entries.length) {
+          const headings = Array.from(doc.querySelectorAll("h1,h2,h3,h4,h5"));
+          headings.forEach(h => {
+            const title = h.textContent.trim();
+            if (!blockKw.test(title)) return;
+
+            const lines = [];
+            let sib = h.nextElementSibling;
+            let gathered = "";
+            let count = 0;
+            while (sib && !["H1","H2","H3","H4","H5"].includes(sib.tagName) && count < 12) {
+              gathered += " " + sib.textContent;
+              const t = sib.textContent.trim();
+              if (t.length > 10) lines.push(t.slice(0, 500));
+              sib = sib.nextElementSibling;
+              count++;
+            }
+            const stats = extractRuleStats(gathered);
+            entries.push({ title, stats, lines });
+          });
         }
 
-        const blocks = matchedBlocks.map(b => `
-          <div style="margin-bottom:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:rgba(0,212,255,0.03);">
-            <div style="color:var(--primary); font-weight:700; font-size:0.93rem; margin-bottom:6px;">${escapeHtml(b.title)}</div>
-            ${b.body || '<div class="muted" style="font-size:0.85rem;">No additional details.</div>'}
-          </div>`).join("");
+        // Strategy 3: scan all text nodes for pattern matches (last resort)
+        if (!entries.length) {
+          const bodyText = doc.body?.textContent || "";
+          const stats = extractRuleStats(bodyText);
+          const paras = Array.from(doc.querySelectorAll("p, li"))
+            .filter(e => {
+              const t = e.textContent;
+              return blockKw.test(t) || /added|modified|deleted|rules?/i.test(t);
+            })
+            .map(e => e.textContent.trim())
+            .filter(t => t.length > 15 && t.length < 600)
+            .slice(0, 15);
+
+          if (paras.length || stats.added !== null || stats.modified !== null || stats.deleted !== null) {
+            entries.push({ title: isSru ? "Latest SRU Entry" : "Latest LSP Entry", stats, lines: paras });
+          }
+        }
+
+        if (!entries.length) {
+          return `
+            <div class="muted" style="margin-bottom:10px;">
+              Could not parse update entries from the page. The page structure may have changed.
+            </div>
+            <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" class="btn secondary" style="font-size:0.85rem;">
+              Open full page on Snort.org &#8599;
+            </a>`;
+        }
+
+        const typeLabel = isSru ? "Snort 2" : "Snort 3";
+        const blocks = entries.slice(0, 10).map(e => {
+          const badges = renderStatsBadges(e.stats);
+          const hasStats = badges.length > 0;
+          const detail = e.lines.length
+            ? e.lines.map(l => `<div style="padding:4px 0; border-bottom:1px solid rgba(30,58,95,0.5); font-size:0.86rem; color:var(--text);">${escapeHtml(l)}</div>`).join("")
+            : "";
+          return `
+            <div style="margin-bottom:14px; border:1px solid var(--border); border-radius:10px;
+                        background:rgba(0,212,255,0.03); overflow:hidden;">
+              <div style="padding:10px 14px; border-bottom:1px solid var(--border);
+                          display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <span style="color:var(--primary); font-weight:700; font-size:0.93rem;">${escapeHtml(e.title)}</span>
+                ${hasStats
+                  ? `<div style="display:flex; gap:6px; flex-wrap:wrap;">${badges}</div>`
+                  : `<span class="muted" style="font-size:0.82rem;">No rule counts found</span>`}
+              </div>
+              ${detail ? `<div style="padding:8px 14px;">${detail}</div>` : ""}
+            </div>`;
+        }).join("");
 
         return `
-          <div style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-            <span style="color:var(--primary); font-weight:700;">${matchedBlocks.length} ${escapeHtml(keyword)} release${matchedBlocks.length > 1 ? "s" : ""} found</span>
-            <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer" style="font-size:0.82rem; color:var(--muted);">Open full page on Snort.org &#8599;</a>
+          <div style="margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+            <span style="color:var(--primary); font-weight:700;">
+              ${entries.length} ${escapeHtml(isSru ? "SRU" : "LSP")} release${entries.length > 1 ? "s" : ""}
+              &nbsp;<span class="muted" style="font-weight:400; font-size:0.85rem;">(${escapeHtml(typeLabel)} rules)</span>
+            </span>
+            <a href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer"
+               style="font-size:0.82rem; color:var(--muted);">Open full page on Snort.org &#8599;</a>
           </div>
           ${blocks}`;
       }
