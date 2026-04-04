@@ -1669,70 +1669,168 @@ if __name__ == "__main__":
       }
 
       // ── SRU / LSP update fetcher ─────────────────────────────────────
-      // Step 1: snort.org/downloads → extract latest advisory URL
-      // Step 2: advisory page → parse SRU (Snort 2) or LSP (Snort 3) blocks
+      // Fetches all advisory pages for the current week (Sun–Sat) in parallel,
+      // then parses and aggregates SRU (Snort 2) or LSP (Snort 3) rule changes.
       const DOWNLOADS_URL = "https://www.snort.org/downloads";
 
+      // ── Date helpers ─────────────────────────────────────────────────
+      function fmtDate(d) {
+        // Returns YYYY-MM-DD in UTC
+        return d.toISOString().slice(0, 10);
+      }
+
+      function getWeekDates() {
+        // Returns array of YYYY-MM-DD strings from this week's Sunday through today
+        const today = new Date();
+        const dayOfWeek = today.getUTCDay(); // 0=Sun … 6=Sat
+        const dates = [];
+        for (let i = dayOfWeek; i >= 0; i--) {
+          const d = new Date(today);
+          d.setUTCDate(today.getUTCDate() - i);
+          dates.push(fmtDate(d));
+        }
+        return dates; // e.g. ["2026-03-29","2026-03-30",…,"2026-04-04"]
+      }
+
+      function formatWeekRange(dates) {
+        if (!dates.length) return "";
+        const fmt = (s) => {
+          const d = new Date(s + "T00:00:00Z");
+          return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+        };
+        return `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])}, ${dates[dates.length - 1].slice(0, 4)}`;
+      }
+
+      // ── Fetch a single advisory HTML; returns "" on 404 or error ─────
+      async function fetchAdvisoryHtml(date) {
+        const url = `https://www.snort.org/advisories/talos-rules-${date}`;
+        try {
+          const html = await fetchSnortHtml(url);
+          // If we got a 404 page, discard it
+          if (html && html.includes("Snort.Org 404")) return { date, url, html: "" };
+          return { date, url, html: html || "" };
+        } catch (_) {
+          return { date, url, html: "" };
+        }
+      }
+
+      // ── Main loader ──────────────────────────────────────────────────
       async function loadSnortUpdates(type) {
         const isSru     = type === "sru";
         const resultsEl = isSru ? el.sruResults : el.lspResults;
         const loadBtn   = isSru ? el.sruLoadBtn  : el.lspLoadBtn;
         const linkEl    = isSru ? el.sruAdvisoryLink : el.lspAdvisoryLink;
 
+        const weekDates = getWeekDates();
+        const weekLabel = formatWeekRange(weekDates);
+
         resultsEl.className = "result-card";
-        resultsEl.innerHTML = '<span class="muted">&#8635; Fetching latest advisory from Snort.org&hellip;</span>';
+        resultsEl.innerHTML = `<span class="muted">&#8635; Fetching advisories for the week of ${escapeHtml(weekLabel)}&hellip;</span>`;
         loadBtn.disabled = true;
 
-        // ── Step 1: get advisory URL from downloads page ──────────────
-        let advisoryUrl = null;
-        try {
-          const dlHtml = await fetchSnortHtml(DOWNLOADS_URL);
-          const m = dlHtml.match(/href="(\/advisories\/talos-rules-[\d\-]+)"/);
-          if (m) advisoryUrl = "https://www.snort.org" + m[1];
-        } catch (_) {}
+        // Fetch all days in parallel
+        const fetched = await Promise.all(weekDates.map(d => fetchAdvisoryHtml(d)));
+        loadBtn.disabled = false;
 
-        if (!advisoryUrl) {
-          loadBtn.disabled = false;
+        // Keep only days that returned real content
+        const advisories = fetched.filter(f => f.html.trim().length > 500);
+
+        if (!advisories.length) {
           resultsEl.innerHTML = `
-            <div style="color:var(--warn); margin-bottom:10px;">&#9888; Could not retrieve the latest advisory URL from Snort.org.</div>
+            <div style="color:var(--warn); margin-bottom:10px;">
+              &#9888; No advisories found for the week of ${escapeHtml(weekLabel)}.
+            </div>
             <a href="${escapeHtml(DOWNLOADS_URL)}" target="_blank" rel="noopener noreferrer" class="btn secondary">
               Open Snort Downloads &#8599;
             </a>`;
           return;
         }
 
-        // Update the "Open Advisory" button link
-        linkEl.href = advisoryUrl;
+        // Update "Open Advisory" to the most recent one
+        linkEl.href = advisories[advisories.length - 1].url;
 
-        // ── Step 2: fetch the advisory page ──────────────────────────
-        resultsEl.innerHTML = `<span class="muted">&#8635; Loading advisory: ${escapeHtml(advisoryUrl)}&hellip;</span>`;
-        let advisoryHtml = "";
-        try { advisoryHtml = await fetchSnortHtml(advisoryUrl); } catch (_) {}
-        loadBtn.disabled = false;
+        // Parse each advisory and collect day-blocks
+        const dayResults = advisories.map(a => parseAdvisory(a.html, type, a.url, a.date));
 
-        if (!advisoryHtml) {
-          resultsEl.innerHTML = `
-            <div style="color:var(--warn); margin-bottom:10px;">&#9888; Could not fetch the advisory page.</div>
-            <a href="${escapeHtml(advisoryUrl)}" target="_blank" rel="noopener noreferrer" class="btn secondary">
-              Open Advisory on Snort.org &#8599;
-            </a>`;
-          return;
-        }
-
-        // ── Step 3: parse and render ─────────────────────────────────
-        const result = parseAdvisory(advisoryHtml, type, advisoryUrl);
+        // Render
         resultsEl.className = "result-card";
-        resultsEl.innerHTML = result;
+        resultsEl.innerHTML = renderWeeklyView(dayResults, type, weekLabel);
       }
 
-      // ── Parse the Talos advisory page ────────────────────────────────
-      // The advisory contains multiple version blocks like:
-      //   SRU:  "29200 2026-04-02 ... Snort version 2092000 ..."
-      //   LSP:  "31200 2026-04-02 ... Snort version 3.12.0.0 ..."
-      function parseAdvisory(rawHtml, type, advisoryUrl) {
+      // ── Render weekly aggregated view ─────────────────────────────────
+      function renderWeeklyView(dayResults, type, weekLabel) {
         const isSru = type === "sru";
+        const typeLabel = isSru ? "Snort 2 (SRU)" : "Snort 3 (LSP)";
 
-        // Strip HTML tags, decode entities, collapse whitespace
+        // Aggregate totals across all days (deduplicated by SID)
+        const allNew  = dedupeBySid(dayResults.flatMap(d => d.newRules));
+        const allMod  = dedupeBySid(dayResults.flatMap(d => d.modRules));
+        const allDel  = dedupeBySid(dayResults.flatMap(d => d.delRules));
+
+        const successDays = dayResults.filter(d => d.found);
+        const skipDays    = dayResults.filter(d => !d.found);
+
+        const weekHeader = `
+          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px;
+                      padding:12px 16px; border:1px solid var(--border); border-radius:10px; background:rgba(0,212,255,0.04);">
+            <div>
+              <div style="font-size:1rem; font-weight:700; color:var(--primary);">
+                ${escapeHtml(typeLabel)} &mdash; Week of ${escapeHtml(weekLabel)}
+              </div>
+              <div class="muted" style="font-size:0.83rem; margin-top:3px;">
+                ${successDays.length} advisory day${successDays.length > 1 ? "s" : ""} found
+                (${successDays.map(d => escapeHtml(d.date)).join(", ")})
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${renderBadge(allNew.length, "New",      "var(--success)")}
+              ${renderBadge(allMod.length, "Modified", "var(--warn)"   )}
+              ${renderBadge(allDel.length, "Deleted",  "var(--error)"  )}
+            </div>
+          </div>`;
+
+        const dayBlocks = successDays.map(d => `
+          <details open style="margin-bottom:14px; border:1px solid var(--border); border-radius:10px; overflow:hidden;">
+            <summary style="cursor:pointer; padding:10px 14px; background:rgba(0,212,255,0.05);
+                            display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+                            list-style:none; user-select:none;">
+              <span style="font-weight:700; color:var(--primary); font-size:0.93rem;">
+                &#128197; ${escapeHtml(d.date)}
+                <span class="muted" style="font-weight:400; font-size:0.82rem; margin-left:8px;">
+                  Pack: ${escapeHtml(d.packVer)}
+                </span>
+              </span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${renderBadge(d.newRules.length, "New",      "var(--success)")}
+                ${renderBadge(d.modRules.length, "Modified", "var(--warn)"   )}
+                ${renderBadge(d.delRules.length, "Deleted",  "var(--error)"  )}
+              </div>
+            </summary>
+            <div style="padding:12px 14px;">
+              ${d.intro ? `<div class="muted" style="font-size:0.84rem; margin-bottom:10px;">${escapeHtml(d.intro.slice(0,300))}${d.intro.length>300?"…":""}</div>` : ""}
+              ${renderRuleTable("New Rules",      d.newRules, "var(--success)")}
+              ${renderRuleTable("Modified Rules", d.modRules, "var(--warn)"   )}
+              ${renderRuleTable("Deleted Rules",  d.delRules, "var(--error)"  )}
+            </div>
+          </details>`).join("");
+
+        return weekHeader + dayBlocks;
+      }
+
+      function dedupeBySid(rules) {
+        const seen = new Set();
+        return rules.filter(r => {
+          if (seen.has(r.sid)) return false;
+          seen.add(r.sid);
+          return true;
+        });
+      }
+
+      // ── Parse one advisory HTML into structured day result ────────────
+      function parseAdvisory(rawHtml, type, advisoryUrl, date) {
+        const isSru = type === "sru";
+        const EMPTY = { date, url: advisoryUrl, found: false, packVer: "", intro: "", newRules: [], modRules: [], delRules: [] };
+
         let text = rawHtml
           .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
           .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
@@ -1741,92 +1839,37 @@ if __name__ == "__main__":
           .replace(/&amp;/g, "&").replace(/&nbsp;/g, " ")
           .replace(/\s+/g, " ").trim();
 
-        // Split into per-version blocks: each starts with a 5-digit version number + timestamp
-        // e.g. "29200 2026-04-02 12:07:03 UTC Snort Subscriber Rules Update..."
-        const blockRe = /(\d{5})\s+(\d{4}-\d{2}-\d{2}\s[\d:]+\s*UTC)\s+Snort Subscriber Rules Update Date:\s*([\d\-]+(?:-\d+)?)([\s\S]*?)(?=\d{5}\s+\d{4}-\d{2}-\d{2}|$)/g;
+        const blockRe = /(\d{5})\s+\d{4}-\d{2}-\d{2}\s[\d:]+\s*UTC\s+Snort Subscriber Rules Update Date:\s*[\d\-]+(?:-\d+)?([\s\S]*?)(?=\d{5}\s+\d{4}-\d{2}-\d{2}|$)/g;
         const allBlocks = [];
         let m;
         while ((m = blockRe.exec(text)) !== null) {
-          allBlocks.push({
-            version: m[1],
-            timestamp: m[2].trim(),
-            date: m[3],
-            body: m[4]
-          });
+          allBlocks.push({ version: m[1], body: m[2] });
         }
+        if (!allBlocks.length) return EMPTY;
 
-        if (!allBlocks.length) {
-          return `<div class="muted">No rule update blocks found on the advisory page.
-            <a href="${escapeHtml(advisoryUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">
-              Open Advisory &#8599;</a></div>`;
-        }
-
-        // Filter by Snort version:
-        //   SRU  → version string contains "Snort version 2XXXXXX" (7-digit starting with 2)
-        //   LSP  → version string contains "Snort version 3.X.X.X"
         const versionFilter = isSru
           ? /Snort version\s+2\d{6}/
           : /Snort version\s+3\.\d+\.\d+/;
 
         const filtered = allBlocks.filter(b => versionFilter.test(b.body));
+        if (!filtered.length) return EMPTY;
 
-        if (!filtered.length) {
-          const label = isSru ? "Snort 2 (SRU)" : "Snort 3 (LSP)";
-          return `<div class="muted">No ${escapeHtml(label)} blocks found in this advisory.
-            Found ${allBlocks.length} total block(s) for other versions.
-            <a href="${escapeHtml(advisoryUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">
-              Open Advisory &#8599;</a></div>`;
-        }
+        // Use highest version block (first in the page = highest pack number)
+        const best = filtered[0];
+        const verM = best.body.match(isSru ? /Snort version\s+(2\d{6})/ : /Snort version\s+(3[\d.]+)/);
+        const packVer = verM ? verM[1] : best.version;
 
-        // Show only the latest block (highest version number = first match from page top)
-        const latest = filtered[0];
-        const snortVerM = latest.body.match(isSru
-          ? /Snort version\s+(2\d{6})/
-          : /Snort version\s+(3[\d.]+)/);
-        const snortVer = snortVerM ? snortVerM[1] : latest.version;
+        const newRules = parseRuleList(best.body, "New Rules");
+        const modRules = parseRuleList(best.body, "Modified Rules");
+        const delRules = parseRuleList(best.body, "Deleted Rules");
 
-        // Parse rule lists
-        const newRules  = parseRuleList(latest.body, "New Rules");
-        const modRules  = parseRuleList(latest.body, "Modified Rules");
-        const delRules  = parseRuleList(latest.body, "Deleted Rules");
+        // Intro = text between start and first section header
+        const introM = best.body.match(/^([\s\S]*?)(?=New Rules:|Modified Rules:|Deleted Rules:|$)/);
+        const intro  = introM
+          ? introM[1].replace(/This is the complete list[\s\S]*?rule group\)|gid:sid[\s\S]*?rule group\)/gi, "").trim()
+          : "";
 
-        // Advisory intro text (before "New Rules:")
-        const introM = latest.body.match(/^([\s\S]*?)(?=New Rules:|Modified Rules:|$)/);
-        const intro = introM ? introM[1].replace(/This is the complete list.*?rule group\)|gid:sid.*?rule group\)/gi, "").trim() : "";
-
-        const typeLabel = isSru ? "Snort 2 (SRU)" : "Snort 3 (LSP)";
-        const dateLabel = latest.date;
-
-        return `
-          <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-            <div>
-              <div style="font-size:1rem; font-weight:700; color:var(--primary);">
-                ${escapeHtml(typeLabel)} &mdash; ${escapeHtml(dateLabel)}
-                <span class="muted" style="font-size:0.82rem; font-weight:400; margin-left:8px;">
-                  Pack version: ${escapeHtml(snortVer)}
-                </span>
-              </div>
-              ${intro ? `<div class="muted" style="font-size:0.85rem; margin-top:4px;">${escapeHtml(intro.slice(0, 300))}${intro.length > 300 ? "…" : ""}</div>` : ""}
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              ${renderBadge(newRules.length, "New",      "var(--success)")}
-              ${renderBadge(modRules.length, "Modified", "var(--warn)"   )}
-              ${renderBadge(delRules.length, "Deleted",  "var(--error)"  )}
-            </div>
-          </div>
-
-          ${renderRuleTable("New Rules", newRules, "var(--success)")}
-          ${renderRuleTable("Modified Rules", modRules, "var(--warn)")}
-          ${renderRuleTable("Deleted Rules", delRules, "var(--error)")}
-
-          ${filtered.length > 1 ? `
-            <div class="muted" style="font-size:0.82rem; margin-top:8px;">
-              &#8505; This advisory covers ${filtered.length} ${escapeHtml(isSru ? "SRU" : "LSP")} pack versions.
-              Showing the latest (${escapeHtml(snortVer)}).
-              <a href="${escapeHtml(advisoryUrl)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary);">
-                View all &#8599;
-              </a>
-            </div>` : ""}`;
+        return { date, url: advisoryUrl, found: true, packVer, intro, newRules, modRules, delRules };
       }
 
       // ── Parse a "New Rules:" / "Modified Rules:" / "Deleted Rules:" section ──
