@@ -648,6 +648,40 @@
       border-color: var(--warn);
       color: #fff;
     }
+    .tab-btn.siteinfo-btn {
+      border-color: var(--success);
+      color: var(--success);
+    }
+    .tab-btn.siteinfo-btn:hover,
+    .tab-btn.siteinfo-btn.active {
+      background: rgba(0,255,136,0.06);
+      border-color: var(--success);
+      color: #fff;
+    }
+    .si-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 22px;
+      margin-bottom: 14px;
+    }
+    .si-card h4 {
+      margin: 0 0 10px;
+      font-size: 0.88rem;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .si-row {
+      display: flex; gap: 8px;
+      align-items: baseline;
+      margin-bottom: 6px;
+      font-size: 0.88rem;
+    }
+    .si-label { color: var(--muted); min-width: 130px; flex-shrink: 0; }
+    .si-value { color: #d0e8ff; }
+    .si-value a { color: var(--primary); text-decoration: none; }
+    .si-value a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -663,6 +697,7 @@
         <button class="tab-btn" data-view="sruView">Snort SRU Updates</button>
         <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
         <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">How to write Snort 3 rules &#8599;</a>
+        <button class="tab-btn siteinfo-btn" data-view="siteinfoView">&#8505; Site Information</button>
         <button class="tab-btn feedback-btn" data-view="feedbackView">&#128172; Feedback</button>
       </div>
     </nav>
@@ -896,6 +931,42 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
     </section>
 
     <!-- ── Feedback Board ────────────────────────────────────────────────── -->
+    <!-- ── Site Information ──────────────────────────────────────────────── -->
+    <section id="siteinfoView" class="view">
+      <div class="panel">
+        <h3 style="margin:0 0 18px;">&#8505; Site Information</h3>
+
+        <div class="si-card">
+          <h4>About</h4>
+          <div class="si-row"><span class="si-label">Site Name</span><span class="si-value">Snort 2 → Snort 3 Local Rule Converter</span></div>
+          <div class="si-row"><span class="si-label">Purpose</span><span class="si-value">Converts Snort 2 local rules to Snort 3 format, provides rule optimization analysis, Python-based validator script generation, and weekly SRU/LSP update news.</span></div>
+          <div class="si-row"><span class="si-label">Target Users</span><span class="si-value">Network security engineers managing Cisco FTD / Firepower policies with custom local rules.</span></div>
+        </div>
+
+        <div class="si-card">
+          <h4>Features</h4>
+          <div class="si-row"><span class="si-label">Rule Converter</span><span class="si-value">Automated Snort 2 → 3 syntax migration with SID remapping</span></div>
+          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions (Korean)</span></div>
+          <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation</span></div>
+          <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
+          <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, and suggestions</span></div>
+        </div>
+
+        <div class="si-card">
+          <h4>Technical</h4>
+          <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
+          <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers + GitHub Issues API</span></div>
+          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter</a></span></div>
+          <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / JavaScript</span></div>
+        </div>
+
+        <div class="si-card">
+          <h4>Disclaimer</h4>
+          <div class="si-row"><span class="si-value" style="color:#ffaa00;">All information provided on this site is not official information from Cisco Systems. Please use it with caution. Always verify converted rules in a test environment before deployment.</span></div>
+        </div>
+      </div>
+    </section>
+
     <section id="feedbackView" class="view">
       <div class="panel">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px;">
