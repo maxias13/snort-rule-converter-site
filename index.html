@@ -947,6 +947,107 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
         <div class="si-card">
           <h4>Features</h4>
           <div class="si-row"><span class="si-label">Rule Converter</span><span class="si-value">Automated Snort 2 → 3 syntax migration with SID remapping</span></div>
+          <div style="margin-top:14px; padding:14px 16px; background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.15); border-radius:8px; font-size:0.84rem; line-height:1.75;">
+            <div style="color:var(--primary); font-weight:700; margin-bottom:10px;">&#128295; Conversion Algorithm — How It Works</div>
+
+            <div style="color:#a0bcd8; margin-bottom:8px;">
+              Each rule is processed through <b style="color:#fff;">4 sequential passes</b>. Comments and blank lines are preserved as-is.
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9312; Pass 1 — Rule Parsing &amp; Option-Level Transformation</div>
+              <div style="color:#a0bcd8;">The rule is split into <b>header</b> (action, protocol, IPs, ports, direction) and <b>options</b> (semicolon-delimited key-value pairs). A quote-aware, escape-aware tokenizer handles edge cases like semicolons inside quoted strings. Each option keyword is then transformed:</div>
+              <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:0.82rem;">
+                <thead>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Snort 2 Keyword</th>
+                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Action</th>
+                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Snort 3 Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">uricontent:"X"</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Split into sticky buffer + content</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">http_uri; content:"X"</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:set,name</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Converted to host-tracked xbits</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">xbits:set,name,track ip_src</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:noalert</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Standalone flag conversion</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">noalert</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:reset</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">No Snort 3 equivalent — removed + WARNING</td>
+                    <td style="padding:4px 8px; color:var(--error);">⚠ removed</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">isdataat:N,rawbytes</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">rawbytes sub-option stripped</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">isdataat:N</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">file_data:mime</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Parameter stripped (Snort 3 uses plain file_data)</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">file_data</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">fast_pattern:only</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">:only qualifier removed (not valid in Snort 3)</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">fast_pattern</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">metadata:service http</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">service entries promoted to standalone option</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">service:http</td>
+                  </tr>
+                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sameip</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Renamed</td>
+                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">same_ip</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session, stream_reassemble, replace</td>
+                    <td style="padding:4px 8px; color:#a0bcd8;">Removed from Snort 3 — dropped with WARNING comment</td>
+                    <td style="padding:4px 8px; color:var(--error);">⚠ removed</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9313; Pass 2 — Sticky Buffer Reordering (content)</div>
+              <div style="color:#a0bcd8;">In Snort 3, a sticky buffer keyword (e.g. <code style="color:var(--primary);">http_uri</code>, <code style="color:var(--primary);">http_header</code>) must appear <b>before</b> its associated <code style="color:var(--primary);">content</code> option. This pass scans the option list and moves any sticky buffer that appears after a content keyword to the correct position immediately preceding it.</div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9314; Pass 3 — PCRE HTTP Flag Conversion</div>
+              <div style="color:#a0bcd8;">Snort 2 PCRE uses single-letter HTTP flags (e.g. <code style="color:var(--primary);">/pattern/Ui</code> for URI, <code style="color:var(--primary);">/pattern/Hi</code> for header). Snort 3 replaces these with sticky buffers placed before the pcre option. This pass reads each pcre's flag string, maps it to the correct sticky buffer, inserts the buffer immediately before the pcre, and strips the HTTP flag from the PCRE modifier string.</div>
+              <div style="margin-top:6px; font-family:monospace; font-size:0.81rem;">
+                <span style="color:var(--warn);">pcre:"/pattern/Ui"</span>
+                &nbsp;→&nbsp;
+                <span style="color:var(--success);">http_uri; pcre:"/pattern/i"</span>
+              </div>
+            </div>
+
+            <div style="margin-bottom:6px;">
+              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9315; Pass 4 — Content Modifier Inlining</div>
+              <div style="color:#a0bcd8;">In Snort 2, positional modifiers (<code style="color:var(--primary);">depth</code>, <code style="color:var(--primary);">within</code>, <code style="color:var(--primary);">offset</code>, <code style="color:var(--primary);">distance</code>, <code style="color:var(--primary);">nocase</code>, <code style="color:var(--primary);">fast_pattern</code>) follow a content option as separate semicolon-delimited options. Snort 3 requires these to be inlined as comma-separated arguments inside the content option itself. This pass merges consecutive modifier options into the preceding content option.</div>
+              <div style="margin-top:6px; font-family:monospace; font-size:0.81rem; line-height:1.8;">
+                <div><span style="color:var(--warn);">content:"X"; depth:20; nocase; distance:0;</span></div>
+                <div>→ <span style="color:var(--success);">content:"X", depth 20, nocase, distance 0;</span></div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px; color:#a0bcd8;">
+              <b style="color:#fff;">Final steps:</b> <code style="color:var(--primary);">gid</code>, <code style="color:var(--primary);">sid</code>, <code style="color:var(--primary);">rev</code> are always sorted to the end of the options in that order. If a Start SID is specified, each rule's SID is remapped sequentially from that value, and the original→new SID mapping is persisted to localStorage for cross-session traceability.
+            </div>
+          </div>
           <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions (Korean)</span></div>
           <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
