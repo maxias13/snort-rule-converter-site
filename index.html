@@ -7,38 +7,44 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, orderBy, query, serverTimestamp }
-      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  <!-- Feedback backend via Cloudflare Worker proxy -->
+  <script>
+    (function () {
+      const WORKER = "https://snort-feedback.snort-feedback.workers.dev";
 
-    // ── Firebase config (replace with your own project config) ───────────
-    const firebaseConfig = {
-      apiKey:            "AIzaSyPlaceholderKeyReplaceMe",
-      authDomain:        "snort-feedback.firebaseapp.com",
-      projectId:         "snort-feedback",
-      storageBucket:     "snort-feedback.appspot.com",
-      messagingSenderId: "000000000000",
-      appId:             "1:000000000000:web:placeholder000000000"
-    };
-    // ─────────────────────────────────────────────────────────────────────
+      window.__fbSubmit = async (type, title, author, content) => {
+        const res = await fetch(`${WORKER}/issues`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type, title, author, content })
+        });
+        if (!res.ok) throw new Error(`Worker error: ${res.status}`);
+      };
 
-    const app = initializeApp(firebaseConfig);
-    const db  = getFirestore(app);
-
-    window.__fbSubmit = async (type, title, author, content) => {
-      await addDoc(collection(db, "feedback"), {
-        type, title, author: author || "Anonymous", content,
-        createdAt: serverTimestamp()
-      });
-    };
-
-    window.__fbLoad = async () => {
-      const q    = query(collection(db, "feedback"), orderBy("createdAt", "desc"));
-      const snap = await getDocs(q);
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    };
+      window.__fbLoad = async () => {
+        const res = await fetch(`${WORKER}/issues`);
+        if (!res.ok) throw new Error(`Worker error: ${res.status}`);
+        const issues = await res.json();
+        return issues.map(i => {
+          const typeMatch   = i.body?.match(/\*\*유형[^:]*:\*\*\s*(.+)/);
+          const authorMatch = i.body?.match(/\*\*작성자[^:]*:\*\*\s*(.+)/);
+          const content     = i.body?.replace(/[\s\S]*?---\n/, "").trim() || "";
+          const labelNames  = i.labels.map(l => l.name);
+          let type = "Suggestion";
+          if (labelNames.includes("enhancement")) type = "Feature Request";
+          else if (labelNames.includes("bug"))    type = "Bug Report";
+          if (typeMatch) type = typeMatch[1].trim();
+          return {
+            id:        i.number,
+            type,
+            title:     i.title,
+            author:    authorMatch ? authorMatch[1].trim() : "Anonymous",
+            content,
+            createdAt: i.created_at
+          };
+        });
+      };
+    })();
   </script>
   <style>
     :root {
