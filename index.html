@@ -1719,6 +1719,12 @@ if __name__ == "__main__":
           fbToggleForm.textContent  = "+ Write Feedback";
         });
 
+        async function hashPassword(pw) {
+          const enc = new TextEncoder();
+          const buf = await crypto.subtle.digest("SHA-256", enc.encode(pw));
+          return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+
         fbSubmit.addEventListener("click", async () => {
           const type    = document.getElementById("fbType").value;
           const author  = document.getElementById("fbAuthor").value.trim();
@@ -1729,7 +1735,12 @@ if __name__ == "__main__":
           if (!content) { document.getElementById("fbContent").focus(); return; }
           if (type === "Notice") {
             const pw = document.getElementById("fbPassword").value;
-            if (pw !== "maxias") { alert("관리자 비밀번호가 올바르지 않습니다."); document.getElementById("fbPassword").focus(); return; }
+            const hash = await hashPassword(pw);
+            if (hash !== "50ee8c22c0763bab8f63e0b0366405227aea6520fb12ec72280f4fc525134b7e") {
+              alert("관리자 비밀번호가 올바르지 않습니다.");
+              document.getElementById("fbPassword").focus();
+              return;
+            }
           }
 
           fbSubmit.disabled = true;
