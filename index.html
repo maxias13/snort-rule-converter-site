@@ -1877,11 +1877,27 @@ if __name__ == "__main__":
       //  Rule Optimization Engine
       // ════════════════════════════════════════════════════════════════════
 
+      function countParenDepth(line) {
+        // Count net parenthesis depth in a line, ignoring parens inside quoted strings.
+        let depth = 0;
+        let inQuote = false;
+        let escaped = false;
+        for (const ch of line) {
+          if (escaped)        { escaped = false; continue; }
+          if (ch === "\\")    { escaped = true;  continue; }
+          if (ch === '"')     { inQuote = !inQuote; continue; }
+          if (inQuote)        continue;
+          if (ch === "(")     depth++;
+          else if (ch === ")") depth--;
+        }
+        return depth;
+      }
+
       function joinMultilineRules(text) {
         // Join lines that belong to the same rule.
         // A Snort rule starts with an action keyword and ends when the
         // parentheses are balanced (closing ')' found).
-        const ACTIONS = /^(alert|log|pass|drop|reject|sdrop)\s/i;
+        // Uses quote-aware paren counting so msg:"text (with parens)" is handled correctly.
         const lines = text.split(/\r?\n/);
         const rules = [];
         let current = null;
@@ -1902,18 +1918,12 @@ if __name__ == "__main__":
             // Start of a new rule
             current = line;
             depth = 0;
-            for (const ch of line) {
-              if (ch === "(") depth++;
-              else if (ch === ")") depth--;
-            }
           } else {
             // Continuation of an existing rule
             current += " " + line;
-            for (const ch of line) {
-              if (ch === "(") depth++;
-              else if (ch === ")") depth--;
-            }
           }
+
+          depth += countParenDepth(line);
 
           // Rule is complete when parentheses are balanced and we had at least one open paren
           if (depth <= 0 && current !== null) {
