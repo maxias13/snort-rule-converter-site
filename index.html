@@ -780,6 +780,7 @@
           <button class="btn" id="optimizeBtn">Optimize</button>
           <button class="btn secondary" id="optClearBtn">Clear</button>
           <span id="optRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
+          <button class="btn success hidden" id="optDownloadBtn">&#8595; Download Annotated .rules</button>
         </div>
 
         <div class="drop-zone" id="optDropZone">
@@ -1462,6 +1463,7 @@ if __name__ == "__main__":
         optInput: document.getElementById("optInput"),
         optResults: document.getElementById("optResults"),
         optRuleCountBadge: document.getElementById("optRuleCountBadge"),
+        optDownloadBtn: document.getElementById("optDownloadBtn"),
         optVersionSnort2: document.getElementById("optVersionSnort2"),
         optVersionSnort3: document.getElementById("optVersionSnort3"),
         sruLoadBtn: document.getElementById("sruLoadBtn"),
@@ -1588,9 +1590,11 @@ if __name__ == "__main__":
         el.optClearBtn.addEventListener("click", () => {
           el.optInput.value = "";
           el.optResults.innerHTML = "";
+          el.optDownloadBtn.classList.add("hidden");
           updateOptRuleCount();
         });
         el.optimizeBtn.addEventListener("click", runOptimize);
+        el.optDownloadBtn.addEventListener("click", downloadAnnotatedRules);
         el.optInput.addEventListener("input", updateOptRuleCount);
 
         // ── Drag & Drop on optimizer input ───────────────────────────────
@@ -2005,6 +2009,46 @@ if __name__ == "__main__":
           html += `</div></div>`;
         });
         el.optResults.innerHTML = html;
+        el.optDownloadBtn.classList.remove("hidden");
+      }
+
+      function downloadAnnotatedRules() {
+        const ruleLines = joinMultilineRules(el.optInput.value);
+        if (!ruleLines.length) return;
+
+        const versionLabel = optVersion === 2 ? "Snort 2" : "Snort 3";
+        const now = new Date();
+        const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+        const lines = [];
+        lines.push(`# Optimizer Report — ${versionLabel} rules — ${now.toISOString().slice(0,19).replace("T"," ")} UTC`);
+        lines.push(`# Total rules analyzed: ${ruleLines.length}`);
+        lines.push("");
+
+        ruleLines.forEach((rule, idx) => {
+          const { mismatch, suggestions } = analyzeRule(rule.trim(), optVersion);
+          const hasIssues = mismatch || suggestions.length > 0;
+
+          if (hasIssues) {
+            lines.push(`# ── Rule ${idx + 1} ──────────────────────────────────`);
+            if (mismatch) {
+              lines.push(`# [VERSION MISMATCH] ${mismatch}`);
+            }
+            suggestions.forEach(s => {
+              const tag = s.level === "perf" ? "PERF" : s.level === "warn" ? "WARN" : "INFO";
+              lines.push(`# [${tag}] ${s.msg}${s.fix ? `  →  ${s.fix}` : ""}`);
+            });
+          }
+          lines.push(rule.trim());
+          lines.push("");
+        });
+
+        const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `optimized_rules_${ts}.rules`;
+        a.click();
+        URL.revokeObjectURL(url);
       }
 
       // ── Option explanation database ──────────────────────────────────
