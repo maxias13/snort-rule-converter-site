@@ -887,6 +887,7 @@
           <button class="btn secondary" id="optClearBtn">Clear</button>
           <span id="optRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
           <button class="btn success hidden" id="optDownloadBtn">&#8595; Download Annotated .rules</button>
+          <button class="btn secondary hidden" id="optDownloadCleanBtn">&#8595; Download Optimized Rules</button>
         </div>
 
         <div class="drop-zone" id="optDropZone">
@@ -2385,6 +2386,7 @@ if __name__ == "__main__":
         optResults: document.getElementById("optResults"),
         optRuleCountBadge: document.getElementById("optRuleCountBadge"),
         optDownloadBtn: document.getElementById("optDownloadBtn"),
+        optDownloadCleanBtn: document.getElementById("optDownloadCleanBtn"),
         optVersionSnort2: document.getElementById("optVersionSnort2"),
         optVersionSnort3: document.getElementById("optVersionSnort3"),
         sruLoadBtn: document.getElementById("sruLoadBtn"),
@@ -2519,10 +2521,12 @@ if __name__ == "__main__":
           el.optInput.value = "";
           el.optResults.innerHTML = "";
           el.optDownloadBtn.classList.add("hidden");
+          el.optDownloadCleanBtn.classList.add("hidden");
           updateOptRuleCount();
         });
         el.optimizeBtn.addEventListener("click", runOptimize);
         el.optDownloadBtn.addEventListener("click", downloadAnnotatedRules);
+        el.optDownloadCleanBtn.addEventListener("click", downloadOptimizedRules);
         el.optInput.addEventListener("input", updateOptRuleCount);
 
         // ── Drag & Drop on optimizer input ───────────────────────────────
@@ -2941,6 +2945,7 @@ if __name__ == "__main__":
         });
         el.optResults.innerHTML = html;
         el.optDownloadBtn.classList.remove("hidden");
+        el.optDownloadCleanBtn.classList.remove("hidden");
       }
 
       function downloadAnnotatedRules() {
@@ -2978,6 +2983,24 @@ if __name__ == "__main__":
         const a    = document.createElement("a");
         a.href     = url;
         a.download = `optimized_rules_${ts}.rules`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function downloadOptimizedRules() {
+        const ruleLines = joinMultilineRules(el.optInput.value);
+        if (!ruleLines.length) return;
+
+        const now = new Date();
+        const ts  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+        // Output only the raw rule lines (no annotation comments)
+        const content = ruleLines.map(r => r.trim()).filter(r => r).join("\n") + "\n";
+
+        const blob = new Blob([content], { type: "text/plain" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `rules_clean_${ts}.rules`;
         a.click();
         URL.revokeObjectURL(url);
       }
