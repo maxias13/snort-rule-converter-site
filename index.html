@@ -1851,7 +1851,7 @@ if __name__ == "__main__":
       function updateRuleCount() {
         const rules = getConvertedRules();
         const count = rules
-          ? rules.split("\\n").filter(l => l.trim() && !l.trim().startsWith("#")).length
+          ? rules.split("\n").filter(l => l.trim() && !l.trim().startsWith("#")).length
           : 0;
         const el2 = document.getElementById("ruleCountBadge");
         if (!el2) return;
