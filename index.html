@@ -1419,7 +1419,10 @@ if __name__ == "__main__":
       }
 
       function getConvertedRules() {
-        // Pull the current converted output from the Home tab textarea.
+        // Prefer rules pasted directly into the Validator textarea.
+        // Fall back to the Home tab conversion output.
+        const val = document.getElementById("valRulesInput");
+        if (val && val.value.trim()) return val.value.trim();
         const out = document.getElementById("outputRules");
         return out ? out.value.trim() : "";
       }
@@ -1560,6 +1563,7 @@ if __name__ == "__main__":
           reader.onload = () => {
             el.valRulesInput.value = String(reader.result || "");
             updateValRuleCount();
+            updateRuleCount();
           };
           reader.readAsText(file);
           ev.target.value = "";
@@ -1567,8 +1571,12 @@ if __name__ == "__main__":
         el.valClearBtn.addEventListener("click", () => {
           el.valRulesInput.value = "";
           updateValRuleCount();
+          updateRuleCount();
         });
-        el.valRulesInput.addEventListener("input", updateValRuleCount);
+        el.valRulesInput.addEventListener("input", () => {
+          updateValRuleCount();
+          updateRuleCount();
+        });
 
         // ── Optimizer version toggle ─────────────────────────────────────
         el.optVersionSnort2.addEventListener("click", () => setOptVersion(2));
