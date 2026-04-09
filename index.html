@@ -855,6 +855,14 @@
         </div>
       </div>
 
+      <!-- ── Built-in Snort 3 Rule Duplicate Check ──────────────────────── -->
+      <div id="dupCheckPanel" style="display:none; margin-top:18px;">
+        <div style="padding:0 2px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+          <span style="color:var(--primary);font-size:0.96rem;font-weight:700;letter-spacing:0.02em;">Built-in Snort 3 Rule Duplicate Check</span>
+        </div>
+        <div id="dupCheckContent"></div>
+      </div>
+
     </section>
 
 
@@ -2350,6 +2358,8 @@ if __name__ == "__main__":
         copyOutputBtn: document.getElementById("copyOutputBtn"),
         diffLeft: document.getElementById("diffLeft"),
         diffRight: document.getElementById("diffRight"),
+        dupCheckPanel: document.getElementById("dupCheckPanel"),
+        dupCheckContent: document.getElementById("dupCheckContent"),
         pyScriptDisplay: document.getElementById("pyScriptDisplay"),
         downloadPyBtn: document.getElementById("downloadPyBtn"),
         copyPyBtn: document.getElementById("copyPyBtn"),
@@ -3317,6 +3327,7 @@ if __name__ == "__main__":
           const result = convertAll(inputText, startSid);
           el.output.value = result.output;
           try { renderDiff(inputText, result.outputNoSummary); } catch (_) {}
+          try { renderDupCheck(inputText, result.outputNoSummary); } catch (_) {}
           persistSidMap(result.sidMap);
         } catch (err) {
           el.output.value = `# ERROR: ${err.message}\n# Stack: ${err.stack}`;
@@ -3613,6 +3624,8 @@ if __name__ == "__main__":
         el.output.value = "";
         el.diffLeft.textContent = "";
         el.diffRight.textContent = "";
+        el.dupCheckPanel.style.display = "none";
+        el.dupCheckContent.innerHTML = "";
       }
 
       async function copyOutput() {
@@ -4253,6 +4266,150 @@ if __name__ == "__main__":
 
         el.diffLeft.innerHTML = leftRendered.join("\n");
         el.diffRight.innerHTML = rightRendered.join("\n");
+      }
+
+      // ── Built-in Snort 3 Rule Duplicate Checker ──────────────────────────
+      // Heuristic: Snort 2 rules with SID 1–999,999 belong to the Talos-managed
+      // range. Talos publishes Snort 3 built-in equivalents for every rule in that
+      // range. A converted local rule that keeps such a SID (or whose *original*
+      // Snort 2 SID was in that range) is therefore a duplicate of a built-in rule.
+      function renderDupCheck(inputText, outputText) {
+        // Parse a rule line and return { sid, msg } or null
+        function parseRuleInfo(line) {
+          const t = line.trim();
+          if (!t || t.startsWith("#")) return null;
+          const sidMatch = t.match(/\bsid\s*:\s*(\d+)/i);
+          const msgMatch = t.match(/\bmsg\s*:\s*"([^"]*)"/i);
+          if (!sidMatch) return null;
+          return { sid: parseInt(sidMatch[1], 10), msg: msgMatch ? msgMatch[1] : "" };
+        }
+
+        // Build map of original Snort 2 rules: sid -> msg
+        const snort2Map = {};
+        for (const line of splitLines(inputText)) {
+          const info = parseRuleInfo(line);
+          if (info) snort2Map[info.sid] = info.msg;
+        }
+
+        // Collect converted Snort 3 rules
+        const convertedRules = [];
+        for (const line of splitLines(outputText)) {
+          const info = parseRuleInfo(line);
+          if (info) convertedRules.push({ ...info, rule: line.trim() });
+        }
+
+        // A duplicate exists when the converted rule's SID is in 1–999,999
+        // (Talos range) OR when the matching Snort 2 original SID was in that range.
+        const TALOS_MAX = 999999;
+        const duplicates = [];
+
+        for (const cr of convertedRules) {
+          const convertedSidInTalos = cr.sid >= 1 && cr.sid <= TALOS_MAX;
+          // Also check if the original input had this SID in the Talos range
+          const originalSidInTalos = snort2Map[cr.sid] !== undefined && cr.sid >= 1 && cr.sid <= TALOS_MAX;
+          if (convertedSidInTalos || originalSidInTalos) {
+            duplicates.push(cr);
+          }
+        }
+
+        // Additionally, check if an original Snort 2 SID (Talos range) was remapped
+        // to a local SID in the converted output — in that case the original SID is
+        // the built-in one, even though the new SID differs.
+        const remappedDups = [];
+        for (const [origSid, origMsg] of Object.entries(snort2Map)) {
+          const sid = parseInt(origSid, 10);
+          if (sid < 1 || sid > TALOS_MAX) continue;
+          // Find the converted rule whose msg matches (SID may have changed)
+          const match = convertedRules.find(cr => cr.msg === origMsg && cr.sid !== sid);
+          if (match) {
+            remappedDups.push({ originalSid: sid, originalMsg: origMsg, newSid: match.sid, rule: match.rule });
+          }
+        }
+
+        el.dupCheckPanel.style.display = "block";
+
+        if (duplicates.length === 0 && remappedDups.length === 0) {
+          el.dupCheckContent.innerHTML = `
+            <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;
+                        background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);
+                        border-radius:10px;color:#4ade80;font-size:0.9rem;">
+              <span style="font-size:1.3rem;">&#10003;</span>
+              <span>중복 없음 — 변환된 Snort 3 local rule 중 Snort 3 built-in rule 과 중복되는 rule 이 없습니다.</span>
+            </div>`;
+          return;
+        }
+
+        let html = "";
+
+        if (duplicates.length > 0) {
+          const rows = duplicates.map(d => `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--primary);white-space:nowrap;">SID ${d.sid}</td>
+              <td style="padding:8px 12px;font-size:0.83rem;color:var(--fg);">${escapeHtml(d.msg || "(no msg)")}</td>
+              <td style="padding:8px 12px;font-size:0.78rem;color:var(--muted);font-family:monospace;word-break:break-all;">${escapeHtml(d.rule)}</td>
+            </tr>`).join("");
+          html += `
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;
+                          background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);
+                          border-radius:10px 10px 0 0;color:#f87171;font-size:0.88rem;font-weight:600;">
+                <span style="font-size:1.1rem;">&#9888;</span>
+                <span>SID 중복 감지 — 아래 ${duplicates.length}개의 변환된 local rule 이 Snort 3 built-in rule 의 SID 범위(1 – 999,999)와 중복됩니다.</span>
+              </div>
+              <div style="overflow-x:auto;border:1px solid rgba(239,68,68,0.2);border-top:none;border-radius:0 0 10px 10px;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                  <thead>
+                    <tr style="background:rgba(239,68,68,0.06);">
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">SID</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">msg</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">변환된 Snort 3 Rule</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>
+              <div style="margin-top:8px;padding:8px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.82rem;color:var(--muted);">
+                &#128161; <b>권장 조치:</b> 해당 SID 는 Talos 에서 관리하는 built-in rule 범위입니다. Local rule 의 SID 를 <b>1,000,000 이상</b>으로 변경하거나, 이미 built-in rule 이 해당 탐지를 커버한다면 local rule 을 삭제하세요.
+              </div>
+            </div>`;
+        }
+
+        if (remappedDups.length > 0) {
+          const rows2 = remappedDups.map(d => `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:#fb923c;white-space:nowrap;">SID ${d.originalSid}</td>
+              <td style="padding:8px 12px;font-family:monospace;font-size:0.82rem;color:var(--primary);white-space:nowrap;">SID ${d.newSid}</td>
+              <td style="padding:8px 12px;font-size:0.83rem;color:var(--fg);">${escapeHtml(d.originalMsg || "(no msg)")}</td>
+              <td style="padding:8px 12px;font-size:0.78rem;color:var(--muted);font-family:monospace;word-break:break-all;">${escapeHtml(d.rule)}</td>
+            </tr>`).join("");
+          html += `
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;
+                          background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);
+                          border-radius:10px 10px 0 0;color:#fbbf24;font-size:0.88rem;font-weight:600;">
+                <span style="font-size:1.1rem;">&#9888;</span>
+                <span>SID 재할당 후 내용 중복 — 아래 ${remappedDups.length}개의 변환된 local rule 이 Snort 3 built-in rule 과 동일한 탐지 내용(msg)을 가집니다.</span>
+              </div>
+              <div style="overflow-x:auto;border:1px solid rgba(251,191,36,0.2);border-top:none;border-radius:0 0 10px 10px;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                  <thead>
+                    <tr style="background:rgba(251,191,36,0.05);">
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">원본 SID (Talos)</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">변환된 SID</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">msg</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">변환된 Snort 3 Rule</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows2}</tbody>
+                </table>
+              </div>
+              <div style="margin-top:8px;padding:8px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.82rem;color:var(--muted);">
+                &#128161; <b>권장 조치:</b> 원본 Snort 2 rule 의 SID 가 Talos 관리 범위(1 – 999,999)였습니다. Snort 3 에서 동일한 built-in rule 이 이미 존재하므로, 불필요한 local rule 중복을 피하기 위해 해당 rule 의 삭제를 검토하세요.
+              </div>
+            </div>`;
+        }
+
+        el.dupCheckContent.innerHTML = html;
       }
 
       function diffLine(a, b) {
