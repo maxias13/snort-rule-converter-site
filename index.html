@@ -874,8 +874,7 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
               </thead>
               <tbody>
                 <tr><td>Rule structure</td><td class="check-row-error">ERROR</td><td>Valid header and option parentheses</td></tr>
-                <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid must be present</td></tr>
-                <tr><td>rev field</td><td class="check-row-warn">WARN</td><td>rev recommended for rule version tracking</td></tr>
+                <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid must be present (rev is optional)</td></tr>
                 <tr><td>Direction operator</td><td class="check-row-error">ERROR</td><td>Must be <code>-&gt;</code> or <code>&lt;&gt;</code></td></tr>
                 <tr><td>Deprecated Snort 2 keywords</td><td class="check-row-error">ERROR</td><td>uricontent, rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session</td></tr>
                 <tr><td>fast_pattern:only</td><td class="check-row-error">ERROR</td><td>Removed in Snort 3 — use plain <code>fast_pattern</code></td></tr>
@@ -1294,8 +1293,6 @@ def validate_rule(line: str) -> tuple[list[str], list[str], str]:
     for req in ("msg", "sid"):
         if req not in keys:
             errors.append(f"Missing required option: {req}")
-    if "rev" not in keys:
-        warnings.append("Missing rev option — recommended for rule version tracking")
 
     for opt in options:
         kw = option_keyword(opt)
