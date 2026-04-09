@@ -816,7 +816,7 @@
 
         <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.06);">
           <h3 style="margin-bottom:10px;">Network Variables</h3>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
             <div>
               <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
                 Source IP / CIDR &nbsp;<span style="color:var(--primary);">($HOME_NET)</span>
@@ -831,6 +831,13 @@
               <input id="dstIpInput" class="num-input" style="width:100%;"
                      type="text" placeholder="e.g. 10.0.0.1" />
             </div>
+            <div>
+              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
+                Destination Port &nbsp;<span style="color:var(--primary);">(Trigger)</span>
+              </label>
+              <input id="dstPortInput" class="num-input" style="width:100%;"
+                     type="number" min="1" max="65535" placeholder="e.g. 80" value="80" />
+            </div>
           </div>
           <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <button class="btn" id="commitIpBtn">Apply to Script</button>
@@ -843,6 +850,9 @@
         <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
           <button class="btn success" id="downloadPyBtn">&#8595; Download validate_snort3.py</button>
           <button class="btn secondary" id="copyPyBtn">Copy Script</button>
+          <div style="width:1px; height:20px; background:var(--border); margin:0 4px;"></div>
+          <button class="btn warn" id="downloadTriggerBtn">&#9889; Download trigger_rules.py</button>
+          <button class="btn secondary" id="copyTriggerBtn">Copy Trigger</button>
         </div>
 
         <div class="py-script-wrap">
@@ -1449,6 +1459,296 @@ if __name__ == "__main__":
           .replace("__EMBEDDED_RULES__", rules || "");
       }
 
+      // ── Rule Traffic Trigger script template ─────────────────────────
+      const TRIGGER_SCRIPT_TEMPLATE = `#!/usr/bin/env python3
+"""
+trigger_rules.py — Snort 3 Rule Traffic Trigger
+Crafts and sends TCP payloads that match embedded rules to verify FMC alert generation.
+
+Usage:
+  python3 trigger_rules.py
+  python3 trigger_rules.py --port 80 --timeout 3 --delay 1
+"""
+
+import re
+import sys
+import socket
+import time
+import argparse
+
+SOURCE_IP = "__SOURCE_IP__"   # $HOME_NET
+DEST_IP   = "__DEST_IP__"     # $EXTERNAL_NET
+DEST_PORT = __DEST_PORT__     # default destination port
+
+EMBEDDED_RULES = r"""
+__EMBEDDED_RULES__"""
+
+
+# ---------------------------------------------------------------------------
+# Rule parsing helpers
+# ---------------------------------------------------------------------------
+
+def join_multiline_rules(lines):
+    rules = []
+    current = None
+    depth = 0
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            if current is not None and depth == 0:
+                rules.append(current)
+                current = None
+            continue
+        current = line if current is None else current + " " + line
+        in_quote = False
+        esc = False
+        for ch in line:
+            if esc: esc = False; continue
+            if ch == "\\\\":
+                esc = True; continue
+            if ch == '"':
+                in_quote = not in_quote; continue
+            if not in_quote:
+                if ch == "(": depth += 1
+                elif ch == ")": depth -= 1
+        if depth <= 0 and current is not None:
+            rules.append(current.strip())
+            current = None
+            depth = 0
+    if current is not None:
+        rules.append(current.strip())
+    return [r for r in rules if r]
+
+
+def split_options(opts_str):
+    parts, cur, in_q, esc = [], "", False, False
+    for ch in opts_str:
+        if esc: cur += ch; esc = False; continue
+        if ch == "\\\\":
+            cur += ch; esc = True; continue
+        if ch == '"':
+            in_q = not in_q; cur += ch; continue
+        if ch == ";" and not in_q:
+            t = cur.strip()
+            if t: parts.append(t)
+            cur = ""; continue
+        cur += ch
+    if cur.strip(): parts.append(cur.strip())
+    return parts
+
+
+def hex_to_bytes(hex_str):
+    try:
+        return bytes.fromhex(hex_str.replace(" ", ""))
+    except ValueError:
+        return b""
+
+
+def content_to_bytes(val):
+    """Convert content value (with |hex| sequences) to bytes."""
+    result = b""
+    segments = re.split(r"\\|([0-9A-Fa-f ]+)\\|", val)
+    for i, seg in enumerate(segments):
+        if i % 2 == 0:
+            result += seg.encode("latin-1", errors="replace")
+        else:
+            result += hex_to_bytes(seg)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Payload builder
+# ---------------------------------------------------------------------------
+
+def build_payload(rule_line, default_port):
+    p_open  = rule_line.find("(")
+    p_close = rule_line.rfind(")")
+    if p_open < 0 or p_close < 0:
+        return None, None, None
+
+    header   = rule_line[:p_open].strip()
+    opts_str = rule_line[p_open + 1:p_close]
+    opts     = split_options(opts_str)
+
+    # Extract msg
+    msg = ""
+    for opt in opts:
+        kw = opt.split(":", 1)[0].strip().lower()
+        if kw == "msg":
+            msg = opt[opt.index(":") + 1:].strip().strip('"')
+            break
+
+    # Extract content patterns (skip negated)
+    contents = []
+    for opt in opts:
+        kw = opt.split(":", 1)[0].strip().lower()
+        if kw != "content":
+            continue
+        val = opt[opt.index(":") + 1:].strip()
+        if val.startswith("!"):
+            continue
+        # Extract the quoted value (ignore trailing inline modifiers)
+        if val.startswith('"'):
+            end_q = val.index('"', 1)
+            val = val[1:end_q]
+        else:
+            val = val.split(",")[0].strip()
+        contents.append(content_to_bytes(val))
+
+    if not contents:
+        return msg, None, None
+
+    # Infer destination port from rule header (use specific port if given)
+    port = default_port
+    h_parts = header.split()
+    if len(h_parts) >= 7 and h_parts[6].isdigit():
+        port = int(h_parts[6])
+
+    # Detect HTTP vs raw payload
+    first_str = contents[0].decode("latin-1", errors="replace")
+    is_http   = first_str.startswith("/") or any(b"HTTP" in c for c in contents)
+    has_ct    = any(b"Content-Type" in c for c in contents)
+
+    if is_http and has_ct:
+        # HTTP POST with body
+        path     = first_str if first_str.startswith("/") else "/"
+        ct_bytes = next((c for c in contents if b"Content-Type" in c), b"")
+        ct_line  = ct_bytes.decode("latin-1", errors="replace").rstrip()
+        body     = b" ".join(c for c in contents if b"Content-Type" not in c and not c.decode("latin-1","replace").startswith("/"))
+        payload  = (b"POST " + path.encode() +
+                    b" HTTP/1.1\\r\\nHost: " + DEST_IP.encode() +
+                    b"\\r\\n" + ct_line.encode() +
+                    b"\\r\\nContent-Length: " + str(len(body)).encode() +
+                    b"\\r\\nConnection: close\\r\\n\\r\\n" + body)
+    elif is_http:
+        # HTTP GET
+        path    = first_str if first_str.startswith("/") else "/"
+        extra   = b" ".join(c for c in contents[1:] if not c.decode("latin-1","replace").startswith("/"))
+        payload = (b"GET " + path.encode() +
+                   b" HTTP/1.1\\r\\nHost: " + DEST_IP.encode() +
+                   b"\\r\\nUser-Agent: Mozilla/5.0\\r\\nConnection: close\\r\\n\\r\\n" +
+                   extra)
+    else:
+        # Raw TCP: concatenate all content bytes
+        payload = b"".join(contents)
+
+    return msg, port, payload
+
+
+# ---------------------------------------------------------------------------
+# Sender
+# ---------------------------------------------------------------------------
+
+def send_payload(dest_ip, port, payload, timeout):
+    try:
+        with socket.create_connection((dest_ip, port), timeout=timeout) as s:
+            s.sendall(payload)
+            try:
+                s.recv(512)
+            except Exception:
+                pass
+        return True, f"{len(payload)} bytes sent to {dest_ip}:{port}"
+    except Exception as e:
+        return False, str(e)
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    ap = argparse.ArgumentParser(description="Snort 3 Rule Traffic Trigger")
+    ap.add_argument("--port",    type=int,   default=DEST_PORT, help="Override destination port")
+    ap.add_argument("--timeout", type=int,   default=3,         help="TCP connect timeout (seconds)")
+    ap.add_argument("--delay",   type=float, default=0.5,       help="Delay between triggers (seconds)")
+    args = ap.parse_args()
+
+    rules = join_multiline_rules(EMBEDDED_RULES.splitlines())
+    if not rules:
+        print("No embedded rules found.")
+        print("Generate this script from the Python Validator tab on the web UI.")
+        sys.exit(1)
+
+    print("=" * 65)
+    print("  Snort 3 Rule Traffic Trigger")
+    print(f"  Source     : {SOURCE_IP or '(this machine)'}")
+    print(f"  Destination: {DEST_IP}:{args.port}")
+    print(f"  Rules      : {len(rules)}")
+    print("=" * 65)
+    print()
+
+    ok = fail = skip = 0
+    for idx, rule in enumerate(rules, 1):
+        msg, port, payload = build_payload(rule, args.port)
+        label = msg or f"Rule {idx}"
+
+        if payload is None:
+            print(f"[Rule {idx}] {label}")
+            print(f"  SKIP  No content patterns to trigger")
+            skip += 1
+            continue
+
+        success, detail = send_payload(DEST_IP, port, payload, args.timeout)
+        status  = "OK  " if success else "FAIL"
+        preview = payload[:60].decode("latin-1", errors="replace").replace("\\r\\n", "\\u21b5")
+        print(f"[Rule {idx}] {label}")
+        print(f"  {status} port={port}  {detail}")
+        print(f"       payload: {repr(preview)}")
+
+        if success: ok += 1
+        else: fail += 1
+
+        if idx < len(rules):
+            time.sleep(args.delay)
+
+    print()
+    print("=" * 65)
+    print(f"Rules: {ok+fail+skip}  |  Sent: {ok}  |  Failed: {fail}  |  Skipped: {skip}")
+    print()
+    print("→ Verify alerts: FMC > Analysis > Intrusion Events")
+
+
+if __name__ == "__main__":
+    main()
+`;
+
+      function buildTriggerScript(srcIp, dstIp, dstPort, rules) {
+        return TRIGGER_SCRIPT_TEMPLATE
+          .replace("__SOURCE_IP__",      srcIp   || "")
+          .replace("__DEST_IP__",        dstIp   || "")
+          .replace("__DEST_PORT__",      dstPort || "80")
+          .replace("__EMBEDDED_RULES__", rules   || "");
+      }
+
+      function downloadTriggerScript() {
+        const src   = el.srcIpInput.value.trim();
+        const dst   = el.dstIpInput.value.trim();
+        const port  = el.dstPortInput.value.trim() || "80";
+        const rules = getConvertedRules();
+        const script = buildTriggerScript(src, dst, port, rules);
+        const blob = new Blob([script], { type: "text/x-python" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = "trigger_rules.py";
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function copyTriggerScript() {
+        const src   = el.srcIpInput.value.trim();
+        const dst   = el.dstIpInput.value.trim();
+        const port  = el.dstPortInput.value.trim() || "80";
+        const rules = getConvertedRules();
+        const script = buildTriggerScript(src, dst, port, rules);
+        navigator.clipboard.writeText(script).then(() => {
+          const btn = el.copyTriggerBtn;
+          const orig = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
+      }
+
       function getConvertedRules() {
         // Prefer rules pasted directly into the Validator textarea.
         // Fall back to the Home tab conversion output.
@@ -1482,6 +1782,9 @@ if __name__ == "__main__":
         copyPyBtn: document.getElementById("copyPyBtn"),
         srcIpInput: document.getElementById("srcIpInput"),
         dstIpInput: document.getElementById("dstIpInput"),
+        dstPortInput: document.getElementById("dstPortInput"),
+        downloadTriggerBtn: document.getElementById("downloadTriggerBtn"),
+        copyTriggerBtn: document.getElementById("copyTriggerBtn"),
         commitIpBtn: document.getElementById("commitIpBtn"),
         startSidInput: document.getElementById("startSidInput"),
         downloadRulesBtn: document.getElementById("downloadRulesBtn"),
@@ -1582,6 +1885,8 @@ if __name__ == "__main__":
         el.copyOutputBtn.addEventListener("click", copyOutput);
         el.downloadPyBtn.addEventListener("click", downloadPyScript);
         el.copyPyBtn.addEventListener("click", copyPyScript);
+        el.downloadTriggerBtn.addEventListener("click", downloadTriggerScript);
+        el.copyTriggerBtn.addEventListener("click", copyTriggerScript);
         el.commitIpBtn.addEventListener("click", commitIpToScript);
         el.downloadRulesBtn.addEventListener("click", downloadRulesFile);
 
