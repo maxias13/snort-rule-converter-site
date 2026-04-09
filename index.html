@@ -874,7 +874,8 @@ python3 validate_snort3.py --strict converted_rules.rules</div>
               </thead>
               <tbody>
                 <tr><td>Rule structure</td><td class="check-row-error">ERROR</td><td>Valid header and option parentheses</td></tr>
-                <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid, rev must be present</td></tr>
+                <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid must be present</td></tr>
+                <tr><td>rev field</td><td class="check-row-warn">WARN</td><td>rev recommended for rule version tracking</td></tr>
                 <tr><td>Direction operator</td><td class="check-row-error">ERROR</td><td>Must be <code>-&gt;</code> or <code>&lt;&gt;</code></td></tr>
                 <tr><td>Deprecated Snort 2 keywords</td><td class="check-row-error">ERROR</td><td>uricontent, rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session</td></tr>
                 <tr><td>fast_pattern:only</td><td class="check-row-error">ERROR</td><td>Removed in Snort 3 — use plain <code>fast_pattern</code></td></tr>
@@ -1169,7 +1170,7 @@ VAR_MAP = {
 # ── Embedded converted rules ───────────────────────────────────────────────
 # These rules were embedded automatically when the script was generated.
 # Running this script without arguments will validate these rules directly.
-EMBEDDED_RULES = """
+EMBEDDED_RULES = r"""
 __EMBEDDED_RULES__"""
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -1290,9 +1291,11 @@ def validate_rule(line: str) -> tuple[list[str], list[str], str]:
     options = split_options(options_str)
     keys    = [option_keyword(o) for o in options]
 
-    for req in ("msg", "sid", "rev"):
+    for req in ("msg", "sid"):
         if req not in keys:
             errors.append(f"Missing required option: {req}")
+    if "rev" not in keys:
+        warnings.append("Missing rev option — recommended for rule version tracking")
 
     for opt in options:
         kw = option_keyword(opt)
@@ -1344,6 +1347,40 @@ def validate_rule(line: str) -> tuple[list[str], list[str], str]:
 # Main
 # ---------------------------------------------------------------------------
 
+def join_multiline_rules(lines):
+    """Join continuation lines into complete rules using quote-aware paren counting."""
+    rules = []
+    current = None
+    depth = 0
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            if current is not None and depth == 0:
+                rules.append(current)
+                current = None
+            continue
+        current = line if current is None else current + " " + line
+        in_quote = False
+        esc = False
+        for ch in line:
+            if esc:
+                esc = False; continue
+            if ch == "\\\\":
+                esc = True; continue
+            if ch == '"':
+                in_quote = not in_quote; continue
+            if not in_quote:
+                if ch == "(": depth += 1
+                elif ch == ")": depth -= 1
+        if depth <= 0 and current is not None:
+            rules.append(current.strip())
+            current = None
+            depth = 0
+    if current is not None:
+        rules.append(current.strip())
+    return [r for r in rules if r]
+
+
 def main():
     ap = argparse.ArgumentParser(description="Validate Snort 3 rules for common issues.")
     ap.add_argument("file", nargs="?", help="Rules file (omit to read from stdin)")
@@ -1359,15 +1396,15 @@ def main():
     if args.file:
         print(f"Validating rules from file: {args.file}")
         print()
-        lines = Path(args.file).read_text(encoding="utf-8").splitlines()
+        raw_lines = Path(args.file).read_text(encoding="utf-8").splitlines()
     elif not sys.stdin.isatty():
         print("Validating rules from stdin...")
         print()
-        lines = sys.stdin.read().splitlines()
+        raw_lines = sys.stdin.read().splitlines()
     elif EMBEDDED_RULES.strip():
         print("Validating embedded converted rules...")
         print()
-        lines = EMBEDDED_RULES.splitlines()
+        raw_lines = EMBEDDED_RULES.splitlines()
     else:
         print("No rules to validate.")
         print("Usage: python3 validate_snort3.py <rules_file>")
@@ -1376,19 +1413,16 @@ def main():
         print("       to embed the converted rules directly into this script.")
         sys.exit(0)
 
+    lines = join_multiline_rules(raw_lines)
     total = error_count = warn_count = 0
 
-    for lineno, raw_line in enumerate(lines, 1):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-
+    for ruleno, line in enumerate(lines, 1):
         total += 1
         errors, warnings, resolved = validate_rule(line)
 
         preview = line[:80] + ("..." if len(line) > 80 else "")
         if errors or warnings:
-            print(f"\\n[Line {lineno}] {preview}")
+            print(f"\\n[Rule {ruleno}] {preview}")
             if resolved and resolved != line[:len(resolved)]:
                 print(f"  Resolved : {resolved}")
             for msg in errors:
@@ -1398,7 +1432,7 @@ def main():
                 print(f"  WARN  : {msg}")
                 warn_count += 1
         else:
-            print(f"[Line {lineno}] OK  {preview}")
+            print(f"[Rule {ruleno}] OK  {preview}")
 
     print()
     print("=" * 65)
