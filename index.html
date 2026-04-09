@@ -2423,11 +2423,11 @@ if __name__ == "__main__":
         el.pyScriptDisplay.textContent = currentPyScript;
         removeWhiteBg(document.getElementById("snortLogo"), 230);
 
-        // Restore tab from URL hash on load/refresh
+        // Restore tab from URL hash on load/refresh (no scroll — keep natural position)
         const hash = location.hash.replace("#", "");
         if (hash) {
           const tabEl = el.tabs.find(t => t.dataset.view === hash);
-          if (tabEl) switchView(hash, tabEl);
+          if (tabEl) switchView(hash, tabEl, { noScroll: true });
         }
       }
 
@@ -3325,12 +3325,12 @@ if __name__ == "__main__":
         return { mismatch, suggestions, explanation };
       }
 
-      function switchView(viewId, tabEl) {
+      function switchView(viewId, tabEl, opts = {}) {
         el.views.forEach((v) => v.classList.toggle("active", v.id === viewId));
         el.tabs.forEach((t) => t.classList.remove("active"));
         tabEl.classList.add("active");
         location.hash = viewId;
-        window.scrollTo({ top: 0, behavior: "instant" });
+        if (!opts.noScroll) window.scrollTo({ top: 0, behavior: "instant" });
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
