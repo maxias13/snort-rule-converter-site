@@ -419,17 +419,12 @@
       border-bottom: 1px solid var(--border);
       font-family: Consolas, Monaco, Menlo, monospace;
       font-size: 0.82rem;
-      color: #7eb8d4;
+      color: #f5c842;
       overflow: hidden;
-      cursor: pointer;
+      cursor: default;
     }
     .opt-rule-header span {
       display: block;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .opt-rule-header.expanded span {
       white-space: pre-wrap;
       word-break: break-all;
     }
@@ -2889,7 +2884,7 @@ if __name__ == "__main__":
           const { mismatch, suggestions, explanation } = analyzeRule(trimmed, optVersion);
           const label   = `Rule ${idx + 1}`;
           html += `<div class="opt-rule-block">
-            <div class="opt-rule-header" title="Click to expand full rule" onclick="this.classList.toggle('expanded')">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
+            <div class="opt-rule-header">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
             <div class="opt-rule-body">`;
 
           // ── Version mismatch banner ───────────────────────────────────
