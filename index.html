@@ -1597,6 +1597,7 @@ python3 trigger_rules.py --delay 1
           </div>
           <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions (Korean)</span></div>
           <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation</span></div>
+          <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
           <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, and suggestions</span></div>
         </div>
@@ -4334,7 +4335,7 @@ if __name__ == "__main__":
                         background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);
                         border-radius:10px;color:#4ade80;font-size:0.9rem;">
               <span style="font-size:1.3rem;">&#10003;</span>
-              <span>중복 없음 — 변환된 Snort 3 local rule 중 Snort 3 built-in rule 과 중복되는 rule 이 없습니다.</span>
+              <span>No duplicates found — none of the converted Snort 3 local rules overlap with Snort 3 built-in rules.</span>
             </div>`;
           return;
         }
@@ -4354,7 +4355,7 @@ if __name__ == "__main__":
                           background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);
                           border-radius:10px 10px 0 0;color:#f87171;font-size:0.88rem;font-weight:600;">
                 <span style="font-size:1.1rem;">&#9888;</span>
-                <span>SID 중복 감지 — 아래 ${duplicates.length}개의 변환된 local rule 이 Snort 3 built-in rule 의 SID 범위(1 – 999,999)와 중복됩니다.</span>
+                <span>SID Conflict Detected — ${duplicates.length} converted local rule(s) use SIDs in the Talos-managed built-in range (1 – 999,999).</span>
               </div>
               <div style="overflow-x:auto;border:1px solid rgba(239,68,68,0.2);border-top:none;border-radius:0 0 10px 10px;">
                 <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
@@ -4369,7 +4370,7 @@ if __name__ == "__main__":
                 </table>
               </div>
               <div style="margin-top:8px;padding:8px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.82rem;color:var(--muted);">
-                &#128161; <b>권장 조치:</b> 해당 SID 는 Talos 에서 관리하는 built-in rule 범위입니다. Local rule 의 SID 를 <b>1,000,000 이상</b>으로 변경하거나, 이미 built-in rule 이 해당 탐지를 커버한다면 local rule 을 삭제하세요.
+                &#128161; <b>Recommended action:</b> These SIDs are in the Talos-managed built-in range. Change the local rule SIDs to <b>1,000,000 or higher</b>, or remove the local rule if the built-in rule already covers the same detection.
               </div>
             </div>`;
         }
@@ -4388,23 +4389,23 @@ if __name__ == "__main__":
                           background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);
                           border-radius:10px 10px 0 0;color:#fbbf24;font-size:0.88rem;font-weight:600;">
                 <span style="font-size:1.1rem;">&#9888;</span>
-                <span>SID 재할당 후 내용 중복 — 아래 ${remappedDups.length}개의 변환된 local rule 이 Snort 3 built-in rule 과 동일한 탐지 내용(msg)을 가집니다.</span>
+                <span>Content Overlap After SID Remap — ${remappedDups.length} converted local rule(s) share the same detection content (msg) as a Snort 3 built-in rule.</span>
               </div>
               <div style="overflow-x:auto;border:1px solid rgba(251,191,36,0.2);border-top:none;border-radius:0 0 10px 10px;">
                 <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
                   <thead>
                     <tr style="background:rgba(251,191,36,0.05);">
-                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">원본 SID (Talos)</th>
-                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">변환된 SID</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">Original SID (Talos)</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">Converted SID</th>
                       <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">msg</th>
-                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">변환된 Snort 3 Rule</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">Converted Snort 3 Rule</th>
                     </tr>
                   </thead>
                   <tbody>${rows2}</tbody>
                 </table>
               </div>
               <div style="margin-top:8px;padding:8px 14px;background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.82rem;color:var(--muted);">
-                &#128161; <b>권장 조치:</b> 원본 Snort 2 rule 의 SID 가 Talos 관리 범위(1 – 999,999)였습니다. Snort 3 에서 동일한 built-in rule 이 이미 존재하므로, 불필요한 local rule 중복을 피하기 위해 해당 rule 의 삭제를 검토하세요.
+                &#128161; <b>Recommended action:</b> The original Snort 2 rule SID was in the Talos-managed range (1 – 999,999). An equivalent built-in rule already exists in Snort 3 — consider removing the local rule to avoid redundant detection.
               </div>
             </div>`;
         }
