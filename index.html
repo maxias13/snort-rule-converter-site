@@ -1357,23 +1357,10 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
 
         <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.06);">
           <h3 style="margin-bottom:10px;">Network Variables</h3>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <div>
-              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
-                Source IP / CIDR &nbsp;<span style="color:var(--primary);">($HOME_NET)</span>
-              </label>
-              <input id="srcIpInput" class="num-input" style="width:100%;"
-                     type="text" placeholder="e.g. 192.168.1.0/24" />
-            </div>
-            <div>
-              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
-                Destination IP / CIDR &nbsp;<span style="color:var(--primary);">($EXTERNAL_NET)</span>
-              </label>
-              <input id="dstIpInput" class="num-input" style="width:100%;"
-                     type="text" placeholder="e.g. 10.0.0.1" />
-            </div>
-          </div>
-          <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <p class="muted" style="margin:0 0 12px; font-size:0.84rem;">
+            Source IP (<code style="color:var(--primary);">$HOME_NET</code>) and Destination IP (<code style="color:var(--primary);">$EXTERNAL_NET</code>) vary per environment. Set them manually in the generated script before running.
+          </p>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <button class="btn" id="commitIpBtn">Apply to Script</button>
             <span id="ruleCountBadge" class="muted" style="font-size:0.82rem;">
               No converted rules yet — convert rules on the Home tab first
@@ -2305,10 +2292,8 @@ if __name__ == "__main__":
       }
 
       function downloadTriggerScript() {
-        const src   = el.srcIpInput.value.trim();
-        const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
-        const script = buildTriggerScript(src, dst, rules);
+        const script = buildTriggerScript("", "", rules);
         const blob = new Blob([script], { type: "text/x-python" });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
@@ -2319,10 +2304,8 @@ if __name__ == "__main__":
       }
 
       function copyTriggerScript() {
-        const src   = el.srcIpInput.value.trim();
-        const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
-        const script = buildTriggerScript(src, dst, rules);
+        const script = buildTriggerScript("", "", rules);
         navigator.clipboard.writeText(script).then(() => {
           const btn = el.copyTriggerBtn;
           const orig = btn.textContent;
@@ -2364,8 +2347,6 @@ if __name__ == "__main__":
         pyScriptDisplay: document.getElementById("pyScriptDisplay"),
         downloadPyBtn: document.getElementById("downloadPyBtn"),
         copyPyBtn: document.getElementById("copyPyBtn"),
-        srcIpInput: document.getElementById("srcIpInput"),
-        dstIpInput: document.getElementById("dstIpInput"),
         downloadTriggerBtn: document.getElementById("downloadTriggerBtn"),
         copyTriggerBtn: document.getElementById("copyTriggerBtn"),
         commitIpBtn: document.getElementById("commitIpBtn"),
@@ -2724,10 +2705,8 @@ if __name__ == "__main__":
 
       function downloadPyScript() {
         // Secondary: download syntax validator script
-        const src   = el.srcIpInput.value.trim();
-        const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
-        const script = buildPyScript(src, dst, rules);
+        const script = buildPyScript("", "", rules);
         const blob = new Blob([script], { type: "text/x-python" });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
@@ -2739,10 +2718,8 @@ if __name__ == "__main__":
 
       function copyPyScript() {
         // Secondary: copy syntax validator script
-        const src   = el.srcIpInput.value.trim();
-        const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
-        const script = buildPyScript(src, dst, rules);
+        const script = buildPyScript("", "", rules);
         navigator.clipboard.writeText(script).then(() => {
           const btn = el.copyPyBtn;
           const orig = btn.textContent;
@@ -2752,11 +2729,9 @@ if __name__ == "__main__":
       }
 
       function commitIpToScript() {
-        const src   = el.srcIpInput.value.trim();
-        const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
         // Primary output: trigger script
-        currentPyScript = buildTriggerScript(src, dst, rules);
+        currentPyScript = buildTriggerScript("", "", rules);
         el.pyScriptDisplay.textContent = currentPyScript;
         updateRuleCount();
 
