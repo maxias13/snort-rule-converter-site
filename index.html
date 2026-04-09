@@ -848,31 +848,33 @@
         </div>
 
         <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
-          <button class="btn success" id="downloadPyBtn">&#8595; Download validate_snort3.py</button>
-          <button class="btn secondary" id="copyPyBtn">Copy Script</button>
-          <div style="width:1px; height:20px; background:var(--border); margin:0 4px;"></div>
           <button class="btn warn" id="downloadTriggerBtn">&#9889; Download trigger_rules.py</button>
-          <button class="btn secondary" id="copyTriggerBtn">Copy Trigger</button>
+          <button class="btn secondary" id="copyTriggerBtn">Copy Script</button>
+          <div style="width:1px; height:20px; background:var(--border); margin:0 4px;"></div>
+          <button class="btn secondary" id="downloadPyBtn" style="font-size:0.82rem;">&#8595; validate_snort3.py</button>
+          <button class="btn secondary" id="copyPyBtn" style="font-size:0.82rem;">Copy Validator</button>
         </div>
 
         <div class="py-script-wrap">
           <div class="py-script-header">
-            <span style="color:var(--primary); font-size:0.85rem; font-weight:600;">validate_snort3.py</span>
-            <span class="muted" style="font-size:0.82rem;">Python 3 &nbsp;·&nbsp; No dependencies</span>
+            <span style="color:var(--warn); font-size:0.85rem; font-weight:600;">&#9889; trigger_rules.py</span>
+            <span class="muted" style="font-size:0.82rem;">Python 3 &nbsp;·&nbsp; No dependencies &nbsp;·&nbsp; Triggers FMC alerts</span>
           </div>
           <pre id="pyScriptDisplay" class="py-script-body"></pre>
         </div>
 
         <div class="panel" style="margin-top:14px;">
           <h3>Usage</h3>
-          <div class="codebox"># Validate a rules file
-python3 validate_snort3.py converted_rules.rules
+          <div class="codebox"># Run with default settings (uses embedded IPs + rules)
+python3 trigger_rules.py
 
-# Read from stdin
-cat converted_rules.rules | python3 validate_snort3.py
+# Override destination port
+python3 trigger_rules.py --port 8080
 
-# Strict mode — treat warnings as errors (non-zero exit)
-python3 validate_snort3.py --strict converted_rules.rules</div>
+# Adjust delay between packets (default 0.5s)
+python3 trigger_rules.py --delay 1
+
+# After running → check FMC: Analysis > Intrusion Events</div>
         </div>
 
         <div class="panel" style="margin-top:14px;">
@@ -1758,7 +1760,7 @@ if __name__ == "__main__":
         return out ? out.value.trim() : "";
       }
 
-      let currentPyScript = buildPyScript("", "", "");
+      let currentPyScript = buildTriggerScript("", "", "80", "");
 
       const HTTP_BUFFERS = new Set([
         "http_uri", "http_raw_uri", "http_header", "http_raw_header", "http_method",
@@ -2140,6 +2142,7 @@ if __name__ == "__main__":
       }
 
       function downloadPyScript() {
+        // Secondary: download syntax validator script
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
@@ -2154,6 +2157,7 @@ if __name__ == "__main__":
       }
 
       function copyPyScript() {
+        // Secondary: copy syntax validator script
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
         const rules = getConvertedRules();
@@ -2169,8 +2173,10 @@ if __name__ == "__main__":
       function commitIpToScript() {
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
+        const port  = el.dstPortInput.value.trim() || "80";
         const rules = getConvertedRules();
-        currentPyScript = buildPyScript(src, dst, rules);
+        // Primary output: trigger script
+        currentPyScript = buildTriggerScript(src, dst, port, rules);
         el.pyScriptDisplay.textContent = currentPyScript;
         updateRuleCount();
 
