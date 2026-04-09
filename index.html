@@ -894,7 +894,7 @@
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
           <div>
             <h3 style="margin:0 0 4px;">&#128218; Snort 3 Local Rule Writing Guide</h3>
-            <p class="muted" style="margin:0; font-size:0.84rem;">Snort 3 로컬 룰 작성 시 반드시 알아야 할 주의사항 및 모범 사례</p>
+            <p class="muted" style="margin:0; font-size:0.84rem;">Essential guidelines and best practices for writing Snort 3 local rules</p>
           </div>
         </div>
 
@@ -902,15 +902,15 @@
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#9881;</span>
-            <span>1. 룰 기본 구조 (Rule Structure)</span>
+            <span>1. Rule Structure</span>
             <span class="guide-tag important">IMPORTANT</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Snort 3 룰은 <b>헤더</b>와 <b>옵션</b> 두 부분으로 구성됩니다. Snort 2와 달리 일부 키워드 위치와 문법이 변경되었습니다.</p>
+            <p>A Snort 3 rule consists of a <b>header</b> and <b>options</b>. Compared to Snort 2, some keyword positions and syntax have changed.</p>
             <pre class="guide-code">action proto src_ip src_port direction dst_ip dst_port (options;)
 
-# 예시
+# Example
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (
     msg:"My Custom Rule";
     flow:to_server,established;
@@ -920,10 +920,10 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (
 )</pre>
             <ul>
               <li><b>action</b>: <code>alert</code>, <code>drop</code>, <code>block</code>, <code>pass</code>, <code>log</code>, <code>rewrite</code></li>
-              <li><b>proto</b>: <code>tcp</code>, <code>udp</code>, <code>icmp</code>, <code>ip</code>, <code>http</code>, <code>dns</code>, <code>smb</code> 등</li>
-              <li><b>direction</b>: <code>-&gt;</code> (단방향) 또는 <code>&lt;&gt;</code> (양방향)</li>
-              <li>옵션은 반드시 괄호 <code>( )</code>로 감싸고 각 항목은 <code>;</code>로 구분</li>
-              <li><code>gid</code>, <code>sid</code>, <code>rev</code>는 반드시 옵션의 <b>맨 끝</b>에 위치</li>
+              <li><b>proto</b>: <code>tcp</code>, <code>udp</code>, <code>icmp</code>, <code>ip</code>, <code>http</code>, <code>dns</code>, <code>smb</code>, etc.</li>
+              <li><b>direction</b>: <code>-&gt;</code> (unidirectional) or <code>&lt;&gt;</code> (bidirectional)</li>
+              <li>Options must be wrapped in parentheses <code>( )</code> and each item separated by <code>;</code></li>
+              <li><code>gid</code>, <code>sid</code>, <code>rev</code> must always appear at the <b>end</b> of the options block</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/headers" target="_blank" rel="noopener">&#8599; Rule Headers — docs.snort.org</a>
@@ -936,21 +936,21 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#128273;</span>
-            <span>2. SID 범위 규칙 (SID Range for Local Rules)</span>
+            <span>2. SID Range for Local Rules</span>
             <span class="guide-tag critical">CRITICAL</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>로컬 룰의 SID는 반드시 <b>1,000,000 이상</b>을 사용해야 합니다. Talos가 관리하는 SID 범위와 충돌하면 룰이 덮어씌워질 수 있습니다.</p>
+            <p>Local rule SIDs must be <b>1,000,000 or higher</b>. Conflicting with the Talos-managed SID range can cause rules to be overwritten.</p>
             <ul>
-              <li><b>1 – 999,999</b>: Snort/Talos 공식 룰 예약 범위 → 사용 금지</li>
-              <li><b>1,000,000 – 1,999,999</b>: 로컬/커스텀 룰 권장 범위</li>
-              <li><b>2,000,000+</b>: 서드파티 룰셋 또는 추가 로컬 룰</li>
-              <li>FMC에서 동일 SID가 중복되면 마지막에 로드된 룰이 적용됨</li>
-              <li><code>rev:</code>는 선택이지만, 룰 수정 시 항상 1씩 증가시키는 것을 권장</li>
+              <li><b>1 – 999,999</b>: Reserved for official Snort/Talos rules — do not use</li>
+              <li><b>1,000,000 – 1,999,999</b>: Recommended range for local/custom rules</li>
+              <li><b>2,000,000+</b>: Third-party rulesets or additional local rules</li>
+              <li>If duplicate SIDs exist in FMC, the last loaded rule takes effect</li>
+              <li><code>rev:</code> is optional, but always increment by 1 when modifying a rule</li>
             </ul>
-            <pre class="guide-code">sid:1000001; rev:1;   # ✓ 올바름 — 로컬 룰 범위
-sid:1001;             # ✗ 위험 — Talos 예약 범위</pre>
+            <pre class="guide-code">sid:1000001; rev:1;   # ✓ correct — local rule range
+sid:1001;             # ✗ dangerous — reserved by Talos</pre>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/sid" target="_blank" rel="noopener">&#8599; sid option — docs.snort.org</a>
               <a class="guide-link" href="https://www.snort.org/faq/why-are-rules-different-between-snort-2-and-snort-3" target="_blank" rel="noopener">&#8599; Snort FAQ</a>
@@ -962,28 +962,28 @@ sid:1001;             # ✗ 위험 — Talos 예약 범위</pre>
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#9889;</span>
-            <span>3. flow 키워드 — 성능 필수 옵션</span>
+            <span>3. flow keyword — Required for Performance</span>
             <span class="guide-tag critical">CRITICAL</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p><code>flow</code> 없이 작성된 룰은 <b>모든 패킷</b>에 대해 평가되어 성능에 치명적인 영향을 미칩니다. 거의 모든 룰에 <code>flow</code>를 지정해야 합니다.</p>
-            <pre class="guide-code"># TCP 서버 요청 (웹 공격 탐지 등)
+            <p>Rules without <code>flow</code> are evaluated against <b>every packet</b>, causing severe performance impact. Nearly every rule should specify <code>flow</code>.</p>
+            <pre class="guide-code"># TCP traffic to server (web attack detection, etc.)
 flow:to_server,established;
 
-# TCP 서버 응답 탐지
+# TCP traffic from server (response detection)
 flow:from_server,established;
 
-# 양방향 (연결 추적 없이)
+# Bidirectional without connection tracking
 flow:stateless;
 
-# UDP (established 없음)
+# UDP (no established state)
 flow:to_server;</pre>
             <ul>
-              <li><code>to_server</code> / <code>from_server</code>: 트래픽 방향 제한</li>
-              <li><code>established</code>: TCP 3-way handshake 완료 후 패킷만 검사 → 성능 대폭 향상</li>
-              <li><code>not_established</code>: 연결 초기 패킷 탐지 (SYN 스캔 등)</li>
-              <li><code>no_stream</code>: 재조합 전 개별 패킷만 검사</li>
+              <li><code>to_server</code> / <code>from_server</code>: restrict traffic direction</li>
+              <li><code>established</code>: inspect only packets after TCP 3-way handshake — major performance gain</li>
+              <li><code>not_established</code>: detect initial connection packets (SYN scans, etc.)</li>
+              <li><code>no_stream</code>: inspect individual packets before reassembly</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/flow" target="_blank" rel="noopener">&#8599; flow option — docs.snort.org</a>
@@ -995,30 +995,30 @@ flow:to_server;</pre>
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#128269;</span>
-            <span>4. content 패턴 작성 및 fast_pattern</span>
+            <span>4. content Patterns and fast_pattern</span>
             <span class="guide-tag important">IMPORTANT</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p><code>content</code>는 Snort 3에서 수정자(modifier)가 <b>인라인</b>으로 통합됩니다. Snort 2처럼 별도 옵션으로 분리하지 않습니다.</p>
-            <pre class="guide-code"># Snort 2 방식 (잘못된 Snort 3 작성)
+            <p>In Snort 3, <code>content</code> modifiers are <b>inline</b> — they are not written as separate options like in Snort 2.</p>
+            <pre class="guide-code"># Snort 2 style (incorrect for Snort 3)
 content:"/admin"; depth:20; nocase; distance:0;
 
-# Snort 3 올바른 방식 — 수정자 인라인 통합
+# Snort 3 correct style — modifiers inline
 content:"/admin", depth 20, nocase, distance 0;
 
-# 16진수 패턴 (바이너리 프로토콜 탐지)
+# Hex pattern (binary protocol detection)
 content:"|0d 0a 0d 0a|";
 
-# fast_pattern — 다중 content 중 가장 고유한 패턴 지정
+# fast_pattern — designate the most unique pattern among multiple contents
 content:"X-Trigger-Pattern", fast_pattern;
 content:"/other", distance 0;</pre>
             <ul>
-              <li>4자 미만의 content는 false positive 증가 및 성능 저하 → 최소 4자 이상 권장</li>
-              <li>다중 <code>content</code>가 있을 경우 <b>가장 고유하고 긴 패턴</b>에 <code>fast_pattern</code> 지정</li>
-              <li><code>nocase</code>는 대소문자 구분 없는 매칭 — 성능 비용 존재, 필요한 경우만 사용</li>
-              <li><code>depth</code>/<code>offset</code>으로 검색 범위를 제한하면 성능 향상</li>
-              <li>부정 content: <code>content:!"unwanted"</code> — 해당 패턴 없을 때만 매칭</li>
+              <li>Content patterns shorter than 4 characters increase false positives and hurt performance — use at least 4 characters</li>
+              <li>With multiple <code>content</code> options, assign <code>fast_pattern</code> to the <b>longest and most unique</b> pattern</li>
+              <li><code>nocase</code> enables case-insensitive matching — has a performance cost, use only when necessary</li>
+              <li>Limiting search range with <code>depth</code>/<code>offset</code> improves performance</li>
+              <li>Negated content: <code>content:!"unwanted"</code> — matches only when the pattern is absent</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/payload/content" target="_blank" rel="noopener">&#8599; content option — docs.snort.org</a>
@@ -1031,43 +1031,43 @@ content:"/other", distance 0;</pre>
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#127760;</span>
-            <span>5. Sticky Buffer & HTTP 검사</span>
+            <span>5. Sticky Buffers &amp; HTTP Inspection</span>
             <span class="guide-tag important">IMPORTANT</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Snort 3에서 HTTP 검사는 <b>sticky buffer</b> 방식으로 동작합니다. 버퍼 키워드를 <code>content</code> 또는 <code>pcre</code> <b>바로 앞</b>에 배치해야 합니다.</p>
-            <pre class="guide-code"># URI 기반 탐지
+            <p>In Snort 3, HTTP inspection uses <b>sticky buffers</b>. The buffer keyword must be placed <b>immediately before</b> <code>content</code> or <code>pcre</code>.</p>
+            <pre class="guide-code"># URI-based detection
 http_uri; content:"/cgi-bin/.%2e/", fast_pattern;
 
-# HTTP 헤더 검사
+# HTTP header inspection
 http_header; content:"Host: malicious.com";
 
-# POST body 검사
+# POST body inspection
 http_client_body; content:"payload=exploit";
 
-# HTTP 메서드 제한
+# HTTP method restriction
 http_method; content:"POST";
 
-# 상태 코드 탐지 (응답 탐지)
+# Status code detection (response detection)
 http_stat_code; content:"200";
 
-# service 키워드 필수 — HTTP 인스펙터 활성화
+# service keyword required — activates the HTTP inspector
 service:http;</pre>
             <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
               <thead><tr style="border-bottom:1px solid var(--border);">
                 <th style="text-align:left;padding:4px 8px;color:var(--muted);">Sticky Buffer</th>
-                <th style="text-align:left;padding:4px 8px;color:var(--muted);">검사 대상</th>
-                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Snort 2 대응</th>
+                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Inspects</th>
+                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Snort 2 Equivalent</th>
               </tr></thead>
               <tbody>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_uri</td><td style="padding:4px 8px;">정규화된 URI</td><td style="padding:4px 8px;color:var(--muted);">uricontent / pcre U플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_raw_uri</td><td style="padding:4px 8px;">원시(비정규화) URI</td><td style="padding:4px 8px;color:var(--muted);">pcre I플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_header</td><td style="padding:4px 8px;">요청/응답 헤더 전체</td><td style="padding:4px 8px;color:var(--muted);">pcre H플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_client_body</td><td style="padding:4px 8px;">요청 본문 (POST body)</td><td style="padding:4px 8px;color:var(--muted);">pcre P/D플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_method</td><td style="padding:4px 8px;">HTTP 메서드</td><td style="padding:4px 8px;color:var(--muted);">pcre M플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_cookie</td><td style="padding:4px 8px;">쿠키 값</td><td style="padding:4px 8px;color:var(--muted);">pcre C플래그</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_stat_code</td><td style="padding:4px 8px;">HTTP 상태 코드</td><td style="padding:4px 8px;color:var(--muted);">pcre S플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_uri</td><td style="padding:4px 8px;">Normalized URI</td><td style="padding:4px 8px;color:var(--muted);">uricontent / pcre U flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_raw_uri</td><td style="padding:4px 8px;">Raw (non-normalized) URI</td><td style="padding:4px 8px;color:var(--muted);">pcre I flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_header</td><td style="padding:4px 8px;">Full request/response headers</td><td style="padding:4px 8px;color:var(--muted);">pcre H flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_client_body</td><td style="padding:4px 8px;">Request body (POST body)</td><td style="padding:4px 8px;color:var(--muted);">pcre P/D flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_method</td><td style="padding:4px 8px;">HTTP method</td><td style="padding:4px 8px;color:var(--muted);">pcre M flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_cookie</td><td style="padding:4px 8px;">Cookie value</td><td style="padding:4px 8px;color:var(--muted);">pcre C flag</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_stat_code</td><td style="padding:4px 8px;">HTTP status code</td><td style="padding:4px 8px;color:var(--muted);">pcre S flag</td></tr>
               </tbody>
             </table>
             <div class="guide-links">
@@ -1082,30 +1082,30 @@ service:http;</pre>
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#128301;</span>
-            <span>6. PCRE 사용 주의사항</span>
+            <span>6. PCRE Usage Guidelines</span>
             <span class="guide-tag important">IMPORTANT</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>PCRE는 강력하지만 <b>CPU 비용이 매우 높습니다</b>. 반드시 <code>content</code> 앵커를 앞에 두어 PCRE 평가 횟수를 줄여야 합니다.</p>
-            <pre class="guide-code"># ✗ 나쁜 예 — content 없이 PCRE만 사용 (모든 패킷에 적용)
+            <p>PCRE is powerful but has <b>very high CPU cost</b>. Always precede PCRE with a <code>content</code> anchor to reduce evaluation frequency.</p>
+            <pre class="guide-code"># ✗ Bad — PCRE alone with no content anchor (applied to every packet)
 pcre:"/union\s+select/i";
 
-# ✓ 좋은 예 — content로 사전 필터링 후 PCRE
+# ✓ Good — pre-filter with content, then PCRE
 content:"union", fast_pattern, nocase;
 pcre:"/union\s+select\s+/i";
 
-# HTTP URI PCRE (Snort 3 sticky buffer 방식)
+# HTTP URI PCRE (Snort 3 sticky buffer style)
 http_uri; pcre:"/\/\.\.\/etc\/passwd/i";
 
-# Snort 2 HTTP 플래그 → Snort 3 변환
-# ✗ Snort 2: pcre:"/pattern/Ui"  (U = http_uri, i = 대소문자 무시)
+# Snort 2 HTTP flags → Snort 3 conversion
+# ✗ Snort 2: pcre:"/pattern/Ui"  (U = http_uri, i = case-insensitive)
 # ✓ Snort 3: http_uri; pcre:"/pattern/i"</pre>
             <ul>
-              <li>Snort 2의 대문자 HTTP 플래그 (<code>U</code>, <code>I</code>, <code>H</code>, <code>D</code>, <code>P</code>, <code>C</code>, <code>M</code>, <code>S</code>, <code>Y</code>, <code>K</code>) → Snort 3에서 모두 sticky buffer로 대체</li>
-              <li>소문자 플래그 (<code>i</code>, <code>s</code>, <code>m</code>, <code>x</code>) — 표준 PCRE 플래그로 그대로 유지</li>
-              <li><code>fast_pattern</code>과 함께 쓰면 PCRE 호출 빈도를 대폭 줄일 수 있음</li>
-              <li>Backtracking이 많은 패턴 (e.g. <code>.*</code>, <code>.+</code>) 사용 시 ReDoS 위험</li>
+              <li>Snort 2 uppercase HTTP flags (<code>U</code>, <code>I</code>, <code>H</code>, <code>D</code>, <code>P</code>, <code>C</code>, <code>M</code>, <code>S</code>, <code>Y</code>, <code>K</code>) → all replaced by sticky buffers in Snort 3</li>
+              <li>Lowercase flags (<code>i</code>, <code>s</code>, <code>m</code>, <code>x</code>) — standard PCRE flags, unchanged</li>
+              <li>Using <code>fast_pattern</code> alongside PCRE dramatically reduces the number of PCRE evaluations</li>
+              <li>Patterns with heavy backtracking (e.g. <code>.*</code>, <code>.+</code>) risk ReDoS</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/payload/pcre" target="_blank" rel="noopener">&#8599; pcre option — docs.snort.org</a>
@@ -1117,34 +1117,34 @@ http_uri; pcre:"/\/\.\.\/etc\/passwd/i";
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#128279;</span>
-            <span>7. xbits — 상태 추적 (flowbits 대체)</span>
+            <span>7. xbits — State Tracking (replaces flowbits)</span>
             <span class="guide-tag tip">TIP</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Snort 2의 <code>flowbits</code>는 Snort 3에서 <code>xbits</code>로 대체되었습니다. <code>xbits</code>는 <b>호스트 기반</b> 상태 추적으로 더 정밀한 제어가 가능합니다.</p>
+            <p>Snort 2's <code>flowbits</code> is replaced by <code>xbits</code> in Snort 3. <code>xbits</code> provides <b>host-based</b> state tracking with finer-grained control.</p>
             <pre class="guide-code"># Snort 2 (flowbits)
 flowbits:set,malware.stage1;
 flowbits:isset,malware.stage1;
 
-# Snort 3 (xbits) — track 절 필수
+# Snort 3 (xbits) — track clause is required
 xbits:set,malware.stage1,track ip_src;
 xbits:isset,malware.stage1,track ip_src;
 xbits:unset,malware.stage1,track ip_src;
 
-# expire 권장 — 메모리 누수 방지
+# expire recommended — prevents memory leaks
 xbits:set,malware.stage1,track ip_src,expire 3600;
 
-# 룰 1: 1단계 탐지 후 비트 설정
+# Rule 1: detect stage 1 and set bit
 alert tcp ... (content:"stage1"; xbits:set,attack.stage1,track ip_src,expire 60; sid:1000001;)
 
-# 룰 2: 비트 설정된 IP의 2단계 탐지
+# Rule 2: detect stage 2 only from IPs with bit set
 alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:1000002;)</pre>
             <ul>
-              <li><code>track ip_src</code> / <code>track ip_dst</code> / <code>track ip_pair</code> 중 선택</li>
-              <li><code>expire</code> 미지정 시 기본 타임아웃 적용 — 명시적 지정 권장</li>
-              <li><code>flowbits:noalert</code> → Snort 3에서는 독립 옵션 <code>noalert;</code>로 사용</li>
-              <li><code>flowbits:reset</code> → Snort 3에 동등한 기능 없음 (제거)</li>
+              <li>Choose between <code>track ip_src</code>, <code>track ip_dst</code>, or <code>track ip_pair</code></li>
+              <li>Without <code>expire</code>, a default timeout applies — always set it explicitly</li>
+              <li><code>flowbits:noalert</code> → use the standalone <code>noalert;</code> option in Snort 3</li>
+              <li><code>flowbits:reset</code> → no equivalent in Snort 3 (removed)</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/xbits" target="_blank" rel="noopener">&#8599; xbits option — docs.snort.org</a>
@@ -1156,23 +1156,23 @@ alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:100
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#127757;</span>
-            <span>8. service 키워드 — 애플리케이션 프로토콜 선언</span>
+            <span>8. service keyword — Application Protocol Declaration</span>
             <span class="guide-tag important">IMPORTANT</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p><code>service</code>는 룰이 어떤 애플리케이션 레이어 프로토콜을 대상으로 하는지 선언합니다. 이를 통해 Snort 3의 인스펙터(inspector)가 올바르게 호출되어 HTTP, DNS 등 프로토콜 파싱이 적용됩니다.</p>
-            <pre class="guide-code">service:http;           # HTTP 인스펙터 활성화 (sticky buffer 사용 시 필수)
-service:https;          # HTTPS (TLS 복호화 후 HTTP 검사)
-service:dns;            # DNS 인스펙터
-service:smtp;           # SMTP 인스펙터
-service:ftp;            # FTP 인스펙터
+            <p><code>service</code> declares which application-layer protocol the rule targets. This ensures Snort 3's inspector is correctly invoked to parse HTTP, DNS, and other protocols.</p>
+            <pre class="guide-code">service:http;           # Activate HTTP inspector (required when using sticky buffers)
+service:https;          # HTTPS (HTTP inspection after TLS decryption)
+service:dns;            # DNS inspector
+service:smtp;           # SMTP inspector
+service:ftp;            # FTP inspector
 service:ssh;            # SSH
-service:http,dns;       # 복수 서비스 지정 가능</pre>
+service:http,dns;       # Multiple services can be specified</pre>
             <ul>
-              <li>HTTP sticky buffer (<code>http_uri</code>, <code>http_header</code> 등) 사용 시 <code>service:http</code> 없으면 동작하지 않을 수 있음</li>
-              <li>Snort 2의 <code>metadata:service http</code> → Snort 3에서는 독립 <code>service:http</code> 옵션으로 분리</li>
-              <li>포트 기반이 아닌 <b>트래픽 자동 분류(AppID)</b>를 기반으로 동작</li>
+              <li>HTTP sticky buffers (<code>http_uri</code>, <code>http_header</code>, etc.) may not function without <code>service:http</code></li>
+              <li>Snort 2's <code>metadata:service http</code> → replaced by the standalone <code>service:http</code> option in Snort 3</li>
+              <li>Works based on <b>automatic traffic classification (AppID)</b>, not port numbers</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/service" target="_blank" rel="noopener">&#8599; service option — docs.snort.org</a>
@@ -1184,19 +1184,19 @@ service:http,dns;       # 복수 서비스 지정 가능</pre>
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#9203;</span>
-            <span>9. detection_filter — 이벤트 빈도 제어 (threshold 대체)</span>
+            <span>9. detection_filter — Event Rate Control (replaces threshold)</span>
             <span class="guide-tag tip">TIP</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Snort 2의 <code>threshold</code>는 Snort 3에서 제거되었습니다. 인라인 빈도 제한은 <code>detection_filter</code>를 사용합니다.</p>
-            <pre class="guide-code"># Snort 2 (threshold — Snort 3에서 제거됨)
+            <p>Snort 2's <code>threshold</code> has been removed in Snort 3. Use <code>detection_filter</code> for inline rate limiting.</p>
+            <pre class="guide-code"># Snort 2 (threshold — removed in Snort 3)
 threshold: type limit, track by_src, count 5, seconds 60;
 
-# Snort 3 (detection_filter — 룰 옵션으로 인라인 사용)
+# Snort 3 (detection_filter — inline as a rule option)
 detection_filter:track by_src, count 5, seconds 60;
 
-# 예시: 60초 내 동일 소스에서 5번 이상 발생 시 알림
+# Example: alert if same source triggers 5+ times within 60 seconds
 alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
     msg:"Brute Force Attempt";
     flow:to_server,established;
@@ -1206,8 +1206,8 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
     sid:1000010; rev:1;
 )</pre>
             <ul>
-              <li><code>track by_src</code>: 소스 IP 기준, <code>track by_dst</code>: 목적지 IP 기준</li>
-              <li>전역 이벤트 필터는 <code>snort.lua</code>의 <code>event_filter</code> 모듈로 설정</li>
+              <li><code>track by_src</code>: based on source IP; <code>track by_dst</code>: based on destination IP</li>
+              <li>Global event filters are configured via the <code>event_filter</code> module in <code>snort.lua</code></li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/detection_filter" target="_blank" rel="noopener">&#8599; detection_filter — docs.snort.org</a>
@@ -1219,29 +1219,29 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#9888;</span>
-            <span>10. Snort 2 → 3 제거 / 변경된 키워드 주의사항</span>
+            <span>10. Snort 2 → 3 Removed / Changed Keywords</span>
             <span class="guide-tag critical">CRITICAL</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>아래 Snort 2 키워드들은 Snort 3에서 <b>제거되거나 문법이 변경</b>되었습니다. 이 키워드가 포함된 룰은 Snort 3에서 로드 실패 또는 오동작을 일으킵니다.</p>
+            <p>The following Snort 2 keywords have been <b>removed or changed</b> in Snort 3. Rules containing these keywords will fail to load or behave incorrectly.</p>
             <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
               <thead><tr style="border-bottom:1px solid var(--border);">
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 2 키워드</th>
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">상태</th>
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 3 대체</th>
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 2 Keyword</th>
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Status</th>
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 3 Replacement</th>
               </tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">uricontent</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">http_uri; content:"..."</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">rawbytes</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">raw_data; sticky buffer</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">flowbits</td><td style="padding:5px 8px;color:var(--warn);">대체</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">xbits:action,name,track ip_src</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">threshold</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">detection_filter (인라인)</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">fast_pattern:only</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">fast_pattern (인자 없이)</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp / react</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">rewrite 액션 또는 DAQ 모듈</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">대체 없음</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">activates / activated_by</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">동적 룰 미지원</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">logto / session</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">대체 없음</td></tr>
-                <tr><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">stream_reassemble</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">snort.lua stream 설정으로 이동</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">uricontent</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">http_uri; content:"..."</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">rawbytes</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">raw_data; sticky buffer</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">flowbits</td><td style="padding:5px 8px;color:var(--warn);">Replaced</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">xbits:action,name,track ip_src</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">threshold</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">detection_filter (inline)</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">fast_pattern:only</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">fast_pattern (no argument)</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp / react</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">rewrite action or DAQ module</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">No equivalent</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">activates / activated_by</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Dynamic rules not supported</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">logto / session</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">No equivalent</td></tr>
+                <tr><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">stream_reassemble</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Moved to stream config in snort.lua</td></tr>
               </tbody>
             </table>
             <div class="guide-links">
@@ -1255,27 +1255,27 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
         <details class="guide-section">
           <summary>
             <span class="guide-icon">&#128737;</span>
-            <span>11. Cisco FMC / Secure Firewall 로컬 룰 업로드 주의사항</span>
+            <span>11. Cisco FMC / Secure Firewall — Local Rule Upload Guidelines</span>
             <span class="guide-tag critical">CRITICAL</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Cisco FMC (Firepower Management Center)에 로컬 룰 파일을 업로드할 때 지켜야 할 규칙입니다.</p>
+            <p>Rules to follow when uploading local rule files to Cisco FMC (Firepower Management Center).</p>
             <ul>
-              <li><b>파일명 규칙</b>: 영문자 또는 밑줄(<code>_</code>)로 시작, 이후 영문자·숫자·<code>.</code>·<code>_</code>·<code>-</code>·<code>+</code>만 허용 (공백, 한글, 특수문자 불가)</li>
-              <li><b>파일 확장자</b>: <code>.rules</code> 또는 <code>.txt</code></li>
-              <li><b>SID 중복 금지</b>: 동일 SID가 다른 룰셋에 존재하면 충돌 발생 → 반드시 1,000,000 이상 사용</li>
-              <li><b>GID</b>: 로컬 룰은 GID 1 사용 (명시적으로 <code>gid:1;</code> 작성하거나 생략 가능)</li>
-              <li><b>정책 적용</b>: 업로드 후 Intrusion Policy에 룰 활성화 → Deploy 필수</li>
-              <li><b>Snort 버전 확인</b>: FTD 버전에 따라 Snort 2 또는 Snort 3 엔진 사용 여부 다름 — FMC &gt; Devices에서 확인</li>
-              <li><b>테스트 환경</b>: 프로덕션 배포 전 반드시 테스트 환경에서 룰 동작 검증 권장</li>
+              <li><b>File naming</b>: Must start with a letter or underscore (<code>_</code>); only letters, digits, <code>.</code>, <code>_</code>, <code>-</code>, <code>+</code> are allowed (no spaces, non-ASCII, or special characters)</li>
+              <li><b>File extension</b>: <code>.rules</code> or <code>.txt</code></li>
+              <li><b>No duplicate SIDs</b>: Conflicting SIDs across rulesets will cause errors — always use 1,000,000 or higher</li>
+              <li><b>GID</b>: Local rules use GID 1 (write <code>gid:1;</code> explicitly or omit it)</li>
+              <li><b>Policy deployment</b>: After uploading, enable the rules in the Intrusion Policy, then Deploy</li>
+              <li><b>Check Snort version</b>: FTD version determines whether Snort 2 or Snort 3 engine is used — verify in FMC &gt; Devices</li>
+              <li><b>Test environment</b>: Always validate rule behavior in a test environment before production deployment</li>
             </ul>
-            <pre class="guide-code"># 올바른 파일명 예시
+            <pre class="guide-code"># Valid filename examples
 snort3_local_rules_20260408.rules   ✓
 local_rules_v2.rules                ✓
-my rules.rules                      ✗ (공백 불가)
-한글룰.rules                        ✗ (비ASCII 불가)
-123rules.rules                      ✗ (숫자로 시작 불가)</pre>
+my rules.rules                      ✗ (spaces not allowed)
+한글룰.rules                        ✗ (non-ASCII not allowed)
+123rules.rules                      ✗ (cannot start with a digit)</pre>
             <div class="guide-links">
               <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/device-config/730/management-center-device-config-73/intrusion-rules.html" target="_blank" rel="noopener">&#8599; FMC Intrusion Rules — Cisco Docs</a>
               <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/admin/730/management-center-admin-73/system-install.html" target="_blank" rel="noopener">&#8599; Cisco Secure Firewall Docs</a>
@@ -1287,30 +1287,30 @@ my rules.rules                      ✗ (공백 불가)
         <details class="guide-section" style="margin-bottom:0;">
           <summary>
             <span class="guide-icon">&#128200;</span>
-            <span>12. 성능 최적화 모범 사례 (Performance Best Practices)</span>
+            <span>12. Performance Best Practices</span>
             <span class="guide-tag tip">TIP</span>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>로컬 룰이 많아질수록 성능에 미치는 영향이 커집니다. 다음 가이드라인을 따르면 탐지 정확도와 성능을 동시에 확보할 수 있습니다.</p>
+            <p>As the number of local rules grows, the performance impact increases. Following these guidelines ensures both detection accuracy and performance.</p>
             <ul>
-              <li><b>항상 <code>flow</code> 지정</b>: <code>flow:to_server,established</code>로 대상 패킷 범위 축소</li>
-              <li><b>짧은 content 지양</b>: 3자 이하 패턴은 오탐률이 높고 성능 저하 유발</li>
-              <li><b><code>fast_pattern</code> 지정</b>: 다중 content 룰에서 가장 고유한 패턴에 명시적 지정</li>
-              <li><b>PCRE에는 반드시 content 앵커</b>: PCRE 단독 사용 금지</li>
-              <li><b><code>dsize</code> 활용</b>: 페이로드 크기 제한으로 불필요한 검사 차단</li>
-              <li><b>포트 명시</b>: <code>any</code> 대신 실제 서비스 포트 지정 (<code>$HTTP_PORTS</code> 등)</li>
-              <li><b><code>classtype</code> 지정</b>: 경보 우선순위 관리 및 분류 필터링에 활용</li>
+              <li><b>Always use <code>flow</code></b>: Use <code>flow:to_server,established</code> to narrow the scope of packets evaluated</li>
+              <li><b>Avoid short content patterns</b>: Patterns of 3 characters or fewer increase false positives and hurt performance</li>
+              <li><b>Assign <code>fast_pattern</code></b>: Explicitly set it on the most unique pattern in multi-content rules</li>
+              <li><b>Always anchor PCRE with content</b>: Never use PCRE alone</li>
+              <li><b>Use <code>dsize</code></b>: Limit payload size to skip unnecessary inspections</li>
+              <li><b>Specify ports</b>: Use actual service ports (e.g. <code>$HTTP_PORTS</code>) instead of <code>any</code></li>
+              <li><b>Set <code>classtype</code></b>: Helps with alert priority management and classification filtering</li>
             </ul>
-            <pre class="guide-code"># ✓ 최적화된 룰 예시
+            <pre class="guide-code"># ✓ Optimized rule example
 alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
     msg:"ET WEB Possible SQL Injection";
-    flow:to_server,established;          # 방향 + 상태 제한
+    flow:to_server,established;          # direction + state restriction
     http_uri;                            # HTTP URI sticky buffer
-    content:"UNION", fast_pattern, nocase;  # 가장 고유한 패턴 + fast_pattern
+    content:"UNION", fast_pattern, nocase;  # most unique pattern + fast_pattern
     content:"SELECT", distance 0, nocase;
-    pcre:"/union\s+select/i";            # content로 사전 필터링 후 PCRE
-    dsize:>10;                           # 페이로드 크기 필터
+    pcre:"/union\s+select/i";            # PCRE after content pre-filter
+    dsize:>10;                           # payload size filter
     service:http;
     classtype:web-application-attack;
     sid:1000020; rev:1;
@@ -2088,6 +2088,42 @@ def content_to_bytes(val):
 # Payload builder
 # ---------------------------------------------------------------------------
 
+def parse_content_items(opts):
+    """Return [(bytes_val, mods_dict)] for non-negated content options.
+    Inline modifiers (distance, within, depth, offset) are extracted from
+    the comma-separated tail of each content option.
+    """
+    items = []
+    for opt in opts:
+        kw = opt.split(":", 1)[0].strip().lower()
+        if kw != "content":
+            continue
+        rest = opt[opt.index(":") + 1:].strip()
+        if rest.startswith("!"):
+            continue
+        if rest.startswith('"'):
+            end_q = rest.index('"', 1)
+            val   = rest[1:end_q]
+            after = rest[end_q + 1:]
+        else:
+            val   = rest.split(",")[0].strip()
+            after = rest[len(val):]
+        mods = {}
+        for part in after.split(","):
+            pl = part.strip().lower()
+            if not pl or pl in ("fast_pattern", "nocase", "rawbytes", "no_alert"):
+                continue
+            for mn in ("distance", "within", "depth", "offset"):
+                if pl.startswith(mn):
+                    try:
+                        mods[mn] = int(pl.split()[1])
+                    except (IndexError, ValueError):
+                        pass
+                    break
+        items.append((content_to_bytes(val), mods))
+    return items
+
+
 def build_payload(rule_line, default_port):
     p_open  = rule_line.find("(")
     p_close = rule_line.rfind(")")
@@ -2106,59 +2142,71 @@ def build_payload(rule_line, default_port):
             msg = opt[opt.index(":") + 1:].strip().strip('"')
             break
 
-    # Extract content patterns (skip negated)
-    contents = []
-    for opt in opts:
-        kw = opt.split(":", 1)[0].strip().lower()
-        if kw != "content":
-            continue
-        val = opt[opt.index(":") + 1:].strip()
-        if val.startswith("!"):
-            continue
-        # Extract the quoted value (ignore trailing inline modifiers)
-        if val.startswith('"'):
-            end_q = val.index('"', 1)
-            val = val[1:end_q]
-        else:
-            val = val.split(",")[0].strip()
-        contents.append(content_to_bytes(val))
-
-    if not contents:
+    items = parse_content_items(opts)
+    if not items:
         return msg, None, None
 
-    # Infer destination port from rule header (use specific port if given)
+    # Infer destination port from rule header
     port = default_port
     h_parts = header.split()
     if len(h_parts) >= 7 and h_parts[6].isdigit():
         port = int(h_parts[6])
 
-    # Detect HTTP vs raw payload
-    first_str = contents[0].decode("latin-1", errors="replace")
-    is_http   = first_str.startswith("/") or any(b"HTTP" in c for c in contents)
-    has_ct    = any(b"Content-Type" in c for c in contents)
+    first_bytes, _ = items[0]
+    first_str = first_bytes.decode("latin-1", errors="replace")
+    is_http   = first_str.startswith("/") or any(b"HTTP" in d for d, _ in items)
+    has_ct    = any(b"Content-Type" in d for d, _ in items)
 
     if is_http and has_ct:
-        # HTTP POST with body
-        path     = first_str if first_str.startswith("/") else "/"
-        ct_bytes = next((c for c in contents if b"Content-Type" in c), b"")
-        ct_line  = ct_bytes.decode("latin-1", errors="replace").rstrip()
-        body     = b" ".join(c for c in contents if b"Content-Type" not in c and not c.decode("latin-1","replace").startswith("/"))
-        payload  = (b"POST " + path.encode() +
-                    b" HTTP/1.1\\r\\nHost: " + DEST_IP.encode() +
-                    b"\\r\\n" + ct_line.encode() +
-                    b"\\r\\nContent-Length: " + str(len(body)).encode() +
-                    b"\\r\\nConnection: close\\r\\n\\r\\n" + body)
-    elif is_http:
-        # HTTP GET
+        # HTTP POST: first path segment as URL, Content-Type header, rest as body
         path    = first_str if first_str.startswith("/") else "/"
-        extra   = b" ".join(c for c in contents[1:] if not c.decode("latin-1","replace").startswith("/"))
-        payload = (b"GET " + path.encode() +
+        ct_item = next((d for d, _ in items if b"Content-Type" in d), b"")
+        ct_line = ct_item.decode("latin-1", errors="replace").rstrip()
+        body    = b" ".join(
+            d for d, _ in items
+            if b"Content-Type" not in d and not d.decode("latin-1", "replace").startswith("/")
+        )
+        payload = (b"POST " + path.encode() +
+                   b" HTTP/1.1\\r\\nHost: " + DEST_IP.encode() +
+                   b"\\r\\n" + ct_line.encode() +
+                   b"\\r\\nContent-Length: " + str(len(body)).encode() +
+                   b"\\r\\nConnection: close\\r\\n\\r\\n" + body)
+    elif is_http:
+        # HTTP GET: concatenate all path-like fragments into the URL.
+        # A fragment is included in the path if it starts with '/' OR
+        # if distance==0 (immediately following the previous match) and
+        # a path segment already exists — this handles multi-segment
+        # traversal payloads like /cgi-bin + /.%2e/ + %2e/
+        path_buf    = bytearray()
+        extra_parts = []
+        for data, mods in items:
+            s = data.decode("latin-1", errors="replace")
+            if s.startswith("/") or (path_buf and mods.get("distance", -1) == 0):
+                path_buf.extend(data)
+            else:
+                extra_parts.append(data)
+        path_bytes = bytes(path_buf) if path_buf else b"/"
+        extra = b" ".join(extra_parts)
+        payload = (b"GET " + path_bytes +
                    b" HTTP/1.1\\r\\nHost: " + DEST_IP.encode() +
                    b"\\r\\nUser-Agent: Mozilla/5.0\\r\\nConnection: close\\r\\n\\r\\n" +
                    extra)
     else:
-        # Raw TCP: concatenate all content bytes
-        payload = b"".join(contents)
+        # Raw TCP: respect distance modifiers by inserting padding bytes.
+        # distance:N means the next match starts >=N bytes after the previous
+        # match end — insert N zero bytes as padding to satisfy the constraint.
+        buf = bytearray()
+        for i, (data, mods) in enumerate(items):
+            if i == 0:
+                off = mods.get("offset", 0)
+                if off > 0:
+                    buf.extend(bytearray(off))
+            else:
+                dist = mods.get("distance", 0)
+                if dist > 0:
+                    buf.extend(bytearray(dist))
+            buf.extend(data)
+        payload = bytes(buf)
 
     return msg, port, payload
 
@@ -2537,7 +2585,7 @@ if __name__ == "__main__":
 
         function renderPosts(posts) {
           if (!posts.length) {
-            fbPostList.innerHTML = '<div class="fb-empty">아직 등록된 피드백이 없습니다. 첫 번째로 글을 남겨보세요!</div>';
+            fbPostList.innerHTML = '<div class="fb-empty">No feedback yet. Be the first to post!</div>';
             return;
           }
           const sorted = [...posts].sort((a, b) => {
@@ -2567,7 +2615,7 @@ if __name__ == "__main__":
             renderPosts(posts);
           } catch (e) {
             fbPostList.innerHTML = `<div class="fb-empty" style="color:var(--error);">
-              피드백을 불러오지 못했습니다. 잠시 후 다시 시도하세요.<br>
+              Failed to load feedback. Please try again later.<br>
               <small style="opacity:0.6;">${escapeHtml(e.message)}</small></div>`;
           }
         }
@@ -2609,7 +2657,7 @@ if __name__ == "__main__":
             const pw = document.getElementById("fbPassword").value;
             const hash = await hashPassword(pw);
             if (hash !== "50ee8c22c0763bab8f63e0b0366405227aea6520fb12ec72280f4fc525134b7e") {
-              alert("관리자 비밀번호가 올바르지 않습니다.");
+              alert("Incorrect admin password.");
               document.getElementById("fbPassword").focus();
               return;
             }
@@ -2630,7 +2678,7 @@ if __name__ == "__main__":
             fbToggleForm.textContent  = "+ Write Feedback";
             await loadPosts();
           } catch (e) {
-            alert("제출 실패: " + e.message);
+            alert("Submission failed: " + e.message);
           } finally {
             fbSubmit.disabled = false;
             fbSubmit.textContent = "Submit";
@@ -2817,20 +2865,20 @@ if __name__ == "__main__":
       function runOptimize() {
         const ruleLines = joinMultilineRules(el.optInput.value);
         if (!ruleLines.length) {
-          el.optResults.innerHTML = '<div class="result-card muted">분석할 룰이 없습니다. 위 입력창에 룰을 붙여넣고 Optimize를 클릭하세요.</div>';
+          el.optResults.innerHTML = '<div class="result-card muted">No rules to analyze. Paste rules in the input above and click Optimize.</div>';
           return;
         }
         const versionLabel = optVersion === 2 ? "Snort 2" : "Snort 3";
         let html = `<div class="muted" style="font-size:0.82rem;margin-bottom:14px;">
-          <b style="color:var(--primary);">${versionLabel}</b> 룰 기준으로 분석 중 — 총 ${ruleLines.length}개 룰
+          Analyzing <b style="color:var(--primary);">${versionLabel}</b> rules — ${ruleLines.length} rule(s) total
         </div>`;
 
         ruleLines.forEach((line, idx) => {
           const trimmed = line.trim();
           const { mismatch, suggestions, explanation } = analyzeRule(trimmed, optVersion);
-          const label   = `룰 ${idx + 1}`;
+          const label   = `Rule ${idx + 1}`;
           html += `<div class="opt-rule-block">
-            <div class="opt-rule-header" title="클릭하면 전체 룰 보기" onclick="this.classList.toggle('expanded')">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
+            <div class="opt-rule-header" title="Click to expand full rule" onclick="this.classList.toggle('expanded')">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
             <div class="opt-rule-body">`;
 
           // ── Version mismatch banner ───────────────────────────────────
@@ -2838,20 +2886,20 @@ if __name__ == "__main__":
             html += `<div style="margin-bottom:10px; padding:8px 12px; border-radius:6px;
                        border:1px solid var(--error); background:rgba(255,68,68,0.1);
                        color:var(--error); font-size:0.88rem;">
-              &#9888; <b>버전 불일치:</b> ${escapeHtml(mismatch)}
+              &#9888; <b>Version mismatch:</b> ${escapeHtml(mismatch)}
             </div>`;
           }
 
           // ── Optimization suggestions ─────────────────────────────────
           if (!suggestions.length && !mismatch) {
-            html += `<div class="opt-rule-ok">&#10003; 문제 없음 — ${escapeHtml(versionLabel)} 룰로서 최적 상태입니다.</div>`;
+            html += `<div class="opt-rule-ok">&#10003; No issues — this rule is optimal for ${escapeHtml(versionLabel)}.</div>`;
           } else {
             suggestions.forEach(s => {
               const levelColors = { warn:"var(--error)", info:"var(--primary)", perf:"var(--warn)" };
               html += `<div class="opt-item">
                 <span class="opt-badge ${s.level}">${s.level.toUpperCase()}</span>
                 <span>${escapeHtml(s.msg)}${s.fix
-                  ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; 권장 수정: <code style="color:var(--primary);">${escapeHtml(s.fix)}</code></span>`
+                  ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; Suggested fix: <code style="color:var(--primary);">${escapeHtml(s.fix)}</code></span>`
                   : ""}</span>
               </div>`;
             });
@@ -2861,7 +2909,7 @@ if __name__ == "__main__":
           if (explanation.length) {
             html += `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:10px;">
               <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:8px; letter-spacing:0.04em;">
-                룰 옵션 상세 설명
+                Rule Option Details
               </div>`;
             explanation.forEach(e => {
               html += `<div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(30,58,95,0.4);">
@@ -2924,48 +2972,48 @@ if __name__ == "__main__":
 
       // ── Option explanation database ──────────────────────────────────
       const OPT_EXPLAIN = {
-        msg:        { category:"메타",      desc:"룰이 발동될 때 표시되는 경보 메시지입니다. 위협 내용을 명확히 기술해야 합니다." },
-        sid:        { category:"메타",      desc:"룰의 고유 식별자(SID)입니다. 로컬 룰은 반드시 SID 1,000,000 이상을 사용해야 합니다." },
-        rev:        { category:"메타",      desc:"룰 개정 번호입니다. 룰을 수정할 때마다 1씩 증가시켜야 합니다." },
-        gid:        { category:"메타",      desc:"Generator ID입니다. 기본값은 1(Snort 엔진). 커스텀 전처리기는 더 높은 GID를 사용합니다." },
-        classtype:  { category:"메타",      desc:"룰 분류 카테고리입니다 (예: trojan-activity, web-application-attack). 경보 우선순위에 영향을 줍니다." },
-        priority:   { category:"메타",      desc:"classtype의 기본 우선순위를 재정의합니다 (1=높음, 4=낮음)." },
-        metadata:   { category:"메타",      desc:"룰 관리용 키-값 쌍입니다 (예: service, policy). 탐지에는 사용되지 않습니다." },
-        reference:  { category:"메타",      desc:"룰과 관련된 외부 참조 URL 또는 CVE 식별자입니다." },
-        flow:       { category:"흐름",      desc:"특정 트래픽 방향 및 TCP 상태로 룰 적용 범위를 제한합니다 (예: to_server,established). 불필요한 검사를 대폭 줄여 성능을 향상시킵니다." },
-        flowbits:   { category:"흐름",      desc:"(Snort 2) 패킷 간 상태 플래그 비트를 설정/확인합니다. Snort 3에서는 xbits로 대체되었습니다." },
-        xbits:      { category:"흐름",      desc:"(Snort 3) 호스트별 명명된 비트를 설정/확인합니다 (track ip_src/ip_dst). flowbits를 대체합니다." },
-        content:    { category:"탐지",      desc:"페이로드에서 리터럴 문자열 또는 16진수 바이트를 검색합니다. 가장 기본적이고 효율적인 탐지 방식입니다." },
-        nocase:     { category:"수정자",    desc:"직전 content 매칭을 대소문자 구분 없이 수행합니다. 성능 비용이 있으므로 꼭 필요한 경우에만 사용하세요." },
-        offset:     { category:"수정자",    desc:"페이로드(또는 버퍼) 시작점으로부터 content 검색을 시작할 바이트 오프셋을 지정합니다." },
-        depth:      { category:"수정자",    desc:"오프셋 기준으로 content 검색을 제한할 바이트 수를 지정합니다." },
-        distance:   { category:"수정자",    desc:"이전 매칭 이후 다음 content 검색을 시작하기 전 건너뛸 바이트 수입니다." },
-        within:     { category:"수정자",    desc:"이전 매칭으로부터 지정된 바이트 범위 내에서 다음 content를 찾아야 합니다." },
-        fast_pattern: { category:"성능",    desc:"다중 패턴 검색 엔진의 fast-pattern 후보로 이 content를 지정합니다. 전체 룰 평가 비용을 줄입니다." },
-        rawbytes:   { category:"버퍼",      desc:"(Snort 2 전용) 디코딩되지 않은 원시 페이로드 바이트에 대해 매칭합니다. Snort 3에서는 제거됨 — raw_data; sticky buffer를 사용하세요." },
-        pcre:       { category:"탐지",      desc:"페이로드에 대해 Perl 호환 정규표현식(PCRE)으로 매칭합니다. 강력하지만 CPU 비용이 높으므로, 반드시 앞에 content 앵커를 함께 사용하세요." },
-        uricontent:  { category:"HTTP",     desc:"(Snort 2 전용) content+http_uri의 구식 단축 표현입니다. Snort 3에서는 content:\"...\"; http_uri; 형태를 사용하세요." },
-        http_uri:    { category:"HTTP",     desc:"(Snort 3 sticky buffer) 정규화된 URI에 대해 매칭합니다. content/pcre 옵션 앞에 배치합니다." },
-        http_method: { category:"HTTP",     desc:"(Snort 3 sticky buffer) HTTP 메서드(GET, POST 등)에 대해 매칭합니다." },
-        http_header: { category:"HTTP",     desc:"(Snort 3 sticky buffer) HTTP 요청/응답 헤더에 대해 매칭합니다." },
-        http_client_body: { category:"HTTP", desc:"(Snort 3 sticky buffer) HTTP 요청 본문(body)에 대해 매칭합니다." },
-        http_stat_code:   { category:"HTTP", desc:"(Snort 3 sticky buffer) HTTP 상태 코드에 대해 매칭합니다." },
-        file_data:   { category:"버퍼",     desc:"패킷에 포함된 파일/MIME 데이터(HTTP 응답 본문, 이메일 첨부 등)를 검사합니다." },
-        byte_test:   { category:"탐지",     desc:"이진 연산자를 사용하여 지정된 바이트 수를 값과 비교 테스트합니다. 프로토콜 필드 검증에 유용합니다." },
-        byte_jump:   { category:"탐지",     desc:"패킷에서 추출한 바이트 수만큼 검사 커서를 이동합니다. 가변 길이 프로토콜 필드 탐색에 사용됩니다." },
-        isdataat:    { category:"탐지",     desc:"페이로드의 특정 위치에 데이터가 존재하는지 확인합니다. 직전 매칭 기준 상대 위치 지정도 가능합니다." },
-        threshold:   { category:"빈도",     desc:"(Snort 2) 경보 발생 빈도를 제한합니다. Snort 3에서는 detection_filter 또는 rate_filter로 대체되었습니다." },
-        detection_filter: { category:"빈도", desc:"지정된 시간 창 내에 룰이 지정 횟수 이상 발동될 때까지 경보를 억제합니다." },
-        dce_stub_data: { category:"프로토콜", desc:"DCE/RPC stub 데이터에 대한 sticky buffer입니다. snort.lua에서 dce2 인스펙터를 활성화해야 합니다." },
-        service:      { category:"메타",    desc:"이 룰이 대상으로 하는 애플리케이션 프로토콜을 선언합니다 (예: http, dns, smtp). Snort 3의 트래픽 분류에 사용됩니다." },
-        flags:        { category:"TCP",     desc:"특정 TCP 플래그 조합에 매칭합니다 (예: S=SYN, SA=SYN-ACK, F=FIN)." },
-        dsize:        { category:"페이로드", desc:"페이로드 길이를 검사합니다. 특정 익스플로잇을 포함할 수 없는 패킷을 필터링하는 데 유용합니다." },
-        itype:        { category:"ICMP",    desc:"ICMP 메시지 타입 필드에 매칭합니다." },
-        icode:        { category:"ICMP",    desc:"ICMP 코드 필드에 매칭합니다." },
-        ttl:          { category:"IP",      desc:"IP Time-To-Live 값을 검사합니다." },
-        tos:          { category:"IP",      desc:"IP Type-of-Service 필드를 검사합니다." },
-        id:           { category:"IP",      desc:"IP 헤더 식별자 필드를 검사합니다." },
-        fragbits:     { category:"IP",      desc:"IP 단편화 플래그 비트(More Fragments, Don't Fragment, Reserved)를 검사합니다." },
+        msg:        { category:"meta",      desc:"Alert message displayed when the rule fires. Should clearly describe the threat." },
+        sid:        { category:"meta",      desc:"Unique rule identifier (SID). Local rules must use SID 1,000,000 or higher." },
+        rev:        { category:"meta",      desc:"Rule revision number. Increment by 1 each time the rule is modified." },
+        gid:        { category:"meta",      desc:"Generator ID. Default is 1 (Snort engine). Custom preprocessors use higher GIDs." },
+        classtype:  { category:"meta",      desc:"Rule classification category (e.g. trojan-activity, web-application-attack). Affects alert priority." },
+        priority:   { category:"meta",      desc:"Overrides the default priority from classtype (1=high, 4=low)." },
+        metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. service, policy). Not used for detection." },
+        reference:  { category:"meta",      desc:"External reference URL or CVE identifier associated with the rule." },
+        flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections." },
+        flowbits:   { category:"flow",      desc:"(Snort 2) Sets/checks per-flow state flag bits between packets. Replaced by xbits in Snort 3." },
+        xbits:      { category:"flow",      desc:"(Snort 3) Sets/checks named bits per host (track ip_src/ip_dst). Replaces flowbits." },
+        content:    { category:"detection", desc:"Searches for a literal string or hex bytes in the payload. The most basic and efficient detection method." },
+        nocase:     { category:"modifier",  desc:"Makes the preceding content match case-insensitive. Has a performance cost — use only when necessary." },
+        offset:     { category:"modifier",  desc:"Byte offset from the start of the payload (or buffer) at which to begin searching for content." },
+        depth:      { category:"modifier",  desc:"Limits content search to N bytes from the offset position." },
+        distance:   { category:"modifier",  desc:"Number of bytes to skip after the previous match before searching for the next content." },
+        within:     { category:"modifier",  desc:"The next content must be found within N bytes of the end of the previous match." },
+        fast_pattern: { category:"perf",    desc:"Designates this content as the fast-pattern candidate for the multi-pattern search engine. Reduces overall rule evaluation cost." },
+        rawbytes:   { category:"buffer",    desc:"(Snort 2 only) Matches against raw, undecoded payload bytes. Removed in Snort 3 — use raw_data; sticky buffer." },
+        pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor." },
+        uricontent:  { category:"HTTP",     desc:"(Snort 2 only) Legacy shorthand for content+http_uri. Use content:\"...\"; http_uri; in Snort 3." },
+        http_uri:    { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against the normalized URI. Place before content/pcre options." },
+        http_method: { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against the HTTP method (GET, POST, etc.)." },
+        http_header: { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against HTTP request/response headers." },
+        http_client_body: { category:"HTTP", desc:"(Snort 3 sticky buffer) Matches against the HTTP request body." },
+        http_stat_code:   { category:"HTTP", desc:"(Snort 3 sticky buffer) Matches against the HTTP status code." },
+        file_data:   { category:"buffer",   desc:"Inspects file/MIME data in the packet (HTTP response body, email attachments, etc.)." },
+        byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator. Useful for protocol field validation." },
+        byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation." },
+        isdataat:    { category:"detection", desc:"Checks whether data exists at a specific position in the payload. Relative to the previous match is also supported." },
+        threshold:   { category:"rate",     desc:"(Snort 2) Limits alert frequency. Replaced by detection_filter or rate_filter in Snort 3." },
+        detection_filter: { category:"rate", desc:"Suppresses alerts until the rule fires a specified number of times within a time window." },
+        dce_stub_data: { category:"protocol", desc:"Sticky buffer for DCE/RPC stub data. Requires the dce2 inspector to be enabled in snort.lua." },
+        service:      { category:"meta",    desc:"Declares the application-layer protocol this rule targets (e.g. http, dns, smtp). Used by Snort 3 traffic classification." },
+        flags:        { category:"TCP",     desc:"Matches specific TCP flag combinations (e.g. S=SYN, SA=SYN-ACK, F=FIN)." },
+        dsize:        { category:"payload", desc:"Inspects the payload length. Useful for filtering packets that cannot contain a specific exploit." },
+        itype:        { category:"ICMP",    desc:"Matches against the ICMP message type field." },
+        icode:        { category:"ICMP",    desc:"Matches against the ICMP code field." },
+        ttl:          { category:"IP",      desc:"Inspects the IP Time-To-Live value." },
+        tos:          { category:"IP",      desc:"Inspects the IP Type-of-Service field." },
+        id:           { category:"IP",      desc:"Inspects the IP header identification field." },
+        fragbits:     { category:"IP",      desc:"Inspects IP fragmentation flag bits (More Fragments, Don't Fragment, Reserved)." },
         xbits_note:   {},
       };
 
@@ -2983,11 +3031,11 @@ if __name__ == "__main__":
         if (isSnort2) {
           const found = s3only.filter(kw => has(kw));
           if (found.length)
-            return `Snort 2를 선택했지만 Snort 3 전용 키워드가 포함되어 있습니다. Snort 3 전용 키워드: ${found.join(", ")}`;
+            return `Snort 2 selected but Snort 3-only keywords found: ${found.join(", ")}`;
         } else {
           const found = s2only.filter(kw => has(kw));
           if (found.length)
-            return `Snort 3를 선택했지만 Snort 2 전용 키워드가 포함되어 있습니다. Snort 2 전용 키워드: ${found.join(", ")}`;
+            return `Snort 3 selected but Snort 2-only keywords found: ${found.join(", ")}`;
         }
         return "";
       }
@@ -3007,19 +3055,19 @@ if __name__ == "__main__":
           // Version-specific notes
           let note = "";
           if (kw === "flowbits" && !isSnort2)
-            note = "Snort 2 전용 키워드입니다. Snort 3에서는 xbits를 사용하세요.";
+            note = "Snort 2-only keyword. Use xbits in Snort 3.";
           if (kw === "xbits" && isSnort2)
-            note = "Snort 3 전용 키워드입니다. Snort 2 룰에서는 사용할 수 없습니다.";
+            note = "Snort 3-only keyword. Cannot be used in Snort 2 rules.";
           if (kw === "rawbytes" && !isSnort2)
-            note = "Snort 3에서 제거되었습니다. raw_data; sticky buffer를 사용하세요.";
+            note = "Removed in Snort 3. Use raw_data; sticky buffer.";
           if (kw === "uricontent" && !isSnort2)
-            note = "Snort 2 전용 키워드입니다. Snort 3에서는 content+http_uri; 형태를 사용하세요.";
+            note = "Snort 2-only keyword. Use content:\"...\"; http_uri; in Snort 3.";
           if (kw === "threshold" && !isSnort2)
-            note = "Snort 3에서는 detection_filter로 대체되었습니다.";
+            note = "Replaced by detection_filter in Snort 3.";
           if (kw === "pcre") {
             const val = o.slice(o.indexOf(":") + 1).trim();
             if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
-              note = "Snort 2 HTTP 플래그(U,I,H 등)가 포함되어 있습니다. Snort 3에서는 sticky buffer(http_uri, http_header 등)로 변환하세요.";
+              note = "Contains Snort 2 HTTP flags (U,I,H, etc.). Convert to sticky buffers (http_uri, http_header, etc.) in Snort 3.";
           }
 
           // Show actual value
@@ -3042,15 +3090,15 @@ if __name__ == "__main__":
         const ACTIONS = isSnort2 ? ACTIONS_S2 : ACTIONS_S3;
         if (!ACTIONS.test(line)) {
           const msg = isSnort2
-            ? "알 수 없는 룰 액션입니다. Snort 2 액션: alert, drop, pass, log, reject, sdrop."
-            : "알 수 없는 룰 액션입니다. Snort 3 액션: alert, drop, pass, log, reject, block, rewrite.";
+            ? "Unknown rule action. Snort 2 actions: alert, drop, pass, log, reject, sdrop."
+            : "Unknown rule action. Snort 3 actions: alert, drop, pass, log, reject, block, rewrite.";
           return { mismatch: "", suggestions: [{ level:"warn", msg }], explanation: [] };
         }
 
         const parenStart = line.indexOf("(");
         const parenEnd   = line.lastIndexOf(")");
         if (parenStart === -1 || parenEnd === -1) {
-          return { mismatch: "", suggestions: [{ level:"warn", msg:"룰 옵션 괄호 ( )가 없거나 형식이 잘못되었습니다." }], explanation: [] };
+          return { mismatch: "", suggestions: [{ level:"warn", msg:"Rule options parentheses ( ) are missing or malformed." }], explanation: [] };
         }
         const optStr = line.slice(parenStart + 1, parenEnd);
         const opts   = splitOptions(optStr);
@@ -3073,73 +3121,73 @@ if __name__ == "__main__":
 
         // ── Required fields ─────────────────────────────────────────────
         if (!has("msg"))
-          suggestions.push({ level:"warn", msg:"msg 옵션이 없습니다. 경보 메시지를 반드시 지정하세요.", fix:'msg:"여기에 위협 설명 입력";' });
+          suggestions.push({ level:"warn", msg:"Missing msg option. An alert message is required.", fix:'msg:"Describe the threat here";' });
         if (!has("sid"))
-          suggestions.push({ level:"warn", msg:"sid 옵션이 없습니다. 고유한 SID를 지정해야 합니다.", fix:"sid:XXXXXXX;" });
+          suggestions.push({ level:"warn", msg:"Missing sid option. A unique SID must be specified.", fix:"sid:XXXXXXX;" });
         if (!has("rev"))
-          suggestions.push({ level:"info", msg:"rev 옵션이 없습니다. 룰 버전 관리를 위해 권장됩니다.", fix:"rev:1;" });
+          suggestions.push({ level:"info", msg:"Missing rev option. Recommended for rule version tracking.", fix:"rev:1;" });
 
         // ── SID range advisory ───────────────────────────────────────────
         const sidVal = parseInt(get("sid") || "0", 10);
         if (sidVal > 0 && sidVal < 1000000)
-          suggestions.push({ level:"info", msg:`SID ${sidVal}은 Snort 내장 룰 범위(1–999,999)입니다. 로컬 룰은 SID 1,000,000 이상을 사용해야 합니다.` });
+          suggestions.push({ level:"info", msg:`SID ${sidVal} is in the Snort/Talos reserved range (1–999,999). Local rules must use SID 1,000,000 or higher.` });
 
         // ── gid:1 is default ─────────────────────────────────────────────
         if (get("gid") === "1")
-          suggestions.push({ level:"info", msg:"gid:1은 기본값이므로 생략할 수 있습니다." });
+          suggestions.push({ level:"info", msg:"gid:1 is the default and can be omitted." });
 
         // ══ SNORT 2 specific ══════════════════════════════════════════════
         if (isSnort2) {
           const deprecated2 = [
-            ["uricontent",    "Snort 3에서 content + http_uri로 대체되었습니다",       'content:"..."; http_uri;'],
-            ["rawbytes",      "Snort 3에서 제거됨 — raw_data; sticky buffer를 사용하세요"],
-            ["threshold",     "Snort 3에서 detection_filter로 대체되었습니다"],
-            ["activates",     "동적 룰은 Snort 3에서 제거되었습니다"],
-            ["activated_by",  "동적 룰은 Snort 3에서 제거되었습니다"],
-            ["resp",          "Snort 3에서 제거되었습니다"],
-            ["react",         "Snort 3에서 제거되었습니다"],
-            ["logto",         "Snort 3에서 제거되었습니다"],
-            ["session",       "Snort 3에서 제거되었습니다"],
-            ["tag",           "Snort 3에서 지원이 제한됩니다"],
-            ["stream_reassemble","Snort 3에서 제거됨 — snort.lua에서 설정하세요"],
-            ["replace",       "Snort 3에서 제거됨 — rewrite 액션 또는 DAQ 모듈을 사용하세요"],
+            ["uricontent",    "replaced by content + http_uri in Snort 3",       'content:"..."; http_uri;'],
+            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
+            ["threshold",     "replaced by detection_filter in Snort 3"],
+            ["activates",     "dynamic rules removed in Snort 3"],
+            ["activated_by",  "dynamic rules removed in Snort 3"],
+            ["resp",          "removed in Snort 3"],
+            ["react",         "removed in Snort 3"],
+            ["logto",         "removed in Snort 3"],
+            ["session",       "removed in Snort 3"],
+            ["tag",           "limited support in Snort 3"],
+            ["stream_reassemble","removed in Snort 3 — configure in snort.lua"],
+            ["replace",       "removed in Snort 3 — use rewrite action or DAQ module"],
           ];
           deprecated2.forEach(([kw, msg, fix]) => {
-            if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}'은 Snort 3로 마이그레이션 불가: ${msg}.`, fix });
+            if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}' cannot be migrated to Snort 3: ${msg}.`, fix });
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "flowbits") {
               const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
               if (val.startsWith("reset"))
-                suggestions.push({ level:"warn", msg:"flowbits:reset은 Snort 3에 해당하는 기능이 없으므로 마이그레이션 시 제거됩니다." });
+                suggestions.push({ level:"warn", msg:"flowbits:reset has no equivalent in Snort 3 and will be removed during migration." });
               else
-                suggestions.push({ level:"info", msg:"flowbits는 Snort 3 마이그레이션 시 track ip_src가 포함된 xbits로 변환됩니다.", fix:"xbits:<action>,<name>,track ip_src;" });
+                suggestions.push({ level:"info", msg:"flowbits will be converted to xbits with track ip_src during Snort 3 migration.", fix:"xbits:<action>,<name>,track ip_src;" });
             }
           });
 
           opts.forEach(o => {
             if (/fast_pattern\s*:\s*only/i.test(o))
-              suggestions.push({ level:"warn", msg:"'fast_pattern:only'는 Snort 3에서 제거되었습니다.", fix:"plain fast_pattern; 을 사용하세요" });
+              suggestions.push({ level:"warn", msg:"'fast_pattern:only' has been removed in Snort 3.", fix:"Use plain fast_pattern;" });
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() !== "pcre") return;
             const val = o.slice(o.indexOf(":") + 1).trim();
             if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
-              suggestions.push({ level:"warn", msg:"PCRE에 Snort 2 HTTP 플래그(U,I,H,D,P,C,M,S,Y,K)가 포함되어 있습니다. Snort 3 sticky buffer로 변환해야 합니다.", fix:"pcre 앞에 http_uri; http_header; 등의 sticky buffer를 사용하세요" });
+              suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags (U,I,H,D,P,C,M,S,Y,K). Must be converted to sticky buffers in Snort 3.", fix:"Use http_uri; http_header; etc. before pcre" });
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "metadata") {
               if ((o.slice(o.indexOf(":") + 1) || "").toLowerCase().includes("service"))
-                suggestions.push({ level:"info", msg:"metadata 내의 service 값은 Snort 3에서 독립적인 service: 옵션으로 분리해야 합니다.", fix:"service:http,dns;" });
+                suggestions.push({ level:"info", msg:"The service value inside metadata must be moved to a standalone service: option in Snort 3.", fix:"service:http,dns;" });
             }
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "file_data" && /:\s*mime/i.test(o))
-              suggestions.push({ level:"warn", msg:"file_data:mime는 Snort 3에서 지원되지 않습니다 — 단순 file_data를 사용하세요." });
+              suggestions.push({ level:"warn", msg:"file_data:mime is not supported in Snort 3 — use plain file_data." });
           });
 
           opts.forEach(o => {
@@ -3147,46 +3195,46 @@ if __name__ == "__main__":
             if (kw !== "byte_test" && kw !== "byte_jump") return;
             const val = o.slice(o.indexOf(":") + 1).trim();
             if (/(^|,)\s*string\s*(,|$)/i.test(val))
-              suggestions.push({ level:"info", msg:`${kw}: Snort 3 마이그레이션 시 dec/hex/oct 서브옵션 위치를 확인하세요.` });
+              suggestions.push({ level:"info", msg:`${kw}: Verify the position of dec/hex/oct sub-options when migrating to Snort 3.` });
             if (kw === "byte_jump" && /(from_beginning|from_end|post_offset)/i.test(val))
-              suggestions.push({ level:"info", msg:"byte_jump: from_beginning/from_end/post_offset 파라미터는 Snort 3 호환성을 검토하세요." });
+              suggestions.push({ level:"info", msg:"byte_jump: Review compatibility of from_beginning/from_end/post_offset parameters in Snort 3." });
           });
 
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
-            ["uricontent",    "Snort 2 키워드입니다 — content + http_uri; 를 사용하세요"],
-            ["rawbytes",      "Snort 3에서 제거됨 — raw_data; sticky buffer를 사용하세요"],
-            ["flowbits",      "Snort 3에서는 xbits를 사용합니다 — xbits:<action>,<name>,track ip_src; 로 교체하세요"],
-            ["threshold",     "detection_filter로 대체되었습니다"],
-            ["activates",     "동적 룰은 Snort 3에서 지원되지 않습니다"],
-            ["activated_by",  "동적 룰은 Snort 3에서 지원되지 않습니다"],
-            ["resp",          "Snort 3에서 제거되었습니다"],
-            ["react",         "Snort 3에서 제거되었습니다"],
-            ["logto",         "Snort 3에서 제거되었습니다"],
-            ["stream_reassemble","Snort 3에서 제거됨 — snort.lua에서 설정하세요"],
-            ["replace",       "Snort 3에서 제거됨 — rewrite 액션을 사용하세요"],
+            ["uricontent",    "Snort 2 keyword — use content + http_uri;"],
+            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
+            ["flowbits",      "use xbits in Snort 3 — replace with xbits:<action>,<name>,track ip_src;"],
+            ["threshold",     "replaced by detection_filter"],
+            ["activates",     "dynamic rules are not supported in Snort 3"],
+            ["activated_by",  "dynamic rules are not supported in Snort 3"],
+            ["resp",          "removed in Snort 3"],
+            ["react",         "removed in Snort 3"],
+            ["logto",         "removed in Snort 3"],
+            ["stream_reassemble","removed in Snort 3 — configure in snort.lua"],
+            ["replace",       "removed in Snort 3 — use rewrite action"],
           ];
           remnants.forEach(([kw, msg]) => {
-            if (has(kw)) suggestions.push({ level:"warn", msg:`Snort 3 룰에 '${kw}'이 있습니다: ${msg}.` });
+            if (has(kw)) suggestions.push({ level:"warn", msg:`Snort 3 rule contains '${kw}': ${msg}.` });
           });
 
           opts.forEach(o => {
             if (/fast_pattern\s*:\s*only/i.test(o))
-              suggestions.push({ level:"warn", msg:"'fast_pattern:only'는 Snort 3에서 유효하지 않습니다.", fix:"plain fast_pattern; 을 사용하세요" });
+              suggestions.push({ level:"warn", msg:"'fast_pattern:only' is invalid in Snort 3.", fix:"Use plain fast_pattern;" });
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() !== "pcre") return;
             const val = o.slice(o.indexOf(":") + 1).trim();
             if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
-              suggestions.push({ level:"warn", msg:"PCRE에 Snort 2 HTTP 플래그가 포함되어 있습니다 — sticky buffer로 변환하세요.", fix:"pcre 앞에 http_uri; http_header; 등 sticky buffer를 사용하세요" });
+              suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags — convert to sticky buffers.", fix:"Use http_uri; http_header; etc. before pcre" });
           });
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "metadata") {
               if ((o.slice(o.indexOf(":") + 1) || "").toLowerCase().includes("service"))
-                suggestions.push({ level:"info", msg:"metadata 안의 service 값은 독립적인 service: 옵션으로 분리하는 것을 권장합니다.", fix:"service:http,dns;" });
+                suggestions.push({ level:"info", msg:"The service value inside metadata should be moved to a standalone service: option.", fix:"service:http,dns;" });
             }
           });
 
@@ -3194,47 +3242,47 @@ if __name__ == "__main__":
             if (optionKeyword(o).toLowerCase() === "xbits") {
               const val = o.slice(o.indexOf(":") + 1).trim();
               if (!/track\s+ip_(src|dst|src_dst|both)/i.test(val))
-                suggestions.push({ level:"warn", msg:"xbits에는 track 절이 필요합니다.", fix:"xbits:set,<name>,track ip_src;" });
+                suggestions.push({ level:"warn", msg:"xbits requires a track clause.", fix:"xbits:set,<name>,track ip_src;" });
               if (!/expire\s+\d+/i.test(val))
-                suggestions.push({ level:"info", msg:"xbits에 expire를 지정하지 않으면 기본 타임아웃이 적용됩니다. expire 값 추가를 권장합니다.", fix:"xbits:set,<name>,track ip_src,expire 3600;" });
+                suggestions.push({ level:"info", msg:"xbits without expire uses a default timeout. Recommended to set it explicitly.", fix:"xbits:set,<name>,track ip_src,expire 3600;" });
             }
           });
 
           if (has("dce_stub_data"))
-            suggestions.push({ level:"info", msg:"dce_stub_data를 사용하려면 snort.lua에서 dce2 인스펙터를 활성화해야 합니다." });
+            suggestions.push({ level:"info", msg:"dce_stub_data requires the dce2 inspector to be enabled in snort.lua." });
         }
 
         // ══ Common checks ════════════════════════════════════════════════
         if (!has("flow"))
-          suggestions.push({ level:"perf", msg:"flow 옵션이 없습니다. flow를 지정하면 불필요한 패킷 검사를 줄여 성능이 향상됩니다.", fix:"flow:to_server,established;" });
+          suggestions.push({ level:"perf", msg:"Missing flow option. Adding flow reduces unnecessary packet inspections and improves performance.", fix:"flow:to_server,established;" });
 
         const hasPcre    = has("pcre");
         const hasContent = has("content");
         if (hasPcre && !hasContent)
-          suggestions.push({ level:"perf", msg:"pcre 앞에 content 앵커가 없습니다. content 매칭을 먼저 수행하면 pcre 평가 횟수를 크게 줄일 수 있습니다.", fix:'content:"고유 문자열"; pcre:"/패턴/";' });
+          suggestions.push({ level:"perf", msg:"No content anchor before pcre. Running content first dramatically reduces pcre evaluation count.", fix:'content:"unique_string"; pcre:"/pattern/";' });
 
         const contents = all("content");
         if (contents.length >= 2 && !opts.some(o => /fast_pattern/i.test(o)))
-          suggestions.push({ level:"perf", msg:`content 옵션이 ${contents.length}개이지만 fast_pattern이 없습니다. 가장 고유한 content에 fast_pattern을 지정하면 검색 성능이 향상됩니다.`, fix:"가장 고유한 content 옵션 뒤에 fast_pattern; 을 추가하세요" });
+          suggestions.push({ level:"perf", msg:`${contents.length} content options but no fast_pattern. Designating the most unique content as fast_pattern improves search performance.`, fix:"Add fast_pattern to the most unique content option" });
 
         contents.forEach(o => {
           const val = o.slice(o.indexOf(":") + 1).trim().replace(/^"(.*)"$/, "$1");
           const textOnly = val.replace(/\|[0-9A-Fa-f\s]+\|/g, "").replace(/!/g, "");
           if (textOnly.length > 0 && textOnly.length < 4)
-            suggestions.push({ level:"perf", msg:`content "${textOnly}" (${textOnly.length}자)가 너무 짧아 매칭 범위가 넓습니다. 4자 이상의 문자열을 사용하면 정확도와 성능이 향상됩니다.` });
+            suggestions.push({ level:"perf", msg:`content "${textOnly}" (${textOnly.length} chars) is too short and increases false positives. Use a string of 4+ characters for better accuracy and performance.` });
         });
 
         if (!hasContent && !hasPcre && !has("byte_test") && !has("byte_jump") && !has("isdataat"))
-          suggestions.push({ level:"warn", msg:"페이로드 검사 조건(content, pcre, byte_test 등)이 없습니다. 이 룰은 조건에 맞는 모든 트래픽에 경보를 발생시킵니다.", fix:"content 또는 pcre 옵션을 하나 이상 추가하세요" });
+          suggestions.push({ level:"warn", msg:"No payload inspection condition (content, pcre, byte_test, etc.). This rule will alert on all matching traffic.", fix:"Add at least one content or pcre option" });
 
         opts.forEach(o => {
           if (optionKeyword(o).toLowerCase() === "distance" && o.slice(o.indexOf(":")+1).trim() === "0")
-            suggestions.push({ level:"info", msg:"distance:0은 within:0과 동일합니다. 명확성을 위해 within을 사용하는 것을 권장합니다." });
+            suggestions.push({ level:"info", msg:"distance:0 is equivalent to within:0. Consider using within for clarity." });
         });
 
         const nocaseCount = opts.filter(o => optionKeyword(o).toLowerCase() === "nocase").length;
         if (nocaseCount > 3)
-          suggestions.push({ level:"perf", msg:`nocase가 ${nocaseCount}번 사용되었습니다. 대소문자 무시 매칭은 성능 비용이 있으므로 꼭 필요한 경우에만 사용하세요.` });
+          suggestions.push({ level:"perf", msg:`nocase used ${nocaseCount} times. Case-insensitive matching has a performance cost — use only where necessary.` });
 
         // ── Build explanation for each recognized option ──────────────
         const explanation = buildExplanation(opts, version);
