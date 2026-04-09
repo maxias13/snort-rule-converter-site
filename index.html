@@ -48,21 +48,21 @@
   </script>
   <style>
     :root {
-      --bg: #0a0e1a;
-      --panel: #0f1629;
-      --panel-2: #121c33;
-      --border: #1e3a5f;
-      --primary: #00d4ff;
-      --secondary: #0066cc;
-      --success: #00ff88;
-      --warn: #ffaa00;
-      --error: #ff4444;
-      --text: #e0e8f0;
-      --muted: #8ea3ba;
+      --bg: #1e1e2e;
+      --panel: #24273a;
+      --panel-2: #2a2d3e;
+      --border: #363a4f;
+      --primary: #89b4fa;
+      --secondary: #7287fd;
+      --success: #a6e3a1;
+      --warn: #f9e2af;
+      --error: #f38ba8;
+      --text: #cdd6f4;
+      --muted: #6c7086;
       --glass: rgba(255, 255, 255, 0.03);
-      --removed: rgba(255, 68, 68, 0.25);
-      --added: rgba(0, 255, 136, 0.2);
-      --modified: rgba(255, 170, 0, 0.22);
+      --removed: rgba(243, 139, 168, 0.2);
+      --added: rgba(166, 227, 161, 0.15);
+      --modified: rgba(249, 226, 175, 0.18);
     }
 
     * { box-sizing: border-box; }
@@ -75,7 +75,7 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: radial-gradient(circle at top right, #0d1730 0%, var(--bg) 55%);
+      background: radial-gradient(circle at top right, #252538 0%, var(--bg) 55%);
       color: var(--text);
       font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       min-height: 100%;
@@ -98,8 +98,8 @@
       padding: 12px 16px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: linear-gradient(180deg, rgba(16, 26, 45, 0.95), rgba(9, 15, 28, 0.95));
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.3);
+      background: linear-gradient(180deg, rgba(36, 39, 58, 0.97), rgba(30, 30, 46, 0.97));
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.1), 0 10px 24px rgba(0, 0, 0, 0.3);
       position: sticky;
       top: 10px;
       z-index: 20;
@@ -111,7 +111,7 @@
       font-weight: 800;
       letter-spacing: 0.08em;
       font-size: 1.05rem;
-      text-shadow: 0 0 12px rgba(0, 212, 255, 0.45);
+      text-shadow: 0 0 12px rgba(137, 180, 250, 0.35);
       white-space: nowrap;
     }
 
@@ -124,7 +124,7 @@
     .tab-btn {
       border: 1px solid var(--border);
       color: var(--text);
-      background: rgba(15, 22, 41, 0.9);
+      background: rgba(36, 39, 58, 0.9);
       border-radius: 8px;
       padding: 8px 12px;
       font-size: 0.9rem;
@@ -136,7 +136,7 @@
 
     .tab-btn.active {
       border-color: var(--primary);
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.3), inset 0 0 24px rgba(0, 212, 255, 0.08);
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.25), inset 0 0 24px rgba(137, 180, 250, 0.06);
       color: #fff;
     }
 
@@ -147,13 +147,13 @@
       padding: 10px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: rgba(15, 22, 41, 0.75);
+      background: rgba(36, 39, 58, 0.75);
     }
 
     .btn {
-      border: 1px solid #19558f;
-      color: #ecf8ff;
-      background: linear-gradient(180deg, #0a68a8 0%, #054a7d 100%);
+      border: 1px solid #4a6090;
+      color: #cdd6f4;
+      background: linear-gradient(180deg, #3d5380 0%, #2e3f60 100%);
       border-radius: 8px;
       padding: 9px 14px;
       font-weight: 600;
@@ -161,22 +161,22 @@
       transition: all 0.2s ease;
     }
 
-    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0, 102, 204, 0.34); }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(89, 130, 200, 0.25); }
     .btn:active { transform: translateY(0); }
 
     .btn.secondary {
-      background: linear-gradient(180deg, #102440 0%, #0a1a2f 100%);
+      background: linear-gradient(180deg, #2a2d3e 0%, #24273a 100%);
       border-color: var(--border);
     }
 
     .btn.success {
-      border-color: #167f55;
-      background: linear-gradient(180deg, #0e7e52 0%, #0a5f3e 100%);
+      border-color: #4a7a5a;
+      background: linear-gradient(180deg, #3a6a4a 0%, #2a5038 100%);
     }
 
     .btn.warn {
-      border-color: #9e6c00;
-      background: linear-gradient(180deg, #946100 0%, #674500 100%);
+      border-color: #8a7030;
+      background: linear-gradient(180deg, #7a6020 0%, #5a4510 100%);
     }
 
     .view { display: none; }
@@ -189,9 +189,9 @@
     .panel {
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: linear-gradient(180deg, rgba(18, 28, 51, 0.9) 0%, rgba(13, 20, 37, 0.95) 100%);
+      background: linear-gradient(180deg, rgba(36, 39, 58, 0.9) 0%, rgba(30, 30, 46, 0.95) 100%);
       padding: 12px;
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.06), inset 0 0 20px rgba(0, 212, 255, 0.02);
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.05), inset 0 0 20px rgba(137, 180, 250, 0.01);
     }
 
     .panel h3 {
@@ -213,7 +213,7 @@
       min-height: 320px;
       border: 1px solid var(--border);
       border-radius: 10px;
-      background: #0a1122;
+      background: #181825;
       color: var(--text);
       padding: 12px;
       resize: vertical;
@@ -225,14 +225,14 @@
     .textarea:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.45), 0 0 14px rgba(0, 212, 255, 0.2);
+      box-shadow: 0 0 0 1px rgba(137, 180, 250, 0.35), 0 0 14px rgba(137, 180, 250, 0.12);
     }
 
     .drop-zone { position: relative; }
 
     .drop-zone.drag-over .textarea {
       border-color: var(--primary);
-      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.5), 0 0 24px rgba(0, 212, 255, 0.2);
+      box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.4), 0 0 24px rgba(137, 180, 250, 0.12);
     }
 
     .drop-overlay {
@@ -240,7 +240,7 @@
       position: absolute;
       inset: 0;
       border-radius: 10px;
-      background: rgba(0, 212, 255, 0.08);
+      background: rgba(137, 180, 250, 0.06);
       border: 2px dashed var(--primary);
       z-index: 5;
       pointer-events: none;
@@ -279,14 +279,14 @@
     }
 
     .rule-explain {
-      border: 1px solid rgba(0, 212, 255, 0.2);
+      border: 1px solid rgba(137, 180, 250, 0.18);
       border-radius: 10px;
       padding: 10px;
       margin-bottom: 10px;
-      background: rgba(0, 212, 255, 0.03);
+      background: rgba(137, 180, 250, 0.03);
     }
 
-    .rule-explain h4 { margin: 0 0 8px; color: #9beeff; font-size: 0.95rem; }
+    .rule-explain h4 { margin: 0 0 8px; color: #b9d0f8; font-size: 0.95rem; }
     .rule-explain ul { margin: 6px 0 0 18px; }
 
     .diff-grid {
@@ -298,7 +298,7 @@
     .codebox {
       border: 1px solid var(--border);
       border-radius: 10px;
-      background: #0a1122;
+      background: #181825;
       padding: 10px;
       font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
       font-size: 0.84rem;
@@ -623,7 +623,7 @@
       color: #9beeff;
     }
     .ai-explain pre {
-      background: #0a1122;
+      background: #181825;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 10px 12px;
