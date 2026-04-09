@@ -464,6 +464,103 @@
       padding: 6px 0;
     }
 
+    /* ── Snort 3 Writing Guide ── */
+    .guide-section {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .guide-section summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 14px;
+      cursor: pointer;
+      background: rgba(0,102,204,0.08);
+      user-select: none;
+      list-style: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .guide-section summary::-webkit-details-marker { display: none; }
+    .guide-section summary:hover { background: rgba(0,102,204,0.14); }
+    .guide-section[open] summary { border-bottom: 1px solid var(--border); }
+    .guide-section .guide-icon {
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    .guide-section .guide-chevron {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 0.72rem;
+      transition: transform 0.2s;
+    }
+    .guide-section[open] .guide-chevron { transform: rotate(180deg); }
+    .guide-body {
+      padding: 14px 16px;
+      font-size: 0.875rem;
+      line-height: 1.65;
+    }
+    .guide-body p { margin: 0 0 10px; }
+    .guide-body ul { margin: 6px 0 10px 20px; }
+    .guide-body li { margin-bottom: 5px; }
+    .guide-body code {
+      background: rgba(0,212,255,0.08);
+      border: 1px solid rgba(0,212,255,0.18);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: Consolas, Monaco, Menlo, monospace;
+      font-size: 0.83em;
+      color: #9beeff;
+    }
+    .guide-body pre.guide-code {
+      background: #060c1a;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-family: Consolas, Monaco, Menlo, monospace;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      overflow-x: auto;
+      margin: 10px 0;
+      white-space: pre;
+    }
+    .guide-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(30,58,95,0.6);
+    }
+    .guide-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.79rem;
+      color: var(--primary);
+      text-decoration: none;
+      padding: 3px 9px;
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 6px;
+      background: rgba(0,212,255,0.05);
+      transition: background 0.15s;
+    }
+    .guide-link:hover { background: rgba(0,212,255,0.13); }
+    .guide-tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 999px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+    .guide-tag.critical { background: rgba(255,68,68,0.15); color: #ff9a9a; border: 1px solid #7a2929; }
+    .guide-tag.important { background: rgba(255,170,0,0.15); color: #ffc84d; border: 1px solid #7a5200; }
+    .guide-tag.tip { background: rgba(0,212,255,0.1); color: #7fd4ff; border: 1px solid #1a4a7a; }
+
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
       .textarea { min-height: 260px; }
@@ -791,6 +888,442 @@
 
         <div id="optResults"></div>
       </div>
+
+      <!-- ── Snort 3 Local Rule Writing Guide ──────────────────────────── -->
+      <div class="panel" style="margin-top:0;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+          <div>
+            <h3 style="margin:0 0 4px;">&#128218; Snort 3 Local Rule Writing Guide</h3>
+            <p class="muted" style="margin:0; font-size:0.84rem;">Snort 3 로컬 룰 작성 시 반드시 알아야 할 주의사항 및 모범 사례</p>
+          </div>
+        </div>
+
+        <!-- 1. Rule Structure -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#9881;</span>
+            <span>1. 룰 기본 구조 (Rule Structure)</span>
+            <span class="guide-tag important">IMPORTANT</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>Snort 3 룰은 <b>헤더</b>와 <b>옵션</b> 두 부분으로 구성됩니다. Snort 2와 달리 일부 키워드 위치와 문법이 변경되었습니다.</p>
+            <pre class="guide-code">action proto src_ip src_port direction dst_ip dst_port (options;)
+
+# 예시
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (
+    msg:"My Custom Rule";
+    flow:to_server,established;
+    content:"/attack", depth 20, fast_pattern;
+    service:http;
+    sid:1000001; rev:1;
+)</pre>
+            <ul>
+              <li><b>action</b>: <code>alert</code>, <code>drop</code>, <code>block</code>, <code>pass</code>, <code>log</code>, <code>rewrite</code></li>
+              <li><b>proto</b>: <code>tcp</code>, <code>udp</code>, <code>icmp</code>, <code>ip</code>, <code>http</code>, <code>dns</code>, <code>smb</code> 등</li>
+              <li><b>direction</b>: <code>-&gt;</code> (단방향) 또는 <code>&lt;&gt;</code> (양방향)</li>
+              <li>옵션은 반드시 괄호 <code>( )</code>로 감싸고 각 항목은 <code>;</code>로 구분</li>
+              <li><code>gid</code>, <code>sid</code>, <code>rev</code>는 반드시 옵션의 <b>맨 끝</b>에 위치</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/headers" target="_blank" rel="noopener">&#8599; Rule Headers — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/rules/intro" target="_blank" rel="noopener">&#8599; Rule Introduction — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 2. SID Range -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#128273;</span>
+            <span>2. SID 범위 규칙 (SID Range for Local Rules)</span>
+            <span class="guide-tag critical">CRITICAL</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>로컬 룰의 SID는 반드시 <b>1,000,000 이상</b>을 사용해야 합니다. Talos가 관리하는 SID 범위와 충돌하면 룰이 덮어씌워질 수 있습니다.</p>
+            <ul>
+              <li><b>1 – 999,999</b>: Snort/Talos 공식 룰 예약 범위 → 사용 금지</li>
+              <li><b>1,000,000 – 1,999,999</b>: 로컬/커스텀 룰 권장 범위</li>
+              <li><b>2,000,000+</b>: 서드파티 룰셋 또는 추가 로컬 룰</li>
+              <li>FMC에서 동일 SID가 중복되면 마지막에 로드된 룰이 적용됨</li>
+              <li><code>rev:</code>는 선택이지만, 룰 수정 시 항상 1씩 증가시키는 것을 권장</li>
+            </ul>
+            <pre class="guide-code">sid:1000001; rev:1;   # ✓ 올바름 — 로컬 룰 범위
+sid:1001;             # ✗ 위험 — Talos 예약 범위</pre>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/sid" target="_blank" rel="noopener">&#8599; sid option — docs.snort.org</a>
+              <a class="guide-link" href="https://www.snort.org/faq/why-are-rules-different-between-snort-2-and-snort-3" target="_blank" rel="noopener">&#8599; Snort FAQ</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 3. flow keyword -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#9889;</span>
+            <span>3. flow 키워드 — 성능 필수 옵션</span>
+            <span class="guide-tag critical">CRITICAL</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p><code>flow</code> 없이 작성된 룰은 <b>모든 패킷</b>에 대해 평가되어 성능에 치명적인 영향을 미칩니다. 거의 모든 룰에 <code>flow</code>를 지정해야 합니다.</p>
+            <pre class="guide-code"># TCP 서버 요청 (웹 공격 탐지 등)
+flow:to_server,established;
+
+# TCP 서버 응답 탐지
+flow:from_server,established;
+
+# 양방향 (연결 추적 없이)
+flow:stateless;
+
+# UDP (established 없음)
+flow:to_server;</pre>
+            <ul>
+              <li><code>to_server</code> / <code>from_server</code>: 트래픽 방향 제한</li>
+              <li><code>established</code>: TCP 3-way handshake 완료 후 패킷만 검사 → 성능 대폭 향상</li>
+              <li><code>not_established</code>: 연결 초기 패킷 탐지 (SYN 스캔 등)</li>
+              <li><code>no_stream</code>: 재조합 전 개별 패킷만 검사</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/flow" target="_blank" rel="noopener">&#8599; flow option — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 4. content + fast_pattern -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#128269;</span>
+            <span>4. content 패턴 작성 및 fast_pattern</span>
+            <span class="guide-tag important">IMPORTANT</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p><code>content</code>는 Snort 3에서 수정자(modifier)가 <b>인라인</b>으로 통합됩니다. Snort 2처럼 별도 옵션으로 분리하지 않습니다.</p>
+            <pre class="guide-code"># Snort 2 방식 (잘못된 Snort 3 작성)
+content:"/admin"; depth:20; nocase; distance:0;
+
+# Snort 3 올바른 방식 — 수정자 인라인 통합
+content:"/admin", depth 20, nocase, distance 0;
+
+# 16진수 패턴 (바이너리 프로토콜 탐지)
+content:"|0d 0a 0d 0a|";
+
+# fast_pattern — 다중 content 중 가장 고유한 패턴 지정
+content:"X-Trigger-Pattern", fast_pattern;
+content:"/other", distance 0;</pre>
+            <ul>
+              <li>4자 미만의 content는 false positive 증가 및 성능 저하 → 최소 4자 이상 권장</li>
+              <li>다중 <code>content</code>가 있을 경우 <b>가장 고유하고 긴 패턴</b>에 <code>fast_pattern</code> 지정</li>
+              <li><code>nocase</code>는 대소문자 구분 없는 매칭 — 성능 비용 존재, 필요한 경우만 사용</li>
+              <li><code>depth</code>/<code>offset</code>으로 검색 범위를 제한하면 성능 향상</li>
+              <li>부정 content: <code>content:!"unwanted"</code> — 해당 패턴 없을 때만 매칭</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/content" target="_blank" rel="noopener">&#8599; content option — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/fast_pattern" target="_blank" rel="noopener">&#8599; fast_pattern — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 5. Sticky Buffers & HTTP Inspection -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#127760;</span>
+            <span>5. Sticky Buffer & HTTP 검사</span>
+            <span class="guide-tag important">IMPORTANT</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>Snort 3에서 HTTP 검사는 <b>sticky buffer</b> 방식으로 동작합니다. 버퍼 키워드를 <code>content</code> 또는 <code>pcre</code> <b>바로 앞</b>에 배치해야 합니다.</p>
+            <pre class="guide-code"># URI 기반 탐지
+http_uri; content:"/cgi-bin/.%2e/", fast_pattern;
+
+# HTTP 헤더 검사
+http_header; content:"Host: malicious.com";
+
+# POST body 검사
+http_client_body; content:"payload=exploit";
+
+# HTTP 메서드 제한
+http_method; content:"POST";
+
+# 상태 코드 탐지 (응답 탐지)
+http_stat_code; content:"200";
+
+# service 키워드 필수 — HTTP 인스펙터 활성화
+service:http;</pre>
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
+              <thead><tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Sticky Buffer</th>
+                <th style="text-align:left;padding:4px 8px;color:var(--muted);">검사 대상</th>
+                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Snort 2 대응</th>
+              </tr></thead>
+              <tbody>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_uri</td><td style="padding:4px 8px;">정규화된 URI</td><td style="padding:4px 8px;color:var(--muted);">uricontent / pcre U플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_raw_uri</td><td style="padding:4px 8px;">원시(비정규화) URI</td><td style="padding:4px 8px;color:var(--muted);">pcre I플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_header</td><td style="padding:4px 8px;">요청/응답 헤더 전체</td><td style="padding:4px 8px;color:var(--muted);">pcre H플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_client_body</td><td style="padding:4px 8px;">요청 본문 (POST body)</td><td style="padding:4px 8px;color:var(--muted);">pcre P/D플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_method</td><td style="padding:4px 8px;">HTTP 메서드</td><td style="padding:4px 8px;color:var(--muted);">pcre M플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_cookie</td><td style="padding:4px 8px;">쿠키 값</td><td style="padding:4px 8px;color:var(--muted);">pcre C플래그</td></tr>
+                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_stat_code</td><td style="padding:4px 8px;">HTTP 상태 코드</td><td style="padding:4px 8px;color:var(--muted);">pcre S플래그</td></tr>
+              </tbody>
+            </table>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_uri" target="_blank" rel="noopener">&#8599; http_uri — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_header" target="_blank" rel="noopener">&#8599; http_header — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_client_body" target="_blank" rel="noopener">&#8599; http_client_body — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 6. PCRE -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#128301;</span>
+            <span>6. PCRE 사용 주의사항</span>
+            <span class="guide-tag important">IMPORTANT</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>PCRE는 강력하지만 <b>CPU 비용이 매우 높습니다</b>. 반드시 <code>content</code> 앵커를 앞에 두어 PCRE 평가 횟수를 줄여야 합니다.</p>
+            <pre class="guide-code"># ✗ 나쁜 예 — content 없이 PCRE만 사용 (모든 패킷에 적용)
+pcre:"/union\s+select/i";
+
+# ✓ 좋은 예 — content로 사전 필터링 후 PCRE
+content:"union", fast_pattern, nocase;
+pcre:"/union\s+select\s+/i";
+
+# HTTP URI PCRE (Snort 3 sticky buffer 방식)
+http_uri; pcre:"/\/\.\.\/etc\/passwd/i";
+
+# Snort 2 HTTP 플래그 → Snort 3 변환
+# ✗ Snort 2: pcre:"/pattern/Ui"  (U = http_uri, i = 대소문자 무시)
+# ✓ Snort 3: http_uri; pcre:"/pattern/i"</pre>
+            <ul>
+              <li>Snort 2의 대문자 HTTP 플래그 (<code>U</code>, <code>I</code>, <code>H</code>, <code>D</code>, <code>P</code>, <code>C</code>, <code>M</code>, <code>S</code>, <code>Y</code>, <code>K</code>) → Snort 3에서 모두 sticky buffer로 대체</li>
+              <li>소문자 플래그 (<code>i</code>, <code>s</code>, <code>m</code>, <code>x</code>) — 표준 PCRE 플래그로 그대로 유지</li>
+              <li><code>fast_pattern</code>과 함께 쓰면 PCRE 호출 빈도를 대폭 줄일 수 있음</li>
+              <li>Backtracking이 많은 패턴 (e.g. <code>.*</code>, <code>.+</code>) 사용 시 ReDoS 위험</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/pcre" target="_blank" rel="noopener">&#8599; pcre option — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 7. xbits (state tracking) -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#128279;</span>
+            <span>7. xbits — 상태 추적 (flowbits 대체)</span>
+            <span class="guide-tag tip">TIP</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>Snort 2의 <code>flowbits</code>는 Snort 3에서 <code>xbits</code>로 대체되었습니다. <code>xbits</code>는 <b>호스트 기반</b> 상태 추적으로 더 정밀한 제어가 가능합니다.</p>
+            <pre class="guide-code"># Snort 2 (flowbits)
+flowbits:set,malware.stage1;
+flowbits:isset,malware.stage1;
+
+# Snort 3 (xbits) — track 절 필수
+xbits:set,malware.stage1,track ip_src;
+xbits:isset,malware.stage1,track ip_src;
+xbits:unset,malware.stage1,track ip_src;
+
+# expire 권장 — 메모리 누수 방지
+xbits:set,malware.stage1,track ip_src,expire 3600;
+
+# 룰 1: 1단계 탐지 후 비트 설정
+alert tcp ... (content:"stage1"; xbits:set,attack.stage1,track ip_src,expire 60; sid:1000001;)
+
+# 룰 2: 비트 설정된 IP의 2단계 탐지
+alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:1000002;)</pre>
+            <ul>
+              <li><code>track ip_src</code> / <code>track ip_dst</code> / <code>track ip_pair</code> 중 선택</li>
+              <li><code>expire</code> 미지정 시 기본 타임아웃 적용 — 명시적 지정 권장</li>
+              <li><code>flowbits:noalert</code> → Snort 3에서는 독립 옵션 <code>noalert;</code>로 사용</li>
+              <li><code>flowbits:reset</code> → Snort 3에 동등한 기능 없음 (제거)</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/xbits" target="_blank" rel="noopener">&#8599; xbits option — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 8. service keyword -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#127757;</span>
+            <span>8. service 키워드 — 애플리케이션 프로토콜 선언</span>
+            <span class="guide-tag important">IMPORTANT</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p><code>service</code>는 룰이 어떤 애플리케이션 레이어 프로토콜을 대상으로 하는지 선언합니다. 이를 통해 Snort 3의 인스펙터(inspector)가 올바르게 호출되어 HTTP, DNS 등 프로토콜 파싱이 적용됩니다.</p>
+            <pre class="guide-code">service:http;           # HTTP 인스펙터 활성화 (sticky buffer 사용 시 필수)
+service:https;          # HTTPS (TLS 복호화 후 HTTP 검사)
+service:dns;            # DNS 인스펙터
+service:smtp;           # SMTP 인스펙터
+service:ftp;            # FTP 인스펙터
+service:ssh;            # SSH
+service:http,dns;       # 복수 서비스 지정 가능</pre>
+            <ul>
+              <li>HTTP sticky buffer (<code>http_uri</code>, <code>http_header</code> 등) 사용 시 <code>service:http</code> 없으면 동작하지 않을 수 있음</li>
+              <li>Snort 2의 <code>metadata:service http</code> → Snort 3에서는 독립 <code>service:http</code> 옵션으로 분리</li>
+              <li>포트 기반이 아닌 <b>트래픽 자동 분류(AppID)</b>를 기반으로 동작</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/service" target="_blank" rel="noopener">&#8599; service option — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 9. detection_filter / rate control -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#9203;</span>
+            <span>9. detection_filter — 이벤트 빈도 제어 (threshold 대체)</span>
+            <span class="guide-tag tip">TIP</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>Snort 2의 <code>threshold</code>는 Snort 3에서 제거되었습니다. 인라인 빈도 제한은 <code>detection_filter</code>를 사용합니다.</p>
+            <pre class="guide-code"># Snort 2 (threshold — Snort 3에서 제거됨)
+threshold: type limit, track by_src, count 5, seconds 60;
+
+# Snort 3 (detection_filter — 룰 옵션으로 인라인 사용)
+detection_filter:track by_src, count 5, seconds 60;
+
+# 예시: 60초 내 동일 소스에서 5번 이상 발생 시 알림
+alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
+    msg:"Brute Force Attempt";
+    flow:to_server,established;
+    content:"POST /login", fast_pattern;
+    service:http;
+    detection_filter:track by_src, count 5, seconds 60;
+    sid:1000010; rev:1;
+)</pre>
+            <ul>
+              <li><code>track by_src</code>: 소스 IP 기준, <code>track by_dst</code>: 목적지 IP 기준</li>
+              <li>전역 이벤트 필터는 <code>snort.lua</code>의 <code>event_filter</code> 모듈로 설정</li>
+            </ul>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/detection_filter" target="_blank" rel="noopener">&#8599; detection_filter — docs.snort.org</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 10. Snort 2 → 3 제거/변경 키워드 -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#9888;</span>
+            <span>10. Snort 2 → 3 제거 / 변경된 키워드 주의사항</span>
+            <span class="guide-tag critical">CRITICAL</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>아래 Snort 2 키워드들은 Snort 3에서 <b>제거되거나 문법이 변경</b>되었습니다. 이 키워드가 포함된 룰은 Snort 3에서 로드 실패 또는 오동작을 일으킵니다.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
+              <thead><tr style="border-bottom:1px solid var(--border);">
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 2 키워드</th>
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">상태</th>
+                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 3 대체</th>
+              </tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">uricontent</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">http_uri; content:"..."</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">rawbytes</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">raw_data; sticky buffer</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">flowbits</td><td style="padding:5px 8px;color:var(--warn);">대체</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">xbits:action,name,track ip_src</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">threshold</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">detection_filter (인라인)</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">fast_pattern:only</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">fast_pattern (인자 없이)</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp / react</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">rewrite 액션 또는 DAQ 모듈</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">대체 없음</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">activates / activated_by</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">동적 룰 미지원</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">logto / session</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">대체 없음</td></tr>
+                <tr><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">stream_reassemble</td><td style="padding:5px 8px;color:var(--error);">제거</td><td style="padding:5px 8px;color:var(--muted);">snort.lua stream 설정으로 이동</td></tr>
+              </tbody>
+            </table>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/snort3" target="_blank" rel="noopener">&#8599; Snort 3 Migration Guide</a>
+              <a class="guide-link" href="https://docs.snort.org/start/differences" target="_blank" rel="noopener">&#8599; Snort 2 vs 3 Differences</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 11. FMC / Cisco Secure Firewall 주의사항 -->
+        <details class="guide-section">
+          <summary>
+            <span class="guide-icon">&#128737;</span>
+            <span>11. Cisco FMC / Secure Firewall 로컬 룰 업로드 주의사항</span>
+            <span class="guide-tag critical">CRITICAL</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>Cisco FMC (Firepower Management Center)에 로컬 룰 파일을 업로드할 때 지켜야 할 규칙입니다.</p>
+            <ul>
+              <li><b>파일명 규칙</b>: 영문자 또는 밑줄(<code>_</code>)로 시작, 이후 영문자·숫자·<code>.</code>·<code>_</code>·<code>-</code>·<code>+</code>만 허용 (공백, 한글, 특수문자 불가)</li>
+              <li><b>파일 확장자</b>: <code>.rules</code> 또는 <code>.txt</code></li>
+              <li><b>SID 중복 금지</b>: 동일 SID가 다른 룰셋에 존재하면 충돌 발생 → 반드시 1,000,000 이상 사용</li>
+              <li><b>GID</b>: 로컬 룰은 GID 1 사용 (명시적으로 <code>gid:1;</code> 작성하거나 생략 가능)</li>
+              <li><b>정책 적용</b>: 업로드 후 Intrusion Policy에 룰 활성화 → Deploy 필수</li>
+              <li><b>Snort 버전 확인</b>: FTD 버전에 따라 Snort 2 또는 Snort 3 엔진 사용 여부 다름 — FMC &gt; Devices에서 확인</li>
+              <li><b>테스트 환경</b>: 프로덕션 배포 전 반드시 테스트 환경에서 룰 동작 검증 권장</li>
+            </ul>
+            <pre class="guide-code"># 올바른 파일명 예시
+snort3_local_rules_20260408.rules   ✓
+local_rules_v2.rules                ✓
+my rules.rules                      ✗ (공백 불가)
+한글룰.rules                        ✗ (비ASCII 불가)
+123rules.rules                      ✗ (숫자로 시작 불가)</pre>
+            <div class="guide-links">
+              <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/device-config/730/management-center-device-config-73/intrusion-rules.html" target="_blank" rel="noopener">&#8599; FMC Intrusion Rules — Cisco Docs</a>
+              <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/admin/730/management-center-admin-73/system-install.html" target="_blank" rel="noopener">&#8599; Cisco Secure Firewall Docs</a>
+            </div>
+          </div>
+        </details>
+
+        <!-- 12. Performance Best Practices -->
+        <details class="guide-section" style="margin-bottom:0;">
+          <summary>
+            <span class="guide-icon">&#128200;</span>
+            <span>12. 성능 최적화 모범 사례 (Performance Best Practices)</span>
+            <span class="guide-tag tip">TIP</span>
+            <span class="guide-chevron">&#9660;</span>
+          </summary>
+          <div class="guide-body">
+            <p>로컬 룰이 많아질수록 성능에 미치는 영향이 커집니다. 다음 가이드라인을 따르면 탐지 정확도와 성능을 동시에 확보할 수 있습니다.</p>
+            <ul>
+              <li><b>항상 <code>flow</code> 지정</b>: <code>flow:to_server,established</code>로 대상 패킷 범위 축소</li>
+              <li><b>짧은 content 지양</b>: 3자 이하 패턴은 오탐률이 높고 성능 저하 유발</li>
+              <li><b><code>fast_pattern</code> 지정</b>: 다중 content 룰에서 가장 고유한 패턴에 명시적 지정</li>
+              <li><b>PCRE에는 반드시 content 앵커</b>: PCRE 단독 사용 금지</li>
+              <li><b><code>dsize</code> 활용</b>: 페이로드 크기 제한으로 불필요한 검사 차단</li>
+              <li><b>포트 명시</b>: <code>any</code> 대신 실제 서비스 포트 지정 (<code>$HTTP_PORTS</code> 등)</li>
+              <li><b><code>classtype</code> 지정</b>: 경보 우선순위 관리 및 분류 필터링에 활용</li>
+            </ul>
+            <pre class="guide-code"># ✓ 최적화된 룰 예시
+alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
+    msg:"ET WEB Possible SQL Injection";
+    flow:to_server,established;          # 방향 + 상태 제한
+    http_uri;                            # HTTP URI sticky buffer
+    content:"UNION", fast_pattern, nocase;  # 가장 고유한 패턴 + fast_pattern
+    content:"SELECT", distance 0, nocase;
+    pcre:"/union\s+select/i";            # content로 사전 필터링 후 PCRE
+    dsize:>10;                           # 페이로드 크기 필터
+    service:http;
+    classtype:web-application-attack;
+    sid:1000020; rev:1;
+)</pre>
+            <div class="guide-links">
+              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/dsize" target="_blank" rel="noopener">&#8599; dsize — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/classtype" target="_blank" rel="noopener">&#8599; classtype — docs.snort.org</a>
+              <a class="guide-link" href="https://docs.snort.org/snort3" target="_blank" rel="noopener">&#8599; Snort 3 Documentation</a>
+            </div>
+          </div>
+        </details>
+
+      </div>
     </section>
 
     <section id="validatorView" class="view">
@@ -816,7 +1349,7 @@
 
         <div class="panel" style="margin-bottom:14px; background:rgba(0,102,204,0.06);">
           <h3 style="margin-bottom:10px;">Network Variables</h3>
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <div>
               <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
                 Source IP / CIDR &nbsp;<span style="color:var(--primary);">($HOME_NET)</span>
@@ -830,13 +1363,6 @@
               </label>
               <input id="dstIpInput" class="num-input" style="width:100%;"
                      type="text" placeholder="e.g. 10.0.0.1" />
-            </div>
-            <div>
-              <label class="muted" style="display:block; margin-bottom:6px; font-size:0.85rem;">
-                Destination Port &nbsp;<span style="color:var(--primary);">(Trigger)</span>
-              </label>
-              <input id="dstPortInput" class="num-input" style="width:100%;"
-                     type="number" min="1" max="65535" placeholder="e.g. 80" value="80" />
             </div>
           </div>
           <div style="margin-top:12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -1480,7 +2006,7 @@ import argparse
 
 SOURCE_IP = "__SOURCE_IP__"   # $HOME_NET
 DEST_IP   = "__DEST_IP__"     # $EXTERNAL_NET
-DEST_PORT = __DEST_PORT__     # default destination port
+DEST_PORT = 80                # default port (overridden per-rule from rule header)
 
 EMBEDDED_RULES = r"""
 __EMBEDDED_RULES__"""
@@ -1714,20 +2240,18 @@ if __name__ == "__main__":
     main()
 `;
 
-      function buildTriggerScript(srcIp, dstIp, dstPort, rules) {
+      function buildTriggerScript(srcIp, dstIp, rules) {
         return TRIGGER_SCRIPT_TEMPLATE
           .replace("__SOURCE_IP__",      srcIp   || "")
           .replace("__DEST_IP__",        dstIp   || "")
-          .replace("__DEST_PORT__",      dstPort || "80")
           .replace("__EMBEDDED_RULES__", rules   || "");
       }
 
       function downloadTriggerScript() {
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
-        const port  = el.dstPortInput.value.trim() || "80";
         const rules = getConvertedRules();
-        const script = buildTriggerScript(src, dst, port, rules);
+        const script = buildTriggerScript(src, dst, rules);
         const blob = new Blob([script], { type: "text/x-python" });
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
@@ -1740,9 +2264,8 @@ if __name__ == "__main__":
       function copyTriggerScript() {
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
-        const port  = el.dstPortInput.value.trim() || "80";
         const rules = getConvertedRules();
-        const script = buildTriggerScript(src, dst, port, rules);
+        const script = buildTriggerScript(src, dst, rules);
         navigator.clipboard.writeText(script).then(() => {
           const btn = el.copyTriggerBtn;
           const orig = btn.textContent;
@@ -1784,7 +2307,6 @@ if __name__ == "__main__":
         copyPyBtn: document.getElementById("copyPyBtn"),
         srcIpInput: document.getElementById("srcIpInput"),
         dstIpInput: document.getElementById("dstIpInput"),
-        dstPortInput: document.getElementById("dstPortInput"),
         downloadTriggerBtn: document.getElementById("downloadTriggerBtn"),
         copyTriggerBtn: document.getElementById("copyTriggerBtn"),
         commitIpBtn: document.getElementById("commitIpBtn"),
@@ -2173,10 +2695,9 @@ if __name__ == "__main__":
       function commitIpToScript() {
         const src   = el.srcIpInput.value.trim();
         const dst   = el.dstIpInput.value.trim();
-        const port  = el.dstPortInput.value.trim() || "80";
         const rules = getConvertedRules();
         // Primary output: trigger script
-        currentPyScript = buildTriggerScript(src, dst, port, rules);
+        currentPyScript = buildTriggerScript(src, dst, rules);
         el.pyScriptDisplay.textContent = currentPyScript;
         updateRuleCount();
 
