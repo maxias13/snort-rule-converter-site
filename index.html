@@ -3071,10 +3071,10 @@ if __name__ == "__main__":
         pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor." },
         uricontent:  { category:"HTTP",     desc:"(Snort 2 only) Legacy shorthand for content+http_uri. Use content:\"...\"; http_uri; in Snort 3." },
         http_uri:    { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against the normalized URI. Place before content/pcre options." },
-        http_method: { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against the HTTP method (GET, POST, etc.)." },
-        http_header: { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against HTTP request/response headers." },
-        http_client_body: { category:"HTTP", desc:"(Snort 3 sticky buffer) Matches against the HTTP request body." },
-        http_stat_code:   { category:"HTTP", desc:"(Snort 3 sticky buffer) Matches against the HTTP status code." },
+        http_method: { category:"HTTP",     desc:"[HTTP] Matches against the HTTP method (GET, POST, etc.). Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
+        http_header: { category:"HTTP",     desc:"[HTTP] Matches against HTTP request/response headers. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
+        http_client_body: { category:"HTTP", desc:"[HTTP] Matches against the HTTP request body. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
+        http_stat_code:   { category:"HTTP", desc:"[HTTP] Matches against the HTTP status code. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
         file_data:   { category:"buffer",   desc:"Inspects file/MIME data in the packet (HTTP response body, email attachments, etc.)." },
         byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator. Useful for protocol field validation." },
         byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation." },
@@ -3101,7 +3101,10 @@ if __name__ == "__main__":
         const isSnort2 = version === 2;
 
         // Snort-3-only keywords found in a Snort 2 rule
-        const s3only = ["xbits","http_uri","http_method","http_header","http_client_body","http_stat_code","http_raw_uri","http_raw_header","detection_filter","block","rewrite"];
+        // http_method, http_header, http_client_body, http_stat_code, http_raw_uri, http_raw_header,
+        // and detection_filter are all valid Snort 2 keywords (HTTP preprocessor / threshold).
+        // Only xbits, block, and rewrite are genuinely Snort 3-only.
+        const s3only = ["xbits","http_uri","block","rewrite"];
         // Snort-2-only keywords found in a Snort 3 rule
         const s2only = ["flowbits","uricontent","rawbytes","threshold","activates","activated_by","resp","react","logto","session","stream_reassemble","replace"];
 
