@@ -3725,8 +3725,6 @@ if __name__ == "__main__":
         let totalChanges = 0;
         let sidCounter = startSid || null;
 
-        out.push(`# Converted by Snort2to3 Converter on ${formatTimestamp(new Date())}`);
-
         lines.forEach((line) => {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith("#")) {
@@ -3753,7 +3751,7 @@ if __name__ == "__main__":
 
         return {
           output: out.join("\n"),
-          outputNoSummary: out.slice(1).join("\n"),
+          outputNoSummary: out.join("\n"),
           totalChanges,
           sidMap
         };
