@@ -3106,7 +3106,8 @@ if __name__ == "__main__":
         // Only xbits, block, and rewrite are genuinely Snort 3-only.
         const s3only = ["xbits","http_uri","block","rewrite"];
         // Snort-2-only keywords found in a Snort 3 rule
-        const s2only = ["flowbits","uricontent","rawbytes","threshold","activates","activated_by","resp","react","logto","session","stream_reassemble","replace"];
+        // flowbits is valid in both Snort 2 and 3 — not Snort 2-only
+        const s2only = ["uricontent","rawbytes","threshold","activates","activated_by","resp","react","logto","session","stream_reassemble","replace"];
 
         if (isSnort2) {
           const found = s3only.filter(kw => has(kw));
@@ -3241,8 +3242,10 @@ if __name__ == "__main__":
               const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
               if (val.startsWith("reset"))
                 suggestions.push({ level:"warn", msg:"flowbits:reset has no equivalent in Snort 3 and will be removed during migration." });
+              else if (val.startsWith("noalert"))
+                suggestions.push({ level:"info", msg:"flowbits:noalert will be converted to standalone noalert keyword in Snort 3.", fix:"noalert;" });
               else
-                suggestions.push({ level:"info", msg:"flowbits will be converted to xbits with track ip_src during Snort 3 migration.", fix:"xbits:<action>,<name>,track ip_src;" });
+                suggestions.push({ level:"info", msg:"flowbits is fully supported in Snort 3 with the same syntax — no change required.", fix:"flowbits:set,<name>; / flowbits:isset,<name>;" });
             }
           });
 
@@ -3285,7 +3288,7 @@ if __name__ == "__main__":
           const remnants = [
             ["uricontent",    "Snort 2 keyword — use content + http_uri;"],
             ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
-            ["flowbits",      "use xbits in Snort 3 — replace with xbits:<action>,<name>,track ip_src;"],
+            // flowbits is valid in Snort 3 — not listed as a remnant
             ["threshold",     "replaced by detection_filter"],
             ["activates",     "dynamic rules are not supported in Snort 3"],
             ["activated_by",  "dynamic rules are not supported in Snort 3"],
@@ -3809,15 +3812,15 @@ if __name__ == "__main__":
             return;
           }
 
-          // ── flowbits → xbits ────────────────────────────────────────────
+          // ── flowbits: Snort 3 fully supports flowbits with the same syntax.
+          // xbits is Suricata-only and does NOT exist in Snort 3.
+          // Only flowbits:noalert and flowbits:reset need special handling.
           if (lower === "flowbits") {
             const val = opt.slice(opt.indexOf(":") + 1).trim();
-            const parts = val.split(",").map(s => s.trim());
-            const action = (parts[0] || "").toLowerCase();
-            const flagName = parts[1] || "";
+            const action = (val.split(",")[0] || "").trim().toLowerCase();
 
             if (action === "noalert") {
-              // flowbits:noalert → standalone noalert option in Snort 3
+              // flowbits:noalert → standalone noalert keyword in Snort 3
               transformed.push("noalert");
               changeCount += 1;
               return;
@@ -3827,15 +3830,8 @@ if __name__ == "__main__":
               changeCount += 1;
               return;
             }
-            // set, unset, toggle, isset, isnotset
-            const validActions = ["set","unset","toggle","isset","isnotset"];
-            if (validActions.includes(action) && flagName) {
-              transformed.push(`xbits:${action},${flagName},track ip_src`);
-              changeCount += 1;
-            } else {
-              warnings.push(`flowbits:${action} could not be automatically converted; review xbits syntax`);
-              transformed.push(opt);
-            }
+            // set, unset, toggle, isset, isnotset — keep as-is, flowbits is valid in Snort 3
+            transformed.push(opt);
             return;
           }
 
@@ -4207,6 +4203,23 @@ if __name__ == "__main__":
       }
 
       function splitOptions(optionsStr) {
+        // Pre-normalize: insert missing semicolons between options.
+        // Handles rules where the author omitted the ; between two options, e.g.:
+        //   content:"x" content:"y"  →  content:"x"; content:"y"
+        // Pattern: closing quote (") followed by whitespace then a known keyword.
+        const KW = '(?:content|pcre|flow|flowbits|noalert|msg|sid|rev|gid|flags|nocase|' +
+          'distance|within|offset|depth|fast_pattern|http_uri|http_header|http_method|' +
+          'http_client_body|http_stat_code|http_cookie|http_raw_uri|http_raw_header|' +
+          'http_raw_cookie|uricontent|rawbytes|isdataat|byte_test|byte_jump|dsize|' +
+          'itype|icode|ttl|id|ip_proto|sameip|same_ip|threshold|detection_filter|' +
+          'service|metadata|reference|classtype|priority|tag|logto|activates|' +
+          'activated_by|replace|react|resp|file_data|dce_stub_data|stream_reassemble|' +
+          'xbits|fast_pattern)';
+        optionsStr = optionsStr.replace(
+          new RegExp('(")(\\s+)(' + KW + '\\s*[;:])', 'gi'),
+          (_, quote, space, kw) => quote + '; ' + kw.trimStart()
+        );
+
         const parts = [];
         let cur = "";
         let inQuote = false;
