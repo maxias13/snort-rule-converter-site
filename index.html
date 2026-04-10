@@ -838,10 +838,13 @@
       <div>
         <div style="padding:0 2px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
           <span style="color:var(--primary);font-size:0.96rem;font-weight:700;letter-spacing:0.02em;">Compare Input Snort 2 Rule vs Converted Snort 3 Rule</span>
-          <div class="legend" style="margin:0;">
-            <span class="tag red">Removed</span>
-            <span class="tag green">Added</span>
-            <span class="tag yellow">Modified</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="legend" style="margin:0;">
+              <span class="tag red">Removed</span>
+              <span class="tag green">Added</span>
+              <span class="tag yellow">Modified</span>
+            </div>
+            <button class="btn secondary" id="downloadCompareBtn" style="font-size:0.82rem;padding:5px 12px;">&#8595; Download Comparison</button>
           </div>
         </div>
         <div class="diff-grid">
@@ -2373,6 +2376,7 @@ if __name__ == "__main__":
         commitIpBtn: document.getElementById("commitIpBtn"),
         startSidInput: document.getElementById("startSidInput"),
         downloadRulesBtn: document.getElementById("downloadRulesBtn"),
+        downloadCompareBtn: document.getElementById("downloadCompareBtn"),
         valLoadFileBtn: document.getElementById("valLoadFileBtn"),
         valFileInput: document.getElementById("valFileInput"),
         valClearBtn: document.getElementById("valClearBtn"),
@@ -2423,11 +2427,17 @@ if __name__ == "__main__":
         el.pyScriptDisplay.textContent = currentPyScript;
         removeWhiteBg(document.getElementById("snortLogo"), 230);
 
-        // Restore tab from URL hash on load/refresh (no scroll — keep natural position)
-        const hash = location.hash.replace("#", "");
-        if (hash) {
-          const tabEl = el.tabs.find(t => t.dataset.view === hash);
-          if (tabEl) switchView(hash, tabEl, { noScroll: true });
+        // Restore tab from URL on load/refresh.
+        // Use ?v= query param (no hash = no Firefox anchor-scroll on hidden elements).
+        // Migrate legacy #hash URLs to ?v= on first load.
+        let pendingView = new URLSearchParams(location.search).get("v") || "";
+        if (!pendingView && location.hash) {
+          pendingView = location.hash.replace("#", "");
+          history.replaceState(null, "", "?v=" + pendingView);
+        }
+        if (pendingView) {
+          const tabEl = el.tabs.find(t => t.dataset.view === pendingView);
+          if (tabEl) switchView(pendingView, tabEl, { noScroll: true });
         }
       }
 
@@ -2475,6 +2485,7 @@ if __name__ == "__main__":
         el.copyTriggerBtn.addEventListener("click", copyTriggerScript);
         el.commitIpBtn.addEventListener("click", commitIpToScript);
         el.downloadRulesBtn.addEventListener("click", downloadRulesFile);
+        el.downloadCompareBtn.addEventListener("click", downloadComparison);
 
         // ── Validator rules input ────────────────────────────────────────
         el.valLoadFileBtn.addEventListener("click", () => el.valFileInput.click());
@@ -2723,6 +2734,37 @@ if __name__ == "__main__":
         const a    = document.createElement("a");
         a.href     = url;
         a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function downloadComparison() {
+        const snort2 = el.input.value.trim();
+        const snort3 = el.output.value.trim();
+        if (!snort2 && !snort3) return;
+        const now = new Date();
+        const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+        const sep = "=".repeat(72);
+        const content = [
+          sep,
+          "  Snort 2 → Snort 3 Rule Conversion Comparison",
+          `  Generated: ${now.toISOString().replace("T"," ").slice(0,19)}`,
+          sep,
+          "",
+          "[ Original (Snort 2) ]",
+          sep,
+          snort2,
+          "",
+          "[ Converted (Snort 3) ]",
+          sep,
+          snort3,
+          ""
+        ].join("\n");
+        const blob = new Blob([content], { type: "text/plain" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `snort_comparison_${ts}.txt`;
         a.click();
         URL.revokeObjectURL(url);
       }
@@ -3329,7 +3371,7 @@ if __name__ == "__main__":
         el.views.forEach((v) => v.classList.toggle("active", v.id === viewId));
         el.tabs.forEach((t) => t.classList.remove("active"));
         tabEl.classList.add("active");
-        location.hash = viewId;
+        history.replaceState(null, "", "?v=" + viewId);
         if (!opts.noScroll) window.scrollTo({ top: 0, behavior: "instant" });
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
