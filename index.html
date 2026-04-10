@@ -3812,8 +3812,11 @@ if __name__ == "__main__":
             return;
           }
 
-          // ── flowbits: Snort 3 fully supports flowbits with the same syntax.
-          // xbits is Suricata-only and does NOT exist in Snort 3.
+          // ── flowbits: keep as-is in Snort 3.
+          // Both flowbits AND xbits exist in Snort 3, but they have different tracking scopes:
+          //   flowbits → tracks within a single TCP session (correct for request/response correlation)
+          //   xbits    → tracks across sessions by IP address (changes detection semantics)
+          // Converting flowbits→xbits would break session-level correlation rules, so we preserve flowbits.
           // Only flowbits:noalert and flowbits:reset need special handling.
           if (lower === "flowbits") {
             const val = opt.slice(opt.indexOf(":") + 1).trim();
