@@ -3031,14 +3031,31 @@ if __name__ == "__main__":
         URL.revokeObjectURL(url);
       }
 
+      function reorderMetaOpts(line) {
+        const pStart = line.indexOf("(");
+        const pEnd   = line.lastIndexOf(")");
+        if (pStart === -1 || pEnd === -1) return line;
+        const header = line.slice(0, pStart);
+        const opts   = splitOptions(line.slice(pStart + 1, pEnd));
+        const META   = ["gid", "sid", "rev"];
+        const metaMap = {};
+        const others  = [];
+        for (const o of opts) {
+          const kw = optionKeyword(o).toLowerCase();
+          if (META.includes(kw)) metaMap[kw] = o;
+          else others.push(o);
+        }
+        const ordered = META.filter(k => metaMap[k]).map(k => metaMap[k]);
+        return `${header}(${[...others, ...ordered].join("; ")};)`;
+      }
+
       function downloadOptimizedRules() {
         const ruleLines = joinMultilineRules(el.optInput.value);
         if (!ruleLines.length) return;
 
         const now = new Date();
         const ts  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
-        // Output only the raw rule lines (no annotation comments)
-        const content = ruleLines.map(r => r.trim()).filter(r => r).join("\n") + "\n";
+        const content = ruleLines.map(r => reorderMetaOpts(r.trim())).filter(r => r).join("\n") + "\n";
 
         const blob = new Blob([content], { type: "text/plain" });
         const url  = URL.createObjectURL(blob);
@@ -3209,6 +3226,20 @@ if __name__ == "__main__":
           suggestions.push({ level:"warn", msg:"Missing sid option. A unique SID must be specified.", fix:"sid:XXXXXXX;" });
         if (!has("rev"))
           suggestions.push({ level:"info", msg:"Missing rev option. Recommended for rule version tracking.", fix:"rev:1;" });
+
+        // ── gid / sid / rev ordering ────────────────────────────────────
+        {
+          const META = ["gid", "sid", "rev"];
+          const positions = META.map(k => opts.findIndex(o => optionKeyword(o).toLowerCase() === k));
+          const present   = META.filter((_, i) => positions[i] !== -1);
+          if (present.length > 0) {
+            const presentPos = present.map(k => opts.findIndex(o => optionKeyword(o).toLowerCase() === k));
+            const inOrder    = presentPos.every((v, i) => i === 0 || v > presentPos[i - 1]);
+            const atEnd      = presentPos.every(p => p >= opts.length - present.length);
+            if (!inOrder || !atEnd)
+              suggestions.push({ level:"info", msg:"gid, sid, rev should appear at the end of the options block in that order.", fix:"... gid:1; sid:XXXXXX; rev:1;" });
+          }
+        }
 
         // ── SID range advisory ───────────────────────────────────────────
         const sidVal = parseInt(get("sid") || "0", 10);
