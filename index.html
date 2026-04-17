@@ -3026,7 +3026,7 @@ if __name__ == "__main__":
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
         a.href     = url;
-        a.download = `optimized_rules_${ts}.rules`;
+        a.download = `annotated_rules_${ts}.rules`;
         a.click();
         URL.revokeObjectURL(url);
       }
@@ -3044,7 +3044,7 @@ if __name__ == "__main__":
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement("a");
         a.href     = url;
-        a.download = `rules_clean_${ts}.rules`;
+        a.download = `optimized_rules_${ts}.rules`;
         a.click();
         URL.revokeObjectURL(url);
       }
