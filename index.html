@@ -562,6 +562,63 @@
     .guide-tag.important { background: rgba(255,170,0,0.15); color: #ffc84d; border: 1px solid #7a5200; }
     .guide-tag.tip { background: rgba(0,212,255,0.1); color: #7fd4ff; border: 1px solid #1a4a7a; }
 
+    /* ── Rule Reference View ── */
+    .ref-tabs { display:flex; gap:6px; margin-bottom:18px; flex-wrap:wrap; }
+    .ref-tab-btn {
+      padding: 7px 18px; font-size: 0.86rem; font-weight: 600;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: transparent; color: var(--muted); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .ref-tab-btn:hover { color: var(--text); border-color: var(--primary); }
+    .ref-tab-btn.active {
+      background: rgba(0,212,255,0.1); border-color: var(--primary);
+      color: var(--primary);
+    }
+    .ref-panel { display: none; }
+    .ref-panel.active { display: block; }
+    .ref-table {
+      width: 100%; border-collapse: collapse; font-size: 0.83rem;
+      margin: 10px 0;
+    }
+    .ref-table th {
+      text-align: left; padding: 6px 10px;
+      color: var(--muted); font-weight: 600; font-size: 0.78rem;
+      border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .ref-table td {
+      padding: 5px 10px; border-bottom: 1px solid rgba(30,58,95,0.4);
+      vertical-align: top; line-height: 1.5;
+    }
+    .ref-table tr:last-child td { border-bottom: none; }
+    .ref-table td:first-child { font-family: monospace; color: var(--primary); white-space: nowrap; }
+    .ref-table td:nth-child(2) { font-family: monospace; color: #a0c8e0; font-size: 0.79rem; }
+    .ref-table td:last-child { color: #b0c8e0; }
+    .ref-h3 { font-size: 0.95rem; color: var(--primary); margin: 20px 0 6px; font-weight: 700; }
+    .ref-h4 { font-size: 0.85rem; color: var(--warn); margin: 14px 0 4px; font-weight: 600; }
+    .ref-note {
+      font-size: 0.82rem; color: #8ea3ba; padding: 8px 12px;
+      background: rgba(0,212,255,0.04); border-left: 3px solid var(--primary);
+      border-radius: 0 6px 6px 0; margin: 8px 0;
+    }
+    .ref-code {
+      background: #060c1a; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px 14px; font-family: monospace; font-size: 0.8rem;
+      color: #a8d8b0; overflow-x: auto; margin: 8px 0; white-space: pre;
+    }
+    .ref-badge {
+      display: inline-block; font-size: 0.7rem; font-weight: 700;
+      padding: 1px 7px; border-radius: 999px; margin-left: 6px;
+      vertical-align: middle;
+    }
+    .ref-badge.new { background: rgba(0,255,136,0.12); color: var(--success); border: 1px solid rgba(0,255,136,0.3); }
+    .ref-badge.removed { background: rgba(255,68,68,0.12); color: var(--error); border: 1px solid rgba(255,68,68,0.3); }
+    .ref-badge.changed { background: rgba(255,170,0,0.12); color: var(--warn); border: 1px solid rgba(255,170,0,0.3); }
+    .ref-example { margin: 10px 0; }
+    .ref-example-label { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+    .ref-example-label.snort2 { color: var(--warn); }
+    .ref-example-label.snort3 { color: var(--success); }
+
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
       .textarea { min-height: 260px; }
@@ -791,6 +848,7 @@
       <div class="tabs">
         <button class="tab-btn active" data-view="homeView">Home</button>
         <button class="tab-btn" data-view="optimizerView">Rule Optimization</button>
+        <button class="tab-btn" data-view="referenceView">&#128218; Rule Reference</button>
         <button class="tab-btn" data-view="validatorView">Python Validator</button>
         <button class="tab-btn" data-view="sruView">Snort SRU Updates</button>
         <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
@@ -1335,6 +1393,532 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
             </div>
           </div>
         </details>
+
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Rule Reference View  (content from snort2-rule-checker,
+         snort2-to-3-migration-tool, snort3-rule-checker skills)
+    ═══════════════════════════════════════════════════════════════ -->
+    <section id="referenceView" class="view">
+      <div class="panel">
+        <h3 style="margin:0 0 4px;">&#128218; Rule Reference</h3>
+        <p class="muted" style="margin:0 0 18px; font-size:0.86rem;">Comprehensive keyword reference for Snort 2, Snort 3, and migration guidance.</p>
+
+        <div class="ref-tabs">
+          <button class="ref-tab-btn active" data-ref="ref-snort2">Snort 2 Keywords</button>
+          <button class="ref-tab-btn" data-ref="ref-migration">Migration Guide</button>
+          <button class="ref-tab-btn" data-ref="ref-snort3">Snort 3 Keywords</button>
+        </div>
+
+        <!-- ─── SNORT 2 REFERENCE ─── -->
+        <div id="ref-snort2" class="ref-panel active">
+
+          <div class="ref-h3">Rule Header</div>
+          <table class="ref-table">
+            <thead><tr><th>Element</th><th>Valid Values</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>action</td><td>alert log pass drop reject sdrop</td><td>drop/reject/sdrop require inline IPS mode</td></tr>
+              <tr><td>protocol</td><td>tcp udp icmp ip</td><td></td></tr>
+              <tr><td>direction</td><td>-&gt; &lt;&gt;</td><td>&lt;&gt; bidirectional; rarely needed</td></tr>
+              <tr><td>IP format</td><td>any 1.2.3.4 1.2.3.0/24 [list] !neg $VAR</td><td>Lists and negation supported</td></tr>
+              <tr><td>Port format</td><td>any 80 80:443 !80 [80,443] $VAR</td><td>Ranges with : notation</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">General / Metadata Options</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>msg</td><td>msg:"text";</td><td>Required — alert message string</td></tr>
+              <tr><td>sid</td><td>sid:N;</td><td><strong>Required</strong> — local rules use 1000000+</td></tr>
+              <tr><td>rev</td><td>rev:N;</td><td>Recommended — rule revision</td></tr>
+              <tr><td>gid</td><td>gid:N;</td><td>Generator ID; defaults to 1</td></tr>
+              <tr><td>classtype</td><td>classtype:name;</td><td>From classification.config</td></tr>
+              <tr><td>priority</td><td>priority:N;</td><td>Overrides classtype default priority</td></tr>
+              <tr><td>reference</td><td>reference:system,id;</td><td>Systems: cve, bugtraq, url, arachnids, mcafee</td></tr>
+              <tr><td>metadata</td><td>metadata:key value;</td><td>Free-form key-value pairs</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Content Matching</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>content</td><td>content:[!]"string";</td><td>Case-sensitive; hex via |xx xx|; AND logic across multiple</td></tr>
+              <tr><td>nocase</td><td>nocase;</td><td>Case-insensitive — modifier for preceding content</td></tr>
+              <tr><td>rawbytes</td><td>rawbytes;</td><td>Skip preprocessor decoding — modifier for preceding content</td></tr>
+              <tr><td>depth</td><td>depth:N;</td><td>Search only first N bytes — must come after content</td></tr>
+              <tr><td>offset</td><td>offset:N;</td><td>Start search at byte N from start — must come after content</td></tr>
+              <tr><td>distance</td><td>distance:N;</td><td>Start N bytes after end of previous match (relative)</td></tr>
+              <tr><td>within</td><td>within:N;</td><td>Match must be within N bytes of previous match end</td></tr>
+              <tr><td>fast_pattern</td><td>fast_pattern; / fast_pattern:only; / fast_pattern:off,len;</td><td>Max 1 per rule; not on negated content; :only cannot have positional modifiers</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Hash-Based Content Matching</div>
+          <div class="ref-note">Hides actual signature by matching on hash digest instead of raw bytes. Computationally expensive. Not supported with: nocase, fast_pattern, depth, within.</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>protected_content</td><td>protected_content:[!]"&lt;hash&gt;";</td><td>Requires hash and length modifiers</td></tr>
+              <tr><td>hash</td><td>hash:md5|sha256|sha512;</td><td>Required with protected_content unless set in snort.conf</td></tr>
+              <tr><td>length</td><td>length:N;</td><td>Original byte length of the content (1–65535)</td></tr>
+            </tbody>
+          </table>
+          <div class="ref-code">alert tcp any any -> any 80 (msg:"MD5 Alert";
+  protected_content:"293C9EA246FF9985DC6F62A650F78986"; hash:md5; offset:0; length:4;)</div>
+
+          <div class="ref-h3">HTTP Content Modifiers (Snort 2 style)</div>
+          <div class="ref-note">In Snort 2, HTTP buffers are <em>modifiers</em> placed after content. In Snort 3 they become sticky buffers placed <em>before</em> content.</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>http_uri</td><td>Normalized request URI</td></tr>
+              <tr><td>http_raw_uri</td><td>Unnormalized request URI</td></tr>
+              <tr><td>http_header</td><td>Normalized HTTP headers</td></tr>
+              <tr><td>http_raw_header</td><td>Unnormalized HTTP headers</td></tr>
+              <tr><td>http_method</td><td>HTTP method (GET, POST, etc.)</td></tr>
+              <tr><td>http_client_body</td><td>Normalized request body — requires http_inspect preprocessor</td></tr>
+              <tr><td>http_cookie</td><td>Normalized Cookie header</td></tr>
+              <tr><td>http_raw_cookie</td><td>Unnormalized Cookie header</td></tr>
+              <tr><td>http_stat_code</td><td>HTTP response status code</td></tr>
+              <tr><td>http_stat_msg</td><td>HTTP response status message</td></tr>
+              <tr><td>http_encode</td><td>http_encode:[uri|header|cookie],[enc_type]; — types: utf8, double_encode, non_ascii, base36, uencode, bare_byte</td></tr>
+              <tr><td>uricontent</td><td>uricontent:[!]"string"; — search normalized URI (legacy; prefer http_uri + content)</td></tr>
+              <tr><td>urilen</td><td>urilen:N; / urilen:&lt;N; / urilen:N&lt;&gt;M; — match URI length</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Buffer / Cursor Control</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>pkt_data</td><td>pkt_data;</td><td>Reset cursor to raw transport payload</td></tr>
+              <tr><td>file_data</td><td>file_data; / file_data:mime;</td><td>Set cursor to HTTP response body or SMTP MIME body</td></tr>
+              <tr><td>base64_decode</td><td>base64_decode:[bytes N][,offset N][,relative];</td><td>Decode base64 data</td></tr>
+              <tr><td>base64_data</td><td>base64_data;</td><td>Set cursor to base64-decoded buffer</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">PCRE</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>pcre</td><td>pcre:[!]"/regex/flags";</td><td>Always precede with content for performance. Chars " ; \ must be hex-escaped (\x22, \x3b, \x5c)</td></tr>
+            </tbody>
+          </table>
+          <div class="ref-h4">PCRE Snort-Specific Buffer Flags</div>
+          <table class="ref-table">
+            <thead><tr><th>Flag</th><th>Buffer</th></tr></thead>
+            <tbody>
+              <tr><td>R</td><td>Relative to end of last content match</td></tr>
+              <tr><td>U</td><td>Normalized HTTP request URI</td></tr>
+              <tr><td>I</td><td>Unnormalized HTTP request URI</td></tr>
+              <tr><td>H</td><td>Normalized HTTP header</td></tr>
+              <tr><td>D</td><td>Unnormalized HTTP header</td></tr>
+              <tr><td>M</td><td>HTTP method</td></tr>
+              <tr><td>P</td><td>Normalized HTTP request body</td></tr>
+              <tr><td>C</td><td>Normalized HTTP cookie</td></tr>
+              <tr><td>K</td><td>Unnormalized HTTP cookie</td></tr>
+              <tr><td>S</td><td>HTTP response status code</td></tr>
+              <tr><td>Y</td><td>HTTP response status message</td></tr>
+              <tr><td>B</td><td>Raw bytes (do not combine with R)</td></tr>
+              <tr><td>O</td><td>Override PCRE match limit — avoid in production</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Binary / Numeric Detection</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>byte_test</td><td>byte_test:bytes,op,value,offset[,relative][,big|little][,string][,hex|dec|oct][,dce];</td><td>Operators: &lt; &gt; = ! &amp; ^</td></tr>
+              <tr><td>byte_jump</td><td>byte_jump:bytes,offset[,relative][,big|little][,string][,hex|dec|oct][,align][,from_beginning][,post_offset N][,dce];</td><td>Move cursor by packet value</td></tr>
+              <tr><td>byte_extract</td><td>byte_extract:bytes,offset,name[,relative][,multiplier N][,big|little][,dce][,string][,hex|dec|oct][,align N];</td><td>Extract to variable — max 2 per rule</td></tr>
+              <tr><td>byte_math</td><td>byte_math:bytes,offset,oper,rvalue,result[,relative][,endian big|little][,string][,dce][,bitmask N];</td><td>Arithmetic (+,-,*,/,&lt;&lt;,&gt;&gt;) on extracted bytes; result usable by byte_test/byte_jump; bytes 1–10 (1–4 for shift)</td></tr>
+              <tr><td>isdataat</td><td>isdataat:N[,relative];</td><td>Verify payload has data at position N</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Protocol-Specific Detection</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>ftpbounce</td><td>Detect FTP PORT commands with non-client IP</td></tr>
+              <tr><td>asn1</td><td>asn1:option[,option]; — options: bitstring_overflow, double_overflow, oversize_length N, absolute_offset N, relative_offset N</td></tr>
+              <tr><td>cvs</td><td>cvs:invalid-entry; — detect CVE-2004-0396 CVS heap overflow</td></tr>
+              <tr><td>dce_iface</td><td>dce_iface:&lt;uuid&gt;[,&lt;op&gt;&lt;version&gt;][,any_frag]; — match DCE/RPC interface UUID</td></tr>
+              <tr><td>dce_opnum</td><td>dce_opnum:&lt;opnum|range|list&gt;; — e.g. dce_opnum:1,3,5-10;</td></tr>
+              <tr><td>dce_stub_data</td><td>Set cursor to DCE/RPC stub data</td></tr>
+              <tr><td>sip_method</td><td>Methods: invite cancel ack bye register options refer subscribe update join info message notify prack — ! negation: one method only</td></tr>
+              <tr><td>sip_stat_code</td><td>Match SIP response status codes</td></tr>
+              <tr><td>sip_header</td><td>Set cursor to SIP header fields</td></tr>
+              <tr><td>sip_body</td><td>Set cursor to SIP body (SDP content)</td></tr>
+              <tr><td>gtp_type</td><td>gtp_type:&lt;type-list&gt;; — GTP message type (0–255); requires GTP preprocessor</td></tr>
+              <tr><td>gtp_info</td><td>gtp_info:&lt;info-list&gt;; — GTP information element type; requires GTP preprocessor</td></tr>
+              <tr><td>gtp_version</td><td>gtp_version:&lt;version-list&gt;; — values: 0, 1, 2; requires GTP preprocessor</td></tr>
+              <tr><td>ssl_version</td><td>ssl_version:&lt;version-list&gt;; — sslv2, sslv3, tls1.0, tls1.1, tls1.2; OR logic</td></tr>
+              <tr><td>ssl_state</td><td>ssl_state:&lt;state-list&gt;; — client_hello, server_hello, client_keyx, server_keyx, unknown; OR logic</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Non-Payload Detection</div>
+          <div class="ref-h4">IP Header</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>ttl</td><td>ttl:[&lt;|&gt;]N; / ttl:N-M;</td><td>IP time-to-live</td></tr>
+              <tr><td>tos</td><td>tos:[!]N;</td><td>IP TOS field</td></tr>
+              <tr><td>id</td><td>id:N;</td><td>IP identification field</td></tr>
+              <tr><td>ipopts</td><td>ipopts:rr|eol|nop|ts|sec|lsrr|ssrr|satid|any;</td><td>Max 1 per rule</td></tr>
+              <tr><td>fragbits</td><td>fragbits:[+|*|!][M][D][R];</td><td>M=more frags, D=don't frag, R=reserved</td></tr>
+              <tr><td>fragoffset</td><td>fragoffset:[&lt;|&gt;]N;</td><td>IP fragment offset</td></tr>
+              <tr><td>ip_proto</td><td>ip_proto:[!]name|number;</td><td>IP protocol header field</td></tr>
+              <tr><td>sameip</td><td>sameip;</td><td>Match if src IP equals dst IP</td></tr>
+            </tbody>
+          </table>
+          <div class="ref-h4">TCP Header</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>flags</td><td>flags:[!|*|+][FSRPAU12][,mask];</td><td>F=FIN S=SYN R=RST P=PSH A=ACK U=URG; prefer flow:established over flags:A+</td></tr>
+              <tr><td>seq</td><td>seq:N;</td><td>TCP sequence number</td></tr>
+              <tr><td>ack</td><td>ack:N;</td><td>TCP acknowledgment number</td></tr>
+              <tr><td>window</td><td>window:[!]N;</td><td>TCP window size</td></tr>
+              <tr><td>dsize</td><td>dsize:[&lt;|&gt;]N; / dsize:N&lt;&gt;M;</td><td><strong>Fails on stream-rebuilt packets</strong> — combine with flow:no_stream</td></tr>
+            </tbody>
+          </table>
+          <div class="ref-h4">ICMP</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th></tr></thead>
+            <tbody>
+              <tr><td>itype</td><td>itype:[&lt;|&gt;]N[&lt;&gt;M];</td></tr>
+              <tr><td>icode</td><td>icode:[&lt;|&gt;]N[&lt;&gt;M];</td></tr>
+              <tr><td>icmp_id</td><td>icmp_id:N;</td></tr>
+              <tr><td>icmp_seq</td><td>icmp_seq:N;</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Flow / State</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>flow</td><td>flow:[to_client|to_server|from_client|from_server][,established|stateless][,no_stream|only_stream];</td><td>established only valid for TCP; use stateless for UDP/ICMP</td></tr>
+              <tr><td>flowbits</td><td>flowbits:set|unset|toggle|isset|isnotset|noalert[,name];</td><td>Track state across sessions; noalert suppresses alert; names: alphanumeric + . - _</td></tr>
+              <tr><td>rpc</td><td>rpc:app_num,[version|*],[proc|*];</td><td>SUNRPC CALL check — slower than content matching</td></tr>
+              <tr><td>stream_reassemble</td><td>stream_reassemble:enable|disable,server|client|both[,noalert][,fastpath];</td><td>Enable/disable TCP reassembly per session</td></tr>
+              <tr><td>stream_size</td><td>stream_size:server|client|both|either,op,N;</td><td>Match on bytes observed per TCP sequence</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Post-Detection</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>logto</td><td>logto:"filename";</td><td>Log to file; not in binary logging mode</td></tr>
+              <tr><td>session</td><td>session:printable|binary|all;</td><td>Extract TCP session; slow — use only for pcap post-processing</td></tr>
+              <tr><td>resp</td><td>resp:rst_snd|rst_rcv|rst_all|icmp_net|icmp_host|icmp_port|icmp_all;</td><td>Flexible Response; requires --enable-flexresp3</td></tr>
+              <tr><td>react</td><td>react:&lt;opts&gt;;</td><td>Send HTML page and reset; requires --enable-react</td></tr>
+              <tr><td>tag</td><td>tag:session|host,N,packets|seconds[,src|dst];</td><td>Log additional packets after trigger; default 256 packets</td></tr>
+              <tr><td>replace</td><td>replace:"string";</td><td>Inline mode only; must be same length as matched content</td></tr>
+              <tr><td>detection_filter</td><td>detection_filter:track by_src|by_dst,count C,seconds S;</td><td>In-rule rate threshold — fires only after C matches in S seconds</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Common Syntax Errors</div>
+          <table class="ref-table">
+            <thead><tr><th>Error</th><th>Fix</th></tr></thead>
+            <tbody>
+              <tr><td>Missing sid</td><td>Add sid:N;</td></tr>
+              <tr><td>Missing ; after option</td><td>Every option must end with ;</td></tr>
+              <tr><td>depth/offset before content</td><td>Move depth/offset to after content keyword</td></tr>
+              <tr><td>distance/within without prior content</td><td>Add a preceding content match</td></tr>
+              <tr><td>Multiple fast_pattern</td><td>Only one fast_pattern per rule</td></tr>
+              <tr><td>fast_pattern:only with positional modifier</td><td>Remove depth/offset/distance/within from that content</td></tr>
+              <tr><td>Unescaped " in PCRE</td><td>Replace with \x22</td></tr>
+              <tr><td>Unescaped ; in PCRE</td><td>Replace with \x3b</td></tr>
+              <tr><td>flow:established on UDP</td><td>Use flow:stateless or remove flow</td></tr>
+              <tr><td>dsize on stream rule</td><td>Add flow:no_stream</td></tr>
+              <tr><td>replace length mismatch</td><td>Match content and replace string lengths exactly</td></tr>
+            </tbody>
+          </table>
+        </div><!-- end ref-snort2 -->
+
+        <!-- ─── MIGRATION GUIDE ─── -->
+        <div id="ref-migration" class="ref-panel">
+
+          <div class="ref-h3">Syntax Differences Overview</div>
+          <table class="ref-table">
+            <thead><tr><th>Topic</th><th>Snort 2</th><th>Snort 3</th></tr></thead>
+            <tbody>
+              <tr><td>Content modifiers</td><td>content:"x"; nocase; fast_pattern;</td><td>content:"x",nocase,fast_pattern;</td></tr>
+              <tr><td>Positional modifiers</td><td>offset:N; depth:N; (separate options)</td><td>content:"x",offset N,depth N; (inline)</td></tr>
+              <tr><td>HTTP buffers</td><td>content:"x"; http_uri; (modifier after)</td><td>http_uri; content:"x"; (sticky buffer first)</td></tr>
+              <tr><td>uricontent</td><td>uricontent:"x";</td><td>http_uri; content:"x";</td></tr>
+              <tr><td>rawbytes</td><td>rawbytes; (modifier)</td><td>pkt_data; or raw_data; (sticky buffer)</td></tr>
+              <tr><td>drop action</td><td>drop</td><td>block</td></tr>
+              <tr><td>sdrop action</td><td>sdrop</td><td>block</td></tr>
+              <tr><td>Service in metadata</td><td>metadata: service http;</td><td>service:http;</td></tr>
+              <tr><td>Service header</td><td>Not supported</td><td>alert http (...)</td></tr>
+              <tr><td>PCRE HTTP flags</td><td>pcre:"/x/Ui"; (U=URI buffer)</td><td>http_uri; pcre:"/x/i"; (sticky buffer + remove flag)</td></tr>
+              <tr><td>!$VARIABLE as dst</td><td>Supported</td><td>Use any (compatibility issue)</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Deprecated Options Mapping</div>
+          <table class="ref-table">
+            <thead><tr><th>Snort 2</th><th>Status</th><th>Snort 3 Replacement</th></tr></thead>
+            <tbody>
+              <tr><td>uricontent:"...";</td><td><span class="ref-badge removed">Deprecated</span></td><td>http_uri; content:"...";</td></tr>
+              <tr><td>content:"..."; http_uri;</td><td><span class="ref-badge changed">Style Change</span></td><td>http_uri; content:"..."; (sticky first)</td></tr>
+              <tr><td>content:"..."; http_header;</td><td><span class="ref-badge changed">Style Change</span></td><td>http_header; content:"...";</td></tr>
+              <tr><td>content:"..."; http_client_body;</td><td><span class="ref-badge changed">Style Change</span></td><td>http_client_body; content:"...";</td></tr>
+              <tr><td>content:"..."; http_cookie;</td><td><span class="ref-badge changed">Style Change</span></td><td>http_cookie; content:"...";</td></tr>
+              <tr><td>rawbytes;</td><td><span class="ref-badge changed">Style Change</span></td><td>pkt_data;</td></tr>
+              <tr><td>fast_pattern; (standalone)</td><td><span class="ref-badge changed">Style Change</span></td><td>content:"...",fast_pattern;</td></tr>
+              <tr><td>nocase; (standalone)</td><td><span class="ref-badge changed">Style Change</span></td><td>content:"...",nocase;</td></tr>
+              <tr><td>drop</td><td><span class="ref-badge changed">Changed</span></td><td>block</td></tr>
+              <tr><td>sdrop</td><td><span class="ref-badge removed">Removed</span></td><td>block</td></tr>
+              <tr><td>metadata: service http;</td><td><span class="ref-badge changed">Changed</span></td><td>service:http;</td></tr>
+              <tr><td>flags:A+</td><td><span class="ref-badge changed">Discouraged</span></td><td>flow:to_server,established;</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">PCRE HTTP Buffer Flag Migration</div>
+          <div class="ref-note">In Snort 3: add the sticky buffer keyword <em>before</em> pcre, then remove the buffer flag from pcre.</div>
+          <table class="ref-table">
+            <thead><tr><th>Snort 2 Flag</th><th>Snort 2 Meaning</th><th>Snort 3 Replacement</th></tr></thead>
+            <tbody>
+              <tr><td>U</td><td>Normalized URI buffer</td><td>Add http_uri; before pcre, remove U</td></tr>
+              <tr><td>H</td><td>Normalized header buffer</td><td>Add http_header; before pcre, remove H</td></tr>
+              <tr><td>P</td><td>Normalized request body</td><td>Add http_client_body; before pcre, remove P</td></tr>
+              <tr><td>C</td><td>Cookie buffer</td><td>Add http_raw_cookie; before pcre, remove C</td></tr>
+              <tr><td>I</td><td>Raw URI buffer</td><td>Add http_raw_uri; before pcre, remove I</td></tr>
+              <tr><td>D</td><td>Raw header buffer</td><td>Add http_raw_header; before pcre, remove D</td></tr>
+              <tr><td>K</td><td>Raw cookie buffer</td><td>Add http_raw_cookie; before pcre, remove K</td></tr>
+              <tr><td>S</td><td>HTTP status code buffer</td><td>Add http_stat_code; before pcre, remove S</td></tr>
+              <tr><td>Y</td><td>HTTP status message buffer</td><td>Add http_stat_msg; before pcre, remove Y</td></tr>
+            </tbody>
+          </table>
+          <div class="ref-code"><!-- PCRE migration example -->
+Snort 2:  pcre:"/login\.php/iU";
+Snort 3:  http_uri; pcre:"/login\.php/i";</div>
+
+          <div class="ref-h3">Migration Examples</div>
+
+          <div class="ref-h4">1. HTTP URI detection</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP admin path probe"; flow:to_server,established; content:"/admin"; http_uri; sid:2000001; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP admin path probe"; flow:to_server,established; http_uri; content:"/admin"; sid:2000001; rev:1;)</div>
+          </div>
+
+          <div class="ref-h4">2. Inline content modifiers</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP SQLi UNION SELECT"; flow:to_server,established; content:"UNION"; nocase; fast_pattern; http_client_body; content:"SELECT"; nocase; distance:0; within:20; http_client_body; sid:2000005; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP SQLi UNION SELECT"; flow:to_server,established; http_client_body; content:"UNION",nocase,fast_pattern; content:"SELECT",nocase,distance 0,within 20; sid:2000005; rev:1;)</div>
+          </div>
+
+          <div class="ref-h4">3. PCRE with HTTP buffer flag</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP traversal regex"; flow:to_server,established; pcre:"/\.\.\//Ui"; sid:2000004; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP traversal regex"; flow:to_server,established; http_uri; pcre:"/\.\.\//i"; sid:2000004; rev:1;)</div>
+          </div>
+
+          <div class="ref-h4">4. drop → block</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">drop tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"SSH brute force"; flow:to_server,established; content:"SSH-"; sid:2000009; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">block tcp $EXTERNAL_NET any -> $HOME_NET 22 (msg:"SSH brute force"; flow:to_server,established; content:"SSH-"; sid:2000009; rev:1;)</div>
+          </div>
+
+          <div class="ref-h4">5. uricontent → http_uri + content</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP login access"; flow:to_server,established; uricontent:"/login.php"; sid:2000010; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (msg:"WEB-APP login access"; flow:to_server,established; http_uri; content:"/login.php"; sid:2000010; rev:1;)</div>
+          </div>
+
+          <div class="ref-h4">6. metadata service → service keyword</div>
+          <div class="ref-example">
+            <div class="ref-example-label snort2">Snort 2</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"HTTP attack"; flow:to_server,established; content:"/wp-admin"; http_uri; metadata:service http; sid:2000014; rev:1;)</div>
+            <div class="ref-example-label snort3">Snort 3</div>
+            <div class="ref-code">alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"HTTP attack"; flow:to_server,established; service:http; http_uri; content:"/wp-admin"; sid:2000014; rev:1;)</div>
+          </div>
+
+          <div class="ref-h3">Quick Migration Checklist</div>
+          <ol style="color:#b0c8e0; font-size:0.88rem; line-height:2;">
+            <li>Remove <code>uricontent</code> → replace with <code>http_uri; content:</code></li>
+            <li>Convert HTTP content modifiers to sticky buffers (sticky first)</li>
+            <li>Convert standalone content modifiers to inline style (<code>content:"x",nocase,fast_pattern;</code>)</li>
+            <li>Convert <code>drop</code> and <code>sdrop</code> → <code>block</code></li>
+            <li>Convert legacy service metadata → explicit <code>service:</code> keyword</li>
+            <li>Replace incompatible <code>!$VARIABLE</code> destination with <code>any</code></li>
+            <li>Strip Snort 2 HTTP PCRE buffer flags (U, H, P, C, I, D, K, S, Y) after adding sticky buffer</li>
+            <li>Review <code>dsize</code> and <code>flags:A+</code> semantics for stream-safe intent</li>
+          </ol>
+        </div><!-- end ref-migration -->
+
+        <!-- ─── SNORT 3 REFERENCE ─── -->
+        <div id="ref-snort3" class="ref-panel">
+
+          <div class="ref-h3">Rule Header Forms</div>
+          <div class="ref-code">action proto src_ip src_port direction dst_ip dst_port (options;)   <!-- traditional -->
+action service (options;)                                              <!-- service rule -->
+action file (options;)                                                 <!-- file rule -->
+file_id (options;)                                                     <!-- file identification rule --></div>
+
+          <div class="ref-h3">Actions</div>
+          <table class="ref-table">
+            <thead><tr><th>Action</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>alert</td><td>Generate event/alert — standard IDS behavior</td></tr>
+              <tr><td>log</td><td>Log packet/event data</td></tr>
+              <tr><td>pass</td><td>Mark packet as passed — skip further IPS checks</td></tr>
+              <tr><td>drop</td><td>Drop current packet — inline mode</td></tr>
+              <tr><td>block</td><td>Block current and subsequent packets in flow — inline flow control</td></tr>
+              <tr><td>reject</td><td>Terminate session with TCP reset or ICMP unreachable</td></tr>
+              <tr><td>rewrite</td><td>Rewrite packet payload — requires replace option</td></tr>
+              <tr><td>react</td><td>Respond to client and terminate session</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">General Options</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>msg</td><td>msg:"text";</td><td>Message for event output</td></tr>
+              <tr><td>sid</td><td>sid:number;</td><td>Unique signature ID; local rules start at 1000000</td></tr>
+              <tr><td>rev</td><td>rev:number;</td><td>Rule revision; defaults to 1 if omitted</td></tr>
+              <tr><td>gid</td><td>gid:number;</td><td>Optional; defaults to 1</td></tr>
+              <tr><td>classtype</td><td>classtype:name;</td><td>One per rule</td></tr>
+              <tr><td>priority</td><td>priority:number;</td><td>Overrides classtype priority</td></tr>
+              <tr><td>reference</td><td>reference:scheme,id;</td><td>Typical schemes: cve, url</td></tr>
+              <tr><td>metadata</td><td>metadata:key value[,key value]...;</td><td>Free-form key-value</td></tr>
+              <tr><td>service</td><td>service:svc[,svc]...;</td><td><span class="ref-badge new">New</span> Replaces legacy metadata service declaration</td></tr>
+              <tr><td>rem</td><td>rem:"comment";</td><td><span class="ref-badge new">New</span> In-rule comment metadata</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Content Matching (Inline Modifier Style)</div>
+          <div class="ref-note">Snort 3 uses inline, comma-separated modifiers: <code>content:"x",nocase,fast_pattern;</code></div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword/Modifier</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>content:"pattern"</td><td>ASCII, hex (|41 42|), or mixed</td></tr>
+              <tr><td>fast_pattern</td><td>Inline modifier — explicit fast-pattern selector</td></tr>
+              <tr><td>nocase</td><td>Inline modifier — case-insensitive</td></tr>
+              <tr><td>offset N</td><td>Inline modifier — start from absolute offset</td></tr>
+              <tr><td>depth N</td><td>Inline modifier — limit search distance from start/offset</td></tr>
+              <tr><td>distance N</td><td>Inline modifier — relative start from previous match</td></tr>
+              <tr><td>within N</td><td>Inline modifier — relative window size from previous match</td></tr>
+              <tr><td>width 8|16|32</td><td><span class="ref-badge new">New</span> Character width for multi-byte content</td></tr>
+              <tr><td>endian big|little</td><td><span class="ref-badge new">New</span> Byte order for content matching</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Sticky Buffers</div>
+          <div class="ref-note">In Snort 3, buffers are set first as sticky context, then content/pcre matches within that buffer.</div>
+          <table class="ref-table">
+            <thead><tr><th>Buffer</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>pkt_data</td><td>Normalized packet data (default context)</td></tr>
+              <tr><td>raw_data</td><td><span class="ref-badge new">New</span> Raw packet bytes — replaces Snort 2 rawbytes modifier</td></tr>
+              <tr><td>file_data</td><td>Normalized/decoded file payload</td></tr>
+              <tr><td>js_data</td><td><span class="ref-badge new">New</span> Normalized JavaScript buffer</td></tr>
+              <tr><td>vba_data</td><td><span class="ref-badge new">New</span> VBA macro buffer</td></tr>
+              <tr><td>base64_decode</td><td>Decode selected base64 bytes</td></tr>
+              <tr><td>base64_data</td><td>Decoded base64 buffer</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">HTTP Sticky Buffers</div>
+          <table class="ref-table">
+            <thead><tr><th>Buffer</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>http_uri</td><td>Normalized URI — selectors: scheme, host, port, path, query, fragment</td></tr>
+              <tr><td>http_raw_uri</td><td>Raw URI — same selectors</td></tr>
+              <tr><td>http_header</td><td>Normalized headers — supports :field and optional ,request</td></tr>
+              <tr><td>http_raw_header</td><td>Raw headers</td></tr>
+              <tr><td>http_cookie</td><td>Normalized cookie values</td></tr>
+              <tr><td>http_raw_cookie</td><td>Raw cookie values</td></tr>
+              <tr><td>http_client_body</td><td>Normalized request body</td></tr>
+              <tr><td>http_raw_body</td><td><span class="ref-badge new">New</span> Raw request/response body</td></tr>
+              <tr><td>http_param</td><td><span class="ref-badge new">New</span> http_param:"name"[,nocase]; — selected parameter value</td></tr>
+              <tr><td>http_method</td><td>Method buffer (GET, POST, etc.)</td></tr>
+              <tr><td>http_version</td><td><span class="ref-badge new">New</span> HTTP version buffer</td></tr>
+              <tr><td>http_stat_code</td><td>Response status code</td></tr>
+              <tr><td>http_stat_msg</td><td>Response status text</td></tr>
+              <tr><td>http_raw_request</td><td><span class="ref-badge new">New</span> Raw request line</td></tr>
+              <tr><td>http_raw_status</td><td><span class="ref-badge new">New</span> Raw status line</td></tr>
+              <tr><td>http_trailer</td><td><span class="ref-badge new">New</span> Normalized trailers</td></tr>
+              <tr><td>http_true_ip</td><td><span class="ref-badge new">New</span> Original client IP from proxy-forward headers</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">HTTP Test Options (Non-Sticky)</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th></tr></thead>
+            <tbody>
+              <tr><td>http_version_match</td><td>http_version_match:"vlist"[,request];</td></tr>
+              <tr><td>http_num_headers</td><td>Single/range compare with optional request</td></tr>
+              <tr><td>http_num_cookies</td><td>Single/range compare with optional request</td></tr>
+              <tr><td>http_header_test</td><td>http_header_test:field name[,numeric true|false][,check range][,absent][,request];</td></tr>
+              <tr><td>bufferlen</td><td>bufferlen:[op]N[,relative]; — works against current sticky buffer</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">PCRE and Regex</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>pcre</td><td>pcre:[!]"/expr/flags";</td><td>Sticky-buffer aware in Snort 3; remove Snort 2 HTTP buffer flags</td></tr>
+              <tr><td>regex</td><td>regex:"/expr/flags"[,fast_pattern][,nocase];</td><td><span class="ref-badge new">New</span> Hyperscan-backed — optional performance enhancement</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Non-Payload Detection</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>flow</td><td>flow:[established|not_established|stateless][,to_client|to_server|from_client|from_server][,no_stream|only_stream][,no_frag|only_frag];</td></tr>
+              <tr><td>flowbits</td><td>set/unset/isset/isnotset/noalert with &amp; (AND) or | (OR) for multiple bits</td></tr>
+              <tr><td>file_type</td><td><span class="ref-badge new">New</span> File type/version constrained matching</td></tr>
+              <tr><td>ttl, tos, id, ipopts, fragbits, fragoffset, ip_proto, flags, seq, ack, window, dsize, itype, icode, icmp_id, icmp_seq, rpc, stream_reassemble, stream_size, sameip</td><td>Same semantics as Snort 2</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Post-Detection</div>
+          <table class="ref-table">
+            <thead><tr><th>Keyword</th><th>Format</th><th>Notes</th></tr></thead>
+            <tbody>
+              <tr><td>detection_filter</td><td>detection_filter:track by_src|by_dst,count C,seconds S;</td><td>One per rule</td></tr>
+              <tr><td>replace</td><td>replace:"string";</td><td>Pair with rewrite action</td></tr>
+              <tr><td>tag</td><td>tag:session|host_src|host_dst,packets N|seconds N|bytes N;</td><td>Log additional context after event</td></tr>
+            </tbody>
+          </table>
+
+          <div class="ref-h3">Migration Checklist (Snort 3 perspective)</div>
+          <ol style="color:#b0c8e0; font-size:0.88rem; line-height:2;">
+            <li>Replace <code>rawbytes</code> with <code>raw_data;</code></li>
+            <li>Replace <code>urilen</code> with <code>http_uri;</code> + <code>bufferlen</code></li>
+            <li>Replace <code>uricontent</code> with <code>http_uri; content:</code></li>
+            <li>Convert HTTP content modifiers to sticky buffers (buffer first, then content)</li>
+            <li>Move service declarations from <code>metadata</code> to <code>service:</code></li>
+            <li>Convert content modifiers to inline style</li>
+            <li>Verify PCRE does not rely on Snort 2 HTTP PCRE buffer flags</li>
+            <li>Consider using <code>regex</code> (Hyperscan) for performance-critical rules</li>
+          </ol>
+        </div><!-- end ref-snort3 -->
 
       </div>
     </section>
@@ -2470,6 +3054,18 @@ if __name__ == "__main__":
           if (!tab.dataset.view) return; // external link — let the browser handle it
           switchView(tab.dataset.view, tab);
         }));
+
+        // Reference view sub-tab switching
+        document.querySelectorAll(".ref-tab-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            document.querySelectorAll(".ref-tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".ref-panel").forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            const panel = document.getElementById(btn.dataset.ref);
+            if (panel) panel.classList.add("active");
+          });
+        });
+
         document.getElementById("logoBtn").addEventListener("click", () => {
           const homeTab = el.tabs.find(t => t.dataset.view === "homeView");
           if (homeTab) switchView("homeView", homeTab);
