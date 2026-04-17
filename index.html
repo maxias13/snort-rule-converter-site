@@ -786,7 +786,7 @@
   <div class="app">
     <nav class="top-nav">
       <div class="logo" style="cursor:pointer;" id="logoBtn">
-        <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:86px; width:auto; display:block;" />
+        <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:86px; width:auto; display:block; mix-blend-mode:multiply;" />
       </div>
       <div class="tabs">
         <button class="tab-btn active" data-view="homeView">Home</button>
@@ -2471,8 +2471,6 @@ if __name__ == "__main__":
           if (!tab.dataset.view) return; // external link — let the browser handle it
           switchView(tab.dataset.view, tab);
         }));
-
-        });
 
         document.getElementById("logoBtn").addEventListener("click", () => {
           const homeTab = el.tabs.find(t => t.dataset.view === "homeView");
