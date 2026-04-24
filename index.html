@@ -903,7 +903,7 @@
       </div>
 
       <!-- ── Snort 3 Local Rule Writing Guide ──────────────────────────── -->
-      <div class="panel" style="margin-top:0;">
+      <div id="snort3GuidePanel" class="panel" style="margin-top:0; display:none;">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
           <div>
             <h3 style="margin:0 0 4px;">&#128218; Snort 3 Local Rule Writing Guide</h3>
@@ -2412,6 +2412,7 @@ if __name__ == "__main__":
           ? "Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"
           : "Paste Snort 3 local rules here, or drag & drop a .rules / .txt file…";
         el.optResults.innerHTML = "";
+        document.getElementById("snort3GuidePanel").style.display = v === 3 ? "" : "none";
       }
 
       init();
