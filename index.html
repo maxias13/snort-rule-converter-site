@@ -2934,10 +2934,18 @@ if __name__ == "__main__":
           Analyzing <b style="color:var(--primary);">${versionLabel}</b> rules — ${ruleLines.length} rule(s) total
         </div>`;
 
+        const allOptimizedRules = [];
+
         ruleLines.forEach((line, idx) => {
           const trimmed = line.trim();
           const { mismatch, suggestions, explanation } = analyzeRule(trimmed, optVersion);
-          const label   = `Rule ${idx + 1}`;
+          const label = `Rule ${idx + 1}`;
+
+          const { rule: fixedRule, changes: autoFixes } = optVersion === 2
+            ? applySnort2Fixes(trimmed)
+            : { rule: reorderMetaOpts(trimmed), changes: [] };
+          allOptimizedRules.push(fixedRule);
+
           html += `<div class="opt-rule-block">
             <div class="opt-rule-header">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
             <div class="opt-rule-body">`;
@@ -2956,7 +2964,6 @@ if __name__ == "__main__":
             html += `<div class="opt-rule-ok">&#10003; No issues — this rule is optimal for ${escapeHtml(versionLabel)}.</div>`;
           } else {
             suggestions.forEach(s => {
-              const levelColors = { warn:"var(--error)", info:"var(--primary)", perf:"var(--warn)" };
               html += `<div class="opt-item">
                 <span class="opt-badge ${s.level}">${s.level.toUpperCase()}</span>
                 <span>${escapeHtml(s.msg)}${s.fix
@@ -2966,7 +2973,7 @@ if __name__ == "__main__":
             });
           }
 
-          // ── Detailed explanation of each option ──────────────────────
+          // ── Rule Option Details ──────────────────────────────────────
           if (explanation.length) {
             html += `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:10px;">
               <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:8px; letter-spacing:0.04em;">
@@ -2986,8 +2993,45 @@ if __name__ == "__main__":
             html += `</div>`;
           }
 
+          // ── Optimized Rule (Snort 2 only) ────────────────────────────
+          if (optVersion === 2) {
+            const ruleId = `opt-rule-out-${idx}`;
+            html += `<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+              <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                Optimized Rule
+                ${autoFixes.length
+                  ? `<span style="color:var(--warn); font-size:0.78rem; font-weight:400;">${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>`
+                  : `<span style="color:#22c55e; font-size:0.78rem; font-weight:400;">— already optimal</span>`}
+              </div>
+              ${autoFixes.length
+                ? `<ul style="margin:0 0 8px 18px; padding:0; font-size:0.79rem; color:var(--muted);">${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
+                : ""}
+              <div style="position:relative;">
+                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
+                <button data-copy-id="${ruleId}" onclick="copyTextById('${ruleId}')"
+                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;"
+                  onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">Copy</button>
+              </div>
+            </div>`;
+          }
+
           html += `</div></div>`;
         });
+
+        // ── All Optimized Rules summary block (Snort 2 only) ─────────
+        if (optVersion === 2 && allOptimizedRules.length > 0) {
+          const allId = "opt-all-rules-out";
+          const allText = allOptimizedRules.join("\n\n");
+          html += `<div style="margin-top:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+              <div style="font-size:0.9rem; font-weight:700; color:var(--primary);">All Optimized Rules (${allOptimizedRules.length})</div>
+              <button data-copy-id="${allId}" onclick="copyTextById('${allId}')"
+                style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
+            </div>
+            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
+          </div>`;
+        }
+
         el.optResults.innerHTML = html;
         el.optDownloadBtn.classList.remove("hidden");
         el.optDownloadCleanBtn.classList.remove("hidden");
@@ -3032,6 +3076,97 @@ if __name__ == "__main__":
         URL.revokeObjectURL(url);
       }
 
+      function copyTextById(id) {
+        const target = document.getElementById(id);
+        if (!target) return;
+        navigator.clipboard.writeText(target.innerText || target.textContent).then(() => {
+          const btn = document.querySelector(`[data-copy-id="${id}"]`);
+          if (!btn) return;
+          const orig = btn.textContent;
+          btn.textContent = "✓ Copied";
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
+      }
+
+      function applySnort2Fixes(line) {
+        const changes = [];
+        const parenStart = line.indexOf("(");
+        const parenEnd   = line.lastIndexOf(")");
+        if (parenStart === -1 || parenEnd === -1) return { rule: line, changes };
+
+        const header = line.slice(0, parenStart);
+        // splitOptions auto-normalizes missing semicolons between options
+        const rawTokenCount = line.slice(parenStart + 1, parenEnd).split(";").map(s => s.trim()).filter(Boolean).length;
+        let opts = splitOptions(line.slice(parenStart + 1, parenEnd));
+        if (opts.length > rawTokenCount) changes.push("Missing semicolons between options fixed");
+
+        // 1. fast_pattern:only → fast_pattern
+        let fpFixed = false;
+        opts = opts.map(o => {
+          if (/fast_pattern\s*:\s*only/i.test(o)) { fpFixed = true; return o.replace(/fast_pattern\s*:\s*only/i, "fast_pattern"); }
+          return o;
+        });
+        if (fpFixed) changes.push("fast_pattern:only → fast_pattern");
+
+        // 2. uricontent → content + http_uri
+        const expanded = [];
+        let uriFixed = false;
+        opts.forEach(o => {
+          if (optionKeyword(o).toLowerCase() === "uricontent") {
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            expanded.push(`content:${val}`, "http_uri");
+            uriFixed = true;
+          } else {
+            expanded.push(o);
+          }
+        });
+        if (uriFixed) changes.push("uricontent → content + http_uri");
+        opts = expanded;
+
+        // 3. Add fast_pattern to first non-negated content if ≥2 contents and none present
+        const contentCount = opts.filter(o => optionKeyword(o).toLowerCase() === "content").length;
+        const hasFP = opts.some(o => /fast_pattern/i.test(o));
+        if (contentCount >= 2 && !hasFP) {
+          const idx = opts.findIndex(o => {
+            if (optionKeyword(o).toLowerCase() !== "content") return false;
+            return !o.slice(o.indexOf(":") + 1).trim().startsWith("!");
+          });
+          if (idx !== -1) { opts.splice(idx + 1, 0, "fast_pattern"); changes.push("fast_pattern added to first content option"); }
+        }
+
+        // 4. Move msg to front
+        const msgIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "msg");
+        if (msgIdx > 0) {
+          const [msgOpt] = opts.splice(msgIdx, 1);
+          opts.unshift(msgOpt);
+          changes.push("msg moved to front of options");
+        }
+
+        // 5. Reorder gid/sid/rev to tail
+        const TAIL = ["gid", "sid", "rev"];
+        const tailMap = {}, others = [];
+        for (const o of opts) {
+          const kw = optionKeyword(o).toLowerCase();
+          if (TAIL.includes(kw)) tailMap[kw] = o; else others.push(o);
+        }
+        const tailOrdered = TAIL.filter(k => tailMap[k]).map(k => tailMap[k]);
+        const beforeTail = opts.slice(opts.length - tailOrdered.length).map(o => optionKeyword(o).toLowerCase()).join(",");
+        const afterTail  = tailOrdered.map(o => optionKeyword(o).toLowerCase()).join(",");
+        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
+        opts = [...others, ...tailOrdered];
+
+        // 6. Increment rev if any changes were made
+        if (changes.length > 0) {
+          const revIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
+          if (revIdx !== -1) {
+            const revVal = parseInt(opts[revIdx].slice(opts[revIdx].indexOf(":") + 1).trim(), 10);
+            if (!isNaN(revVal)) { opts[revIdx] = `rev:${revVal + 1}`; changes.push(`rev incremented: ${revVal} → ${revVal + 1}`); }
+          }
+        }
+
+        return { rule: `${header}(${opts.join("; ")};)`, changes };
+      }
+
       function reorderMetaOpts(line) {
         const pStart = line.indexOf("(");
         const pEnd   = line.lastIndexOf(")");
@@ -3056,7 +3191,11 @@ if __name__ == "__main__":
 
         const now = new Date();
         const ts  = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
-        const content = ruleLines.map(r => reorderMetaOpts(r.trim())).filter(r => r).join("\n") + "\n";
+        const content = ruleLines.map(r => {
+          const trimmed = r.trim();
+          if (optVersion === 2) { const { rule } = applySnort2Fixes(trimmed); return rule; }
+          return reorderMetaOpts(trimmed);
+        }).filter(r => r).join("\n") + "\n";
 
         const blob = new Blob([content], { type: "text/plain" });
         const url  = URL.createObjectURL(blob);
