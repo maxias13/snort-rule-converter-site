@@ -2541,6 +2541,30 @@ if __name__ == "__main__":
         el.optimizeBtn.addEventListener("click", runOptimize);
         el.optDownloadBtn.addEventListener("click", downloadAnnotatedRules);
         el.optDownloadCleanBtn.addEventListener("click", downloadOptimizedRules);
+
+        // ── Copy buttons inside optResults (event delegation) ────────────
+        el.optResults.addEventListener("click", function(e) {
+          const btn = e.target.closest("[data-copy-id]");
+          if (!btn) return;
+          const targetEl = document.getElementById(btn.dataset.copyId);
+          if (!targetEl) return;
+          const text = targetEl.innerText || targetEl.textContent;
+          navigator.clipboard.writeText(text).then(() => {
+            const orig = btn.textContent;
+            btn.textContent = "✓ Copied";
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+          }).catch(() => {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed"; ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select(); document.execCommand("copy");
+            document.body.removeChild(ta);
+            const orig = btn.textContent;
+            btn.textContent = "✓ Copied";
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+          });
+        });
         el.optInput.addEventListener("input", updateOptRuleCount);
 
         // ── Drag & Drop on optimizer input ───────────────────────────────
@@ -2950,7 +2974,7 @@ if __name__ == "__main__":
           html += `<div style="margin-bottom:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
               <div style="font-size:0.9rem; font-weight:700; color:var(--primary);">&#10003; All Optimized Rules (${analyzed.length})</div>
-              <button data-copy-id="${allId}" onclick="copyTextById('${allId}')"
+              <button data-copy-id="${allId}"
                 style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
             </div>
             <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
@@ -2984,9 +3008,8 @@ if __name__ == "__main__":
                 : ""}
               <div style="position:relative;">
                 <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
-                <button data-copy-id="${ruleId}" onclick="copyTextById('${ruleId}')"
-                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;"
-                  onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">Copy</button>
+                <button data-copy-id="${ruleId}"
+                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;">Copy</button>
               </div>
             </div>`;
           }
