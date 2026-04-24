@@ -3151,15 +3151,28 @@ if __name__ == "__main__":
         if (uriFixed) changes.push("uricontent → content + http_uri");
         opts = expanded;
 
-        // 3. Add fast_pattern to first non-negated content if ≥2 contents and none present
+        // 3. Add fast_pattern to first eligible non-negated content if ≥2 contents and none present
+        // Snort 2 restriction: fast_pattern is mutually exclusive with distance/within on the same content
         const contentCount = opts.filter(o => optionKeyword(o).toLowerCase() === "content").length;
         const hasFP = opts.some(o => /fast_pattern/i.test(o));
         if (contentCount >= 2 && !hasFP) {
-          const idx = opts.findIndex(o => {
-            if (optionKeyword(o).toLowerCase() !== "content") return false;
-            return !o.slice(o.indexOf(":") + 1).trim().startsWith("!");
-          });
-          if (idx !== -1) { opts.splice(idx + 1, 0, "fast_pattern"); changes.push("fast_pattern added to first content option"); }
+          const hasRelativeMod = (contentIdx) => {
+            for (let i = contentIdx + 1; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") break;
+              if (kw === "distance" || kw === "within") return true;
+            }
+            return false;
+          };
+          let fpIdx = -1;
+          for (let i = 0; i < opts.length; i++) {
+            if (optionKeyword(opts[i]).toLowerCase() !== "content") continue;
+            if (opts[i].slice(opts[i].indexOf(":") + 1).trim().startsWith("!")) continue;
+            if (hasRelativeMod(i)) continue;
+            fpIdx = i;
+            break;
+          }
+          if (fpIdx !== -1) { opts.splice(fpIdx + 1, 0, "fast_pattern"); changes.push("fast_pattern added to first eligible content option"); }
         }
 
         // 4. Move msg to front
@@ -3454,6 +3467,24 @@ if __name__ == "__main__":
             if (/fast_pattern\s*:\s*only/i.test(o))
               suggestions.push({ level:"warn", msg:"'fast_pattern:only' has been removed in Snort 3.", fix:"Use plain fast_pattern;" });
           });
+
+          // Detect fast_pattern on content with distance/within — invalid in Snort 2
+          {
+            let lastContentIdx = -1;
+            let lastHasFP = false;
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") {
+                lastContentIdx = i;
+                lastHasFP = /fast_pattern/i.test(opts[i]);
+              } else if (kw === "fast_pattern") {
+                lastHasFP = true;
+              } else if ((kw === "distance" || kw === "within") && lastHasFP && lastContentIdx !== -1) {
+                suggestions.push({ level:"warn", msg:`[Syntax Error] fast_pattern and '${kw}' are mutually exclusive on the same content option in Snort 2 — the rule will be rejected by the parser.` });
+                lastHasFP = false;
+              }
+            }
+          }
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() !== "pcre") return;
