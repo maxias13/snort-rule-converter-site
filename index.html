@@ -3082,7 +3082,7 @@ if __name__ == "__main__":
         URL.revokeObjectURL(url);
       }
 
-      function copyTextById(id) {
+      window.copyTextById = function(id) {
         const target = document.getElementById(id);
         if (!target) return;
         navigator.clipboard.writeText(target.innerText || target.textContent).then(() => {
@@ -3092,7 +3092,7 @@ if __name__ == "__main__":
           btn.textContent = "✓ Copied";
           setTimeout(() => { btn.textContent = orig; }, 1500);
         });
-      }
+      };
 
       function applySnort2Fixes(line) {
         const changes = [];
