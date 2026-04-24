@@ -895,7 +895,7 @@
 
         <div class="drop-zone" id="optDropZone">
           <div class="drop-overlay" id="optDropOverlay">&#8595; Drop .rules / .txt file</div>
-          <textarea id="optInput" class="textarea" rows="10"
+          <textarea id="optInput" class="textarea" rows="6"
             placeholder="Paste Snort 2 or 3 rules here, or drag & drop a .rules / .txt file…"></textarea>
         </div>
 
@@ -3035,6 +3035,7 @@ if __name__ == "__main__":
         el.optResults.innerHTML = html;
         el.optDownloadBtn.classList.remove("hidden");
         el.optDownloadCleanBtn.classList.remove("hidden");
+        el.optResults.scrollIntoView({ behavior: "smooth", block: "start" });
       }
 
       function downloadAnnotatedRules() {
