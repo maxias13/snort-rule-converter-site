@@ -2930,27 +2930,68 @@ if __name__ == "__main__":
           return;
         }
         const versionLabel = optVersion === 2 ? "Snort 2" : "Snort 3";
-        let html = `<div class="muted" style="font-size:0.82rem;margin-bottom:14px;">
-          Analyzing <b style="color:var(--primary);">${versionLabel}</b> rules — ${ruleLines.length} rule(s) total
-        </div>`;
 
-        const allOptimizedRules = [];
-
-        ruleLines.forEach((line, idx) => {
+        // ── Pre-compute all optimized rules first ─────────────────────
+        const analyzed = ruleLines.map((line, idx) => {
           const trimmed = line.trim();
           const { mismatch, suggestions, explanation } = analyzeRule(trimmed, optVersion);
-          const label = `Rule ${idx + 1}`;
-
           const { rule: fixedRule, changes: autoFixes } = optVersion === 2
             ? applySnort2Fixes(trimmed)
             : { rule: reorderMetaOpts(trimmed), changes: [] };
-          allOptimizedRules.push(fixedRule);
+          return { trimmed, mismatch, suggestions, explanation, fixedRule, autoFixes };
+        });
+
+        let html = "";
+
+        // ── 1. All Optimized Rules block — shown FIRST ────────────────
+        if (optVersion === 2) {
+          const allId = "opt-all-rules-out";
+          const allText = analyzed.map(a => a.fixedRule).join("\n\n");
+          html += `<div style="margin-bottom:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+              <div style="font-size:0.9rem; font-weight:700; color:var(--primary);">&#10003; All Optimized Rules (${analyzed.length})</div>
+              <button data-copy-id="${allId}" onclick="copyTextById('${allId}')"
+                style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
+            </div>
+            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
+          </div>`;
+        }
+
+        // ── 2. Per-rule analysis blocks ───────────────────────────────
+        html += `<div class="muted" style="font-size:0.82rem;margin-bottom:10px;">
+          Analyzing <b style="color:var(--primary);">${versionLabel}</b> rules — ${ruleLines.length} rule(s) total
+        </div>`;
+
+        analyzed.forEach(({ trimmed, mismatch, suggestions, explanation, fixedRule, autoFixes }, idx) => {
+          const label = `Rule ${idx + 1}`;
+          const ruleId = `opt-rule-out-${idx}`;
 
           html += `<div class="opt-rule-block">
             <div class="opt-rule-header">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
             <div class="opt-rule-body">`;
 
-          // ── Version mismatch banner ───────────────────────────────────
+          // ── Optimized Rule — shown FIRST inside each block ────────
+          if (optVersion === 2) {
+            html += `<div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--border);">
+              <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                Optimized Rule
+                ${autoFixes.length
+                  ? `<span style="color:var(--warn); font-size:0.78rem; font-weight:400;">${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>`
+                  : `<span style="color:#22c55e; font-size:0.78rem; font-weight:400;">— already optimal</span>`}
+              </div>
+              ${autoFixes.length
+                ? `<ul style="margin:0 0 8px 18px; padding:0; font-size:0.79rem; color:var(--muted);">${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
+                : ""}
+              <div style="position:relative;">
+                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
+                <button data-copy-id="${ruleId}" onclick="copyTextById('${ruleId}')"
+                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;"
+                  onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">Copy</button>
+              </div>
+            </div>`;
+          }
+
+          // ── Version mismatch banner ─────────────────────────────────
           if (mismatch) {
             html += `<div style="margin-bottom:10px; padding:8px 12px; border-radius:6px;
                        border:1px solid var(--error); background:rgba(255,68,68,0.1);
@@ -2959,7 +3000,7 @@ if __name__ == "__main__":
             </div>`;
           }
 
-          // ── Optimization suggestions ─────────────────────────────────
+          // ── Optimization suggestions ────────────────────────────────
           if (!suggestions.length && !mismatch) {
             html += `<div class="opt-rule-ok">&#10003; No issues — this rule is optimal for ${escapeHtml(versionLabel)}.</div>`;
           } else {
@@ -2973,7 +3014,7 @@ if __name__ == "__main__":
             });
           }
 
-          // ── Rule Option Details ──────────────────────────────────────
+          // ── Rule Option Details ─────────────────────────────────────
           if (explanation.length) {
             html += `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:10px;">
               <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:8px; letter-spacing:0.04em;">
@@ -2993,44 +3034,8 @@ if __name__ == "__main__":
             html += `</div>`;
           }
 
-          // ── Optimized Rule (Snort 2 only) ────────────────────────────
-          if (optVersion === 2) {
-            const ruleId = `opt-rule-out-${idx}`;
-            html += `<div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
-              <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                Optimized Rule
-                ${autoFixes.length
-                  ? `<span style="color:var(--warn); font-size:0.78rem; font-weight:400;">${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>`
-                  : `<span style="color:#22c55e; font-size:0.78rem; font-weight:400;">— already optimal</span>`}
-              </div>
-              ${autoFixes.length
-                ? `<ul style="margin:0 0 8px 18px; padding:0; font-size:0.79rem; color:var(--muted);">${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
-                : ""}
-              <div style="position:relative;">
-                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
-                <button data-copy-id="${ruleId}" onclick="copyTextById('${ruleId}')"
-                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;"
-                  onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">Copy</button>
-              </div>
-            </div>`;
-          }
-
           html += `</div></div>`;
         });
-
-        // ── All Optimized Rules summary block (Snort 2 only) ─────────
-        if (optVersion === 2 && allOptimizedRules.length > 0) {
-          const allId = "opt-all-rules-out";
-          const allText = allOptimizedRules.join("\n\n");
-          html += `<div style="margin-top:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
-              <div style="font-size:0.9rem; font-weight:700; color:var(--primary);">All Optimized Rules (${allOptimizedRules.length})</div>
-              <button data-copy-id="${allId}" onclick="copyTextById('${allId}')"
-                style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
-            </div>
-            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
-          </div>`;
-        }
 
         el.optResults.innerHTML = html;
         el.optDownloadBtn.classList.remove("hidden");
