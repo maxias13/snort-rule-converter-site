@@ -4315,6 +4315,27 @@ if __name__ == "__main__":
         const warnings = [];
         const originalHasActivates = options.some((o) => optionKeyword(o) === "activates") || options.some((o) => optionKeyword(o) === "activated_by");
 
+        // ── PASS 0a: Header transformations (snort2-to-3-migration-tool skill) ──
+        // - action mapping: drop/sdrop → block
+        // - destination negated variable: !$VAR → any (Snort 3 incompatible header)
+        let header = parsed.header;
+        const headerParts = header.split(/\s+/);
+        if (headerParts.length === 7) {
+          const actionLower = headerParts[0].toLowerCase();
+          if (actionLower === "drop" || actionLower === "sdrop") {
+            warnings.push(`action '${headerParts[0]}' converted to 'block' (Snort 3 action model)`);
+            headerParts[0] = "block";
+            changeCount += 1;
+          }
+          // headerParts[5] is dst IP (action proto src srcport -> dst dstport)
+          if (/^!\$[A-Z_][A-Z0-9_]*$/i.test(headerParts[5])) {
+            warnings.push(`destination negated variable '${headerParts[5]}' replaced with 'any' (Snort 3 header incompatibility)`);
+            headerParts[5] = "any";
+            changeCount += 1;
+          }
+          header = headerParts.join(" ");
+        }
+
         const transformed = [];
 
         options.forEach((opt) => {
@@ -4463,7 +4484,9 @@ if __name__ == "__main__":
           }
 
           if (lower === "rawbytes") {
-            warnings.push("rawbytes removed in Snort 3");
+            // Per snort2-to-3-migration-tool skill mapping: rawbytes → pkt_data
+            warnings.push("rawbytes converted to pkt_data sticky buffer (Snort 3 raw packet payload)");
+            transformed.push("pkt_data");
             changeCount += 1;
             return;
           }
@@ -4557,6 +4580,26 @@ if __name__ == "__main__":
         const merged = mergeContentModifiers(final);
         if (JSON.stringify(merged) !== JSON.stringify(final)) changeCount += 1;
 
+        // ── PASS 5: Service hint enrichment (snort2-to-3-migration-tool skill) ──
+        // Snort 3 inspectors require explicit service:; HTTP sticky buffer usage
+        // strongly implies HTTP traffic. Add conservatively only when no service is set.
+        const HTTP_BUFFER_KEYS = new Set([
+          "http_uri", "http_raw_uri", "http_header", "http_raw_header",
+          "http_client_body", "http_raw_body", "http_method", "http_cookie",
+          "http_raw_cookie", "http_stat_code", "http_stat_msg",
+          "http_user_agent", "http_host", "http_raw_host", "http_param",
+          "http_version", "http_trailer", "http_raw_trailer", "http_true_ip",
+          "http_num_headers", "http_num_trailers", "http_num_cookies",
+          "http_response", "http_request", "file_data"
+        ]);
+        const hasHttpBuffer = merged.some((o) => HTTP_BUFFER_KEYS.has(optionKeyword(o).toLowerCase()));
+        const hasService = merged.some((o) => optionKeyword(o).toLowerCase() === "service");
+        if (hasHttpBuffer && !hasService) {
+          merged.push("service:http");
+          warnings.push("service:http; auto-added based on HTTP sticky buffer usage (Snort 3 inspector hint)");
+          changeCount += 1;
+        }
+
         // Ensure gid, sid, rev appear at the end in that order.
         const TAIL_ORDER = ["gid", "sid", "rev"];
         const tail = [];
@@ -4577,7 +4620,7 @@ if __name__ == "__main__":
         }
 
         const optionsString = ordered.join("; ");
-        const outputRule = `${parsed.header} (${optionsString};)`;
+        const outputRule = `${header} (${optionsString};)`;
         const sid = extractOptionValue(ordered, "sid");
 
         return {
