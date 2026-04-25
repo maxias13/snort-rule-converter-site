@@ -73,7 +73,7 @@ content:"X"; depth:20; nocase; distance:0;
 
 ### 2. Rule Optimization
 
-Analyzes Snort 2 or Snort 3 local rules and provides optimization suggestions in **Korean**.
+Analyzes Snort 2 or Snort 3 local rules, provides optimization suggestions in **Korean**, and emits an auto-fixed version of each rule.
 
 - **Version toggle** — Snort 2 / Snort 3 selector applies version-specific checks
 - **Multi-line rule support** — parenthesis depth tracking joins formatted multi-line rules before analysis
@@ -81,6 +81,9 @@ Analyzes Snort 2 or Snort 3 local rules and provides optimization suggestions in
 - **Per-rule suggestions** — categorized as `PERF` (performance), `WARN` (correctness), `INFO` (best practice)
 - **Per-option detailed explanation** — `OPT_EXPLAIN` database covers ~40 keywords with Korean descriptions
 - **Click to expand** — rule header shows truncated rule, click to reveal full text
+- **Auto-fix engine** — `applySnort2Fixes()` / `applySnort3Fixes()` automatically rewrites each rule to follow best practices and lists the changes that were applied
+- **All Optimized Rules panel** — top-of-screen aggregated view of every fixed rule with a one-click **Copy All** button (rendered for **both Snort 2 and Snort 3**)
+- **Per-rule Optimized Rule section** — each rule card shows its fixed version + auto-fixes list + per-rule Copy button (rendered for **both Snort 2 and Snort 3**)
 
 #### Suggestion Categories (examples)
 
@@ -95,6 +98,19 @@ Analyzes Snort 2 or Snort 3 local rules and provides optimization suggestions in
 | WARN | Deprecated Snort 2 keywords present |
 | INFO | `flowbits` → `xbits` migration note |
 | INFO | `dce_stub_data` requires dce2 inspector |
+
+#### Auto-Fix Examples
+
+| Version | Auto-Fix |
+|---------|----------|
+| Snort 2 / 3 | Inject `fast_pattern` on the longest `content` when missing |
+| Snort 2 / 3 | Append `flow:established,to_server;` when `flow` is absent |
+| Snort 2 / 3 | Reorder `gid; sid; rev;` to the end of the option list |
+| Snort 3 | Convert `uricontent:"X"` → `http_uri; content:"X"` |
+| Snort 3 | Convert `flowbits:set,name` → `xbits:set,name,track ip_src` |
+| Snort 3 | Strip Snort-2-only modifiers (`rawbytes`, `:only`, `metadata:service http` → `service:http`) |
+| Snort 3 | Inline positional content modifiers (`depth`, `within`, `offset`, `distance`, `nocase`, `fast_pattern`) |
+| Snort 3 | Promote sticky buffers (`http_uri`, `http_header`, …) before their `content` |
 
 ---
 
