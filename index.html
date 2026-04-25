@@ -780,6 +780,164 @@
     .si-value { color: #d0e8ff; }
     .si-value a { color: var(--primary); text-decoration: none; }
     .si-value a:hover { text-decoration: underline; }
+
+    /* ── Useful Script Download (header button + modal) ─────────────────── */
+    .scriptdl-btn {
+      border-color: #00d4ff66 !important;
+      color: #d0f4ff !important;
+      background: linear-gradient(135deg, rgba(0,212,255,0.10), rgba(0,212,255,0.02)) !important;
+    }
+    .scriptdl-btn:hover {
+      border-color: var(--primary) !important;
+      color: #fff !important;
+      background: linear-gradient(135deg, rgba(0,212,255,0.22), rgba(0,212,255,0.06)) !important;
+    }
+    .scriptdl-overlay {
+      position: fixed; inset: 0;
+      background: rgba(4, 8, 18, 0.78);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+    .scriptdl-overlay.open { display: flex; }
+    .scriptdl-modal {
+      background: linear-gradient(180deg, #0f1629 0%, #0c1326 100%);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: min(720px, 100%);
+      max-height: 82vh;
+      display: flex; flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,212,255,0.15);
+      overflow: hidden;
+      animation: scriptdlIn 0.18s ease-out;
+    }
+    @keyframes scriptdlIn {
+      from { transform: translateY(8px) scale(0.98); opacity: 0; }
+      to   { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .scriptdl-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,212,255,0.08), transparent);
+    }
+    .scriptdl-title {
+      margin: 0;
+      font-size: 1.02rem;
+      color: var(--primary);
+      letter-spacing: 0.02em;
+      font-weight: 700;
+    }
+    .scriptdl-sub {
+      margin: 2px 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .scriptdl-close {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .scriptdl-close:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .scriptdl-body {
+      padding: 14px 18px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .scriptdl-state {
+      padding: 28px 12px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .scriptdl-state .scriptdl-spinner {
+      width: 22px; height: 22px;
+      border: 2px solid rgba(0,212,255,0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      margin: 0 auto 10px;
+      animation: scriptdlSpin 0.8s linear infinite;
+    }
+    @keyframes scriptdlSpin { to { transform: rotate(360deg); } }
+    .scriptdl-list {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .scriptdl-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #091124;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .scriptdl-item:hover {
+      border-color: rgba(0,212,255,0.55);
+      background: #0b1530;
+    }
+    .scriptdl-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(0,212,255,0.18), rgba(0,212,255,0.04));
+      border: 1px solid rgba(0,212,255,0.30);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--primary);
+      font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+    .scriptdl-meta { flex: 1; min-width: 0; }
+    .scriptdl-name {
+      color: var(--text);
+      font-size: 0.92rem;
+      font-weight: 600;
+      word-break: break-all;
+      line-height: 1.3;
+    }
+    .scriptdl-info {
+      color: var(--muted);
+      font-size: 0.76rem;
+      margin-top: 2px;
+    }
+    .scriptdl-dl {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--primary);
+      background: linear-gradient(135deg, rgba(0,212,255,0.18), rgba(0,212,255,0.04));
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .scriptdl-dl:hover {
+      background: var(--primary);
+      color: #001a26;
+    }
+    .scriptdl-foot {
+      padding: 10px 18px;
+      border-top: 1px solid var(--border);
+      font-size: 0.74rem;
+      color: var(--muted);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; flex-wrap: wrap;
+    }
+    .scriptdl-foot a { color: var(--primary); text-decoration: none; }
+    .scriptdl-foot a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -795,6 +953,7 @@
         <button class="tab-btn" data-view="sruView">Snort SRU Updates</button>
         <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
         <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">How to write Snort 3 rules &#8599;</a>
+        <button class="tab-btn scriptdl-btn" id="scriptDlBtn" type="button">&#128229; Useful Script Download</button>
         <button class="tab-btn siteinfo-btn" data-view="siteinfoView">&#8505; Site Information</button>
         <button class="tab-btn feedback-btn" data-view="feedbackView">&#128172; Feedback</button>
       </div>
@@ -5197,6 +5356,188 @@ if __name__ == "__main__":
       }
     })();
   </script>
+
+  <!-- ── Useful Script Download Modal ────────────────────────────────── -->
+  <div class="scriptdl-overlay" id="scriptDlOverlay" role="dialog" aria-modal="true" aria-labelledby="scriptDlTitle" aria-hidden="true">
+    <div class="scriptdl-modal" role="document">
+      <div class="scriptdl-head">
+        <div>
+          <h3 class="scriptdl-title" id="scriptDlTitle">&#128229; Useful Script Download</h3>
+          <p class="scriptdl-sub">Admin-published utility scripts &amp; programs</p>
+        </div>
+        <button class="scriptdl-close" id="scriptDlClose" type="button" aria-label="Close">&#10005;</button>
+      </div>
+      <div class="scriptdl-body" id="scriptDlBody">
+        <div class="scriptdl-state">
+          <div class="scriptdl-spinner"></div>
+          Loading scripts from GitHub…
+        </div>
+      </div>
+      <div class="scriptdl-foot">
+        <span>Files served live from
+          <a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/scripts" target="_blank" rel="noopener noreferrer">/scripts</a>
+          on GitHub.
+        </span>
+        <span id="scriptDlCount"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── Useful Script Download (GitHub Contents API) ──────────────────────
+    (function () {
+      const REPO_OWNER = "maxias13";
+      const REPO_NAME  = "snort-rule-converter-site";
+      const REPO_BRANCH = "main";
+      const SCRIPTS_DIR = "scripts";
+      // Files inside scripts/ that should NOT appear in the download list
+      const EXCLUDE = new Set(["README.md", ".gitkeep", ".DS_Store"]);
+
+      const btn      = document.getElementById("scriptDlBtn");
+      const overlay  = document.getElementById("scriptDlOverlay");
+      const closeBtn = document.getElementById("scriptDlClose");
+      const body     = document.getElementById("scriptDlBody");
+      const countEl  = document.getElementById("scriptDlCount");
+
+      if (!btn || !overlay) return;
+
+      // Cache list within this page session (avoid burning the 60 req/h limit)
+      let cached = null;
+
+      function openModal() {
+        overlay.classList.add("open");
+        overlay.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        loadList();
+      }
+      function closeModal() {
+        overlay.classList.remove("open");
+        overlay.setAttribute("aria-hidden", "true");
+        document.body.style.overflow = "";
+      }
+
+      btn.addEventListener("click", openModal);
+      closeBtn.addEventListener("click", closeModal);
+      overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) closeModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
+      });
+
+      function fmtSize(bytes) {
+        if (bytes == null) return "";
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+      }
+
+      function escHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function iconFor(name) {
+        const ext = (name.split(".").pop() || "").toLowerCase();
+        const map = {
+          py: "&#128013;", js: "&#9889;", sh: "&#128187;", bash: "&#128187;",
+          ps1: "&#128187;", zip: "&#128230;", tar: "&#128230;", gz: "&#128230;",
+          rules: "&#128272;", txt: "&#128196;", md: "&#128221;",
+          exe: "&#128190;", pdf: "&#128196;",
+        };
+        return map[ext] || "&#128194;";
+      }
+
+      function renderList(items) {
+        const usable = items
+          .filter((it) => it.type === "file" && !EXCLUDE.has(it.name))
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        countEl.textContent = usable.length
+          ? `${usable.length} script${usable.length === 1 ? "" : "s"} available`
+          : "";
+
+        if (!usable.length) {
+          body.innerHTML = `
+            <div class="scriptdl-state">
+              No scripts have been published yet.<br/>
+              <span style="font-size:0.78rem;">Admin: drop files into <code>/scripts</code> on GitHub and they will appear here.</span>
+            </div>`;
+          return;
+        }
+
+        const rows = usable.map((it) => `
+          <div class="scriptdl-item">
+            <div class="scriptdl-icon">${iconFor(it.name)}</div>
+            <div class="scriptdl-meta">
+              <div class="scriptdl-name">${escHtml(it.name)}</div>
+              <div class="scriptdl-info">${fmtSize(it.size)} &middot; SHA ${escHtml(String(it.sha || "").slice(0, 7))}</div>
+            </div>
+            <a class="scriptdl-dl"
+               href="${escHtml(it.download_url)}"
+               download="${escHtml(it.name)}"
+               target="_blank" rel="noopener noreferrer">&#8595; Download</a>
+          </div>
+        `).join("");
+
+        body.innerHTML = `<div class="scriptdl-list">${rows}</div>`;
+      }
+
+      function renderError(msg) {
+        body.innerHTML = `
+          <div class="scriptdl-state" style="color:#ff8a8a;">
+            ${escHtml(msg)}<br/>
+            <a href="https://github.com/${REPO_OWNER}/${REPO_NAME}/tree/${REPO_BRANCH}/${SCRIPTS_DIR}"
+               target="_blank" rel="noopener noreferrer"
+               style="color:var(--primary); font-size:0.82rem;">
+               &rarr; Browse the /${SCRIPTS_DIR} folder on GitHub
+            </a>
+          </div>`;
+      }
+
+      async function loadList() {
+        if (cached) { renderList(cached); return; }
+
+        body.innerHTML = `
+          <div class="scriptdl-state">
+            <div class="scriptdl-spinner"></div>
+            Loading scripts from GitHub…
+          </div>`;
+
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${SCRIPTS_DIR}?ref=${REPO_BRANCH}`;
+        try {
+          const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" } });
+          if (res.status === 404) {
+            renderError("The /scripts folder does not exist yet on GitHub.");
+            return;
+          }
+          if (res.status === 403) {
+            renderError("GitHub API rate limit reached (60 req/h). Try again later.");
+            return;
+          }
+          if (!res.ok) {
+            renderError(`GitHub API error: HTTP ${res.status}`);
+            return;
+          }
+          const data = await res.json();
+          if (!Array.isArray(data)) {
+            renderError("Unexpected response from GitHub API.");
+            return;
+          }
+          cached = data;
+          renderList(data);
+        } catch (err) {
+          renderError("Network error: " + (err && err.message ? err.message : "unknown"));
+        }
+      }
+    })();
+  </script>
+
   <footer style="text-align:center; padding:18px 0 14px; font-size:0.72rem; color:#ffaa00; opacity:0.7;">
     - All information provided on this site is not official information from Cisco Systems. Please use it with caution. -
   </footer>
