@@ -3172,7 +3172,19 @@ if __name__ == "__main__":
             fpIdx = i;
             break;
           }
-          if (fpIdx !== -1) { opts.splice(fpIdx + 1, 0, "fast_pattern"); changes.push("fast_pattern added to first eligible content option"); }
+          if (fpIdx !== -1) {
+            // Insert fast_pattern AFTER all existing modifiers of this content group,
+            // not right after the content keyword. Buffer modifiers (http_uri, nocase, etc.)
+            // must come before fast_pattern — FMC's Snort 2 parser requires this ordering.
+            let insertAt = fpIdx + 1;
+            while (insertAt < opts.length) {
+              const kw = optionKeyword(opts[insertAt]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") break;
+              insertAt++;
+            }
+            opts.splice(insertAt, 0, "fast_pattern");
+            changes.push("fast_pattern added to first eligible content option");
+          }
         }
 
         // 4. Move msg to front
@@ -3301,10 +3313,10 @@ if __name__ == "__main__":
         const isSnort2 = version === 2;
 
         // Snort-3-only keywords found in a Snort 2 rule
-        // http_method, http_header, http_client_body, http_stat_code, http_raw_uri, http_raw_header,
-        // and detection_filter are all valid Snort 2 keywords (HTTP preprocessor / threshold).
+        // http_uri, http_method, http_header, http_client_body, http_stat_code, http_raw_uri,
+        // http_raw_header, and detection_filter are all valid Snort 2 keywords (HTTP preprocessor).
         // Only xbits, block, and rewrite are genuinely Snort 3-only.
-        const s3only = ["xbits","http_uri","block","rewrite"];
+        const s3only = ["xbits","block","rewrite"];
         // Snort-2-only keywords found in a Snort 3 rule
         // flowbits is valid in both Snort 2 and 3 — not Snort 2-only
         const s2only = ["uricontent","rawbytes","threshold","activates","activated_by","resp","react","logto","session","stream_reassemble","replace"];
