@@ -2961,7 +2961,7 @@ if __name__ == "__main__":
           const { mismatch, suggestions, explanation } = analyzeRule(trimmed, optVersion);
           const { rule: fixedRule, changes: autoFixes } = optVersion === 2
             ? applySnort2Fixes(trimmed)
-            : { rule: reorderMetaOpts(trimmed), changes: [] };
+            : applySnort3Fixes(trimmed);
           return { trimmed, mismatch, suggestions, explanation, fixedRule, autoFixes };
         });
 
@@ -3208,7 +3208,25 @@ if __name__ == "__main__":
         if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
         opts = [...others, ...tailOrdered];
 
-        // 6. Increment rev if any changes were made
+        // 6. PCRE escape: replace literal " ; \ inside regex body with \x22 \x3b \x5c
+        let pcreEscaped = false;
+        opts = opts.map(o => {
+          if (optionKeyword(o).toLowerCase() !== "pcre") return o;
+          const colon = o.indexOf(":");
+          if (colon === -1) return o;
+          const val = o.slice(colon + 1).trim();
+          const m = val.match(/^"\/(.*)\/([a-zA-Z]*)"$/);
+          if (!m) return o;
+          let body = m[1];
+          const flags = m[2];
+          const before = body;
+          body = body.replace(/(?<!\\)"/g, "\\x22").replace(/(?<!\\);/g, "\\x3b");
+          if (body !== before) { pcreEscaped = true; return `pcre:"/${body}/${flags}"`; }
+          return o;
+        });
+        if (pcreEscaped) changes.push("PCRE special characters (\" ;) escaped to \\x22 \\x3b");
+
+        // 7. Increment rev if any changes were made
         if (changes.length > 0) {
           const revIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
           if (revIdx !== -1) {
@@ -3238,6 +3256,103 @@ if __name__ == "__main__":
         return `${header}(${[...others, ...ordered].join("; ")};)`;
       }
 
+      // Snort 3 auto-fixes:
+      // - rawbytes → raw_data; sticky buffer
+      // - Move HTTP sticky buffers to BEFORE the related content/pcre when they appear after
+      // - PCRE escape: " → \x22, ; → \x3b inside the regex body
+      // - gid/sid/rev → tail
+      function applySnort3Fixes(line) {
+        const changes = [];
+        const pStart = line.indexOf("(");
+        const pEnd   = line.lastIndexOf(")");
+        if (pStart === -1 || pEnd === -1) return { rule: line, changes };
+        const header = line.slice(0, pStart);
+        let opts = splitOptions(line.slice(pStart + 1, pEnd));
+
+        // 1. rawbytes → raw_data
+        let rbFixed = false;
+        opts = opts.map(o => {
+          if (optionKeyword(o).toLowerCase() === "rawbytes") { rbFixed = true; return "raw_data"; }
+          return o;
+        });
+        if (rbFixed) changes.push("rawbytes → raw_data");
+
+        // 2. Sticky buffer order — if a sticky buffer appears AFTER its related content/pcre,
+        //    move it just BEFORE the matching content/pcre. Only handle the first occurrence per pass
+        //    to keep the transformation deterministic and conservative.
+        const STICKY_BUFFERS = new Set([
+          "http_uri","http_raw_uri","http_header","http_raw_header",
+          "http_method","http_client_body","http_raw_body",
+          "http_stat_code","http_stat_msg","http_cookie","http_raw_cookie",
+          "http_user_agent","http_host","http_raw_host",
+          "file_data","raw_data","pkt_data","js_data","vba_data"
+        ]);
+        let stickyMoved = false;
+        for (let pass = 0; pass < 4; pass++) {
+          let moved = false;
+          for (let i = 0; i < opts.length; i++) {
+            const kw = optionKeyword(opts[i]).toLowerCase();
+            if (kw !== "content" && kw !== "pcre") continue;
+            for (let j = i + 1; j < opts.length; j++) {
+              const k2 = optionKeyword(opts[j]).toLowerCase();
+              if (k2 === "content" || k2 === "pcre") break;
+              if (STICKY_BUFFERS.has(k2)) {
+                const [bufOpt] = opts.splice(j, 1);
+                opts.splice(i, 0, bufOpt);
+                moved = true;
+                stickyMoved = true;
+                break;
+              }
+            }
+            if (moved) break;
+          }
+          if (!moved) break;
+        }
+        if (stickyMoved) changes.push("Sticky buffer(s) moved before their related content/pcre");
+
+        // 3. PCRE escape — same as Snort 2
+        let pcreEscaped = false;
+        opts = opts.map(o => {
+          if (optionKeyword(o).toLowerCase() !== "pcre") return o;
+          const colon = o.indexOf(":");
+          if (colon === -1) return o;
+          const val = o.slice(colon + 1).trim();
+          const m = val.match(/^"\/(.*)\/([a-zA-Z]*)"$/);
+          if (!m) return o;
+          let body = m[1];
+          const flags = m[2];
+          const before = body;
+          body = body.replace(/(?<!\\)"/g, "\\x22").replace(/(?<!\\);/g, "\\x3b");
+          if (body !== before) { pcreEscaped = true; return `pcre:"/${body}/${flags}"`; }
+          return o;
+        });
+        if (pcreEscaped) changes.push("PCRE special characters escaped");
+
+        // 4. Reorder gid/sid/rev to tail (in correct order)
+        const TAIL = ["gid", "sid", "rev"];
+        const tailMap = {}, others = [];
+        for (const o of opts) {
+          const kw = optionKeyword(o).toLowerCase();
+          if (TAIL.includes(kw)) tailMap[kw] = o; else others.push(o);
+        }
+        const tailOrdered = TAIL.filter(k => tailMap[k]).map(k => tailMap[k]);
+        const beforeTail = opts.slice(opts.length - tailOrdered.length).map(o => optionKeyword(o).toLowerCase()).join(",");
+        const afterTail  = tailOrdered.map(o => optionKeyword(o).toLowerCase()).join(",");
+        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
+        opts = [...others, ...tailOrdered];
+
+        // 5. Increment rev if any changes
+        if (changes.length > 0) {
+          const revIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
+          if (revIdx !== -1) {
+            const revVal = parseInt(opts[revIdx].slice(opts[revIdx].indexOf(":") + 1).trim(), 10);
+            if (!isNaN(revVal)) { opts[revIdx] = `rev:${revVal + 1}`; changes.push(`rev incremented: ${revVal} → ${revVal + 1}`); }
+          }
+        }
+
+        return { rule: `${header}(${opts.join("; ")};)`, changes };
+      }
+
       function downloadOptimizedRules() {
         const ruleLines = joinMultilineRules(el.optInput.value);
         if (!ruleLines.length) return;
@@ -3247,7 +3362,8 @@ if __name__ == "__main__":
         const content = ruleLines.map(r => {
           const trimmed = r.trim();
           if (optVersion === 2) { const { rule } = applySnort2Fixes(trimmed); return rule; }
-          return reorderMetaOpts(trimmed);
+          const { rule } = applySnort3Fixes(trimmed);
+          return rule;
         }).filter(r => r).join("\n") + "\n";
 
         const blob = new Blob([content], { type: "text/plain" });
@@ -3527,6 +3643,99 @@ if __name__ == "__main__":
               suggestions.push({ level:"info", msg:"byte_jump: Review compatibility of from_beginning/from_end/post_offset parameters in Snort 3." });
           });
 
+          // ── PCRE escape sequence checks (Snort 2 — content/pcre quoting) ──
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            // Inside the regex body: literal " ; \ should be \x22 \x3b \x5c
+            const m = val.match(/^"\/(.*)\/[a-zA-Z]*"$/);
+            if (m) {
+              const body = m[1];
+              if (/(?<!\\)"/.test(body))
+                suggestions.push({ level:"warn", msg:'PCRE contains an unescaped double-quote. Use \\x22 inside the regex to avoid parser errors.', fix:'Replace " with \\x22 inside the regex' });
+              if (/(?<!\\);/.test(body))
+                suggestions.push({ level:"warn", msg:'PCRE contains an unescaped semicolon. Use \\x3b inside the regex (otherwise the option will be truncated).', fix:'Replace ; with \\x3b inside the regex' });
+            }
+          });
+
+          // ── Unbounded greedy quantifiers in PCRE ─────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (/\.\*(?!\?)/.test(val) || /\.\+(?!\?)/.test(val))
+              suggestions.push({ level:"perf", msg:"PCRE uses unbounded greedy quantifier (.* or .+). Prefer non-greedy (.*?, .+?) or bounded length (.{1,N}) to avoid catastrophic backtracking." });
+          });
+
+          // ── flow / flags vs protocol consistency ─────────────────────
+          {
+            const headerLower = line.slice(0, parenStart).toLowerCase();
+            const isTcp  = /\balert\s+(tcp|http)\b/.test(headerLower);
+            const isUdp  = /\balert\s+udp\b/.test(headerLower);
+            const isIcmp = /\balert\s+icmp\b/.test(headerLower);
+            if (has("flow") && (isUdp || isIcmp)) {
+              const flowVal = (get("flow") || "").toLowerCase();
+              if (/established/.test(flowVal))
+                suggestions.push({ level:"warn", msg:`flow:established is only meaningful for TCP — current rule protocol is ${isUdp ? "UDP" : "ICMP"}.` });
+            }
+            if (has("flags") && !isTcp)
+              suggestions.push({ level:"warn", msg:"'flags' option requires TCP protocol — remove it for non-TCP rules." });
+          }
+
+          // ── R (relative) / B (rawbytes) flag conflicts in PCRE ───────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            const flagMatch = val.match(/\/([a-zA-Z]+)"?$/);
+            if (!flagMatch) return;
+            const flags = flagMatch[1];
+            const hasHttpFlag = /[UIHDPCMSYK]/.test(flags);
+            if (/B/.test(flags) && hasHttpFlag)
+              suggestions.push({ level:"warn", msg:"PCRE flag 'B' (rawbytes) cannot be combined with HTTP buffer flags (U/I/H/D/P/C/M/S/Y/K)." });
+          });
+
+          // ── content hex pipe pairing (|XX XX|) ────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "content") return;
+            const val = o.slice(o.indexOf(":") + 1).trim().replace(/^!?"(.*)"$/, "$1");
+            const pipeCount = (val.match(/\|/g) || []).length;
+            if (pipeCount % 2 !== 0)
+              suggestions.push({ level:"warn", msg:`content has an odd number of '|' characters — hex byte sections must be enclosed in matched pipe pairs.` });
+          });
+
+          // ── depth shorter than content length ────────────────────────
+          {
+            for (let i = 0; i < opts.length; i++) {
+              if (optionKeyword(opts[i]).toLowerCase() !== "content") continue;
+              const cVal = opts[i].slice(opts[i].indexOf(":") + 1).trim().replace(/^!?"(.*)"$/, "$1");
+              // Approximate text length (hex |XX XX| sections count as bytes)
+              const textOnly = cVal.replace(/\|([0-9A-Fa-f\s]+)\|/g, (_, hex) => {
+                const bytes = hex.trim().split(/\s+/).filter(Boolean).length;
+                return "X".repeat(bytes);
+              });
+              const cLen = textOnly.length;
+              for (let j = i + 1; j < opts.length; j++) {
+                const k = optionKeyword(opts[j]).toLowerCase();
+                if (k === "content" || k === "pcre" || k === "uricontent") break;
+                if (k === "depth") {
+                  const dVal = parseInt(opts[j].slice(opts[j].indexOf(":") + 1).trim(), 10);
+                  if (!isNaN(dVal) && dVal > 0 && dVal < cLen)
+                    suggestions.push({ level:"warn", msg:`depth:${dVal} is smaller than the preceding content length (${cLen} bytes) — the rule can never match.` });
+                }
+              }
+            }
+          }
+
+          // ── within:0 / negative distance ─────────────────────────────
+          opts.forEach(o => {
+            const k = optionKeyword(o).toLowerCase();
+            if (k !== "within" && k !== "distance") return;
+            const v = parseInt(o.slice(o.indexOf(":") + 1).trim(), 10);
+            if (k === "within" && v === 0)
+              suggestions.push({ level:"warn", msg:"within:0 means the next match must occur at byte 0 — this is rarely intended." });
+            if (k === "distance" && !isNaN(v) && v < 0)
+              suggestions.push({ level:"warn", msg:`distance:${v} (negative) is not allowed.` });
+          });
+
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
@@ -3577,6 +3786,105 @@ if __name__ == "__main__":
 
           if (has("dce_stub_data"))
             suggestions.push({ level:"info", msg:"dce_stub_data requires the dce2 inspector to be enabled in snort.lua." });
+
+          // ── Sticky buffer ordering: buffer must precede content/pcre ──
+          {
+            const STICKY_BUFFERS = new Set([
+              "http_uri","http_raw_uri","http_header","http_raw_header",
+              "http_method","http_client_body","http_raw_body",
+              "http_stat_code","http_stat_msg","http_cookie","http_raw_cookie",
+              "http_user_agent","http_host","http_raw_host",
+              "file_data","raw_data","pkt_data","js_data","vba_data",
+              "dce_stub_data","ssl_state","ssl_version"
+            ]);
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw !== "content" && kw !== "pcre") continue;
+              // Look ahead for sticky-buffer keyword applied AFTER this content/pcre
+              for (let j = i + 1; j < opts.length; j++) {
+                const k2 = optionKeyword(opts[j]).toLowerCase();
+                if (k2 === "content" || k2 === "pcre") break;
+                if (STICKY_BUFFERS.has(k2)) {
+                  suggestions.push({ level:"warn", msg:`Snort 3 sticky buffer '${k2}' must appear BEFORE the related content/pcre, not after.`, fix:`Move '${k2};' before '${kw}'` });
+                  break;
+                }
+              }
+            }
+          }
+
+          // ── service: option recommended for app-layer rules ──────────
+          if (!has("service")) {
+            const headerLower = line.slice(0, parenStart).toLowerCase();
+            const stickyHttp = opts.some(o => /^http_/.test(optionKeyword(o).toLowerCase()));
+            const stickyFile = has("file_data");
+            if (stickyHttp || /\balert\s+http\b/.test(headerLower))
+              suggestions.push({ level:"perf", msg:"HTTP sticky buffer used but no service: declared. Add 'service:http;' so Snort 3 can route the rule to the HTTP inspector efficiently.", fix:"service:http;" });
+            else if (stickyFile)
+              suggestions.push({ level:"info", msg:"file_data; used — consider declaring 'service:http,smtp,imap,pop3;' for the protocols you intend to inspect.", fix:"service:http,smtp;" });
+          }
+
+          // ── alert tcp + HTTP sticky buffers → recommend alert http ───
+          {
+            const headerLower = line.slice(0, parenStart).toLowerCase();
+            const stickyHttp = opts.some(o => /^http_/.test(optionKeyword(o).toLowerCase()));
+            if (stickyHttp && /\balert\s+tcp\b/.test(headerLower))
+              suggestions.push({ level:"perf", msg:"Rule uses HTTP sticky buffers but the action protocol is 'tcp'. In Snort 3 prefer 'alert http' (service rule) for better performance.", fix:"Change 'alert tcp ...' to 'alert http ...'" });
+          }
+
+          // ── urilen → bufferlen recommendation (Snort 3 prefers bufferlen) ──
+          if (has("urilen"))
+            suggestions.push({ level:"info", msg:"In Snort 3, 'urilen' still works but 'bufferlen' (after a sticky buffer like http_uri;) is the preferred form.", fix:"http_uri; bufferlen:>10;" });
+
+          // ── pcre escape checks (Snort 3) ──────────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            const m = val.match(/^"\/(.*)\/[a-zA-Z]*"$/);
+            if (m) {
+              const body = m[1];
+              if (/(?<!\\);/.test(body))
+                suggestions.push({ level:"warn", msg:'PCRE contains an unescaped semicolon. Use \\x3b inside the regex.', fix:'Replace ; with \\x3b inside the regex' });
+              if (/(?<!\\)"/.test(body))
+                suggestions.push({ level:"warn", msg:'PCRE contains an unescaped double-quote. Use \\x22 inside the regex.', fix:'Replace " with \\x22 inside the regex' });
+            }
+          });
+
+          // ── Unbounded greedy quantifier in PCRE (Snort 3) ─────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim();
+            if (/\.\*(?!\?)/.test(val) || /\.\+(?!\?)/.test(val))
+              suggestions.push({ level:"perf", msg:"PCRE uses unbounded greedy quantifier (.* or .+). Prefer non-greedy or bounded length to avoid catastrophic backtracking." });
+          });
+
+          // ── content hex pipe pairing (Snort 3) ────────────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "content") return;
+            const val = o.slice(o.indexOf(":") + 1).trim().replace(/^!?"(.*)"$/, "$1");
+            const pipeCount = (val.match(/\|/g) || []).length;
+            if (pipeCount % 2 !== 0)
+              suggestions.push({ level:"warn", msg:"content has an odd number of '|' characters — hex byte sections must be enclosed in matched pipe pairs." });
+          });
+
+          // ── inline modifier suggestion (Snort 3 style) ────────────────
+          {
+            // Look for content followed immediately by separate nocase / fast_pattern options
+            for (let i = 0; i < opts.length - 1; i++) {
+              if (optionKeyword(opts[i]).toLowerCase() !== "content") continue;
+              const next = optionKeyword(opts[i+1]).toLowerCase();
+              if (next === "nocase" || next === "fast_pattern") {
+                suggestions.push({ level:"info", msg:`Snort 3 supports inline modifiers — e.g. 'content:"x",${next};' instead of separate options.`, fix:`Combine: content:"...",${next};` });
+                break; // one suggestion is enough
+              }
+            }
+          }
+
+          // ── replace + non-rewrite action ──────────────────────────────
+          if (has("replace")) {
+            const headerLower = line.slice(0, parenStart).toLowerCase();
+            if (!/\b(rewrite)\b/.test(headerLower))
+              suggestions.push({ level:"warn", msg:"'replace' option requires the 'rewrite' action in Snort 3.", fix:"Use action 'rewrite ...' with 'replace:\"...\";'" });
+          }
         }
 
         // ══ Common checks ════════════════════════════════════════════════
