@@ -2967,8 +2967,8 @@ if __name__ == "__main__":
 
         let html = "";
 
-        // ── 1. All Optimized Rules block — shown FIRST ────────────────
-        if (optVersion === 2) {
+        // ── 1. All Optimized Rules block — shown FIRST (Snort 2 & Snort 3) ────
+        {
           const allId = "opt-all-rules-out";
           const allText = analyzed.map(a => a.fixedRule).join("\n\n");
           html += `<div style="margin-bottom:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
@@ -2994,8 +2994,8 @@ if __name__ == "__main__":
             <div class="opt-rule-header">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
             <div class="opt-rule-body">`;
 
-          // ── Optimized Rule — shown FIRST inside each block ────────
-          if (optVersion === 2) {
+          // ── Optimized Rule — shown FIRST inside each block (Snort 2 & Snort 3) ──
+          {
             html += `<div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--border);">
               <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 Optimized Rule
