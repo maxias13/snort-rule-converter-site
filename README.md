@@ -220,5 +220,5 @@ GitHub Issues API (maxias13/snort-rule-converter, label: feedback)
 ## Repository
 
 - **Source:** `index.html` (single-file application)
-- **GitHub:** https://github.com/maxias13/snort-rule-converter
-- **Live Site:** https://maxias13.github.io/snort-rule-converter/
+- **GitHub:** https://github.com/maxias13/snort-rule-converter-site
+- **Live Site:** https://maxias13.github.io/snort-rule-converter-site/
