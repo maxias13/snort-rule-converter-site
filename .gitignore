@@ -1,0 +1,9 @@
+# macOS noise
+.DS_Store
+
+# Local index.html backups (timestamped)
+*.html.bak
+*_index.html.bak
+
+# Local node_modules / build artifacts (just in case)
+node_modules/
