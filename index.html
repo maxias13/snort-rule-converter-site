@@ -1841,13 +1841,16 @@ python3 trigger_rules.py --delay 1
           <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
           <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, and suggestions</span></div>
+          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Modal-based file browser that lists files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Anyone can download; admins (password-gated, SHA-256 client-side hash) can upload new scripts directly to the repo via a Personal Access Token stored in browser localStorage.</span></div>
         </div>
 
         <div class="si-card">
           <h4>Technical</h4>
           <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
           <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers + GitHub Issues API</span></div>
-          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter</a></span></div>
+          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a></span></div>
+          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download modal</span></div>
+          <div class="si-row"><span class="si-label">Admin Auth</span><span class="si-value">Client-side SHA-256 password gate (used by Notice posts and Useful Script uploads). The hash is in <code style="color:var(--primary);">index.html</code> only — no server-side secret.</span></div>
           <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / JavaScript</span></div>
         </div>
 
