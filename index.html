@@ -122,15 +122,23 @@
     }
 
     .tab-btn {
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 36px;
+      padding: 0 14px;
       border: 1px solid var(--border);
       color: var(--text);
       background: rgba(15, 22, 41, 0.9);
       border-radius: 8px;
-      padding: 8px 12px;
       font-size: 0.9rem;
+      line-height: 1;
+      white-space: nowrap;
       cursor: pointer;
       transition: all 0.2s ease;
       text-decoration: none;
+      font-family: inherit;
     }
     a.tab-btn,
     a.tab-btn:hover,
