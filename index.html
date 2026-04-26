@@ -85,12 +85,28 @@
       max-width: 1400px;
       margin: 0 auto;
       padding: 18px;
+      padding-top: 150px; /* compensate for fixed .top-nav height */
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
+    .top-nav-wrap {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 10px 18px 0;
+      background: linear-gradient(180deg, rgba(7, 12, 24, 0.92) 0%, rgba(7, 12, 24, 0.6) 80%, rgba(7, 12, 24, 0) 100%);
+      backdrop-filter: blur(6px);
+      pointer-events: none;
+    }
+    .top-nav-wrap > .top-nav { pointer-events: auto; }
+
     .top-nav {
+      max-width: 1400px;
+      margin: 0 auto;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -98,11 +114,8 @@
       padding: 12px 16px;
       border: 1px solid var(--border);
       border-radius: 12px;
-      background: linear-gradient(180deg, rgba(16, 26, 45, 0.95), rgba(9, 15, 28, 0.95));
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.3);
-      position: sticky;
-      top: 10px;
-      z-index: 20;
+      background: linear-gradient(180deg, rgba(16, 26, 45, 0.97), rgba(9, 15, 28, 0.97));
+      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(4px);
     }
 
@@ -584,6 +597,7 @@
       .top-nav { flex-direction: column; align-items: flex-start; }
       .tabs { width: 100%; }
       .tab-btn { flex: 1 1 auto; }
+      .app { padding-top: 280px; }
     }
 
     .py-script-wrap {
@@ -1017,6 +1031,7 @@
 </head>
 <body>
   <div class="app">
+    <div class="top-nav-wrap">
     <nav class="top-nav">
       <div class="logo" style="cursor:pointer;" id="logoBtn">
         <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:86px; width:auto; display:block;" />
@@ -1034,6 +1049,7 @@
 <button class="tab-btn feedback-btn" data-view="feedbackView">Feedback</button>
       </div>
     </nav>
+    </div>
 
     <section id="homeView" class="view active">
       <div class="split">
