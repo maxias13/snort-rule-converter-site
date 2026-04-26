@@ -5640,14 +5640,44 @@ if __name__ == "__main__":
               <div class="scriptdl-name">${escHtml(it.name)}</div>
               <div class="scriptdl-info">${fmtSize(it.size)} &middot; SHA ${escHtml(String(it.sha || "").slice(0, 7))}</div>
             </div>
-            <a class="scriptdl-dl"
-               href="${escHtml(it.download_url)}"
-               download="${escHtml(it.name)}"
-               target="_blank" rel="noopener noreferrer">&#8595; Download</a>
+            <button type="button" class="scriptdl-dl"
+               data-url="${escHtml(it.download_url)}"
+               data-name="${escHtml(it.name)}">&#8595; Download</button>
           </div>
         `).join("");
 
         body.innerHTML = `<div class="scriptdl-list">${rows}</div>`;
+
+        // Force binary download via fetch+blob (raw.githubusercontent serves text/plain
+        // for .py/.txt which makes the browser navigate instead of downloading).
+        body.querySelectorAll(".scriptdl-dl").forEach((btn) => {
+          btn.addEventListener("click", async (ev) => {
+            ev.preventDefault();
+            const url = btn.dataset.url;
+            const name = btn.dataset.name || "download";
+            const original = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = "&hellip; downloading";
+            try {
+              const resp = await fetch(url, { cache: "no-store" });
+              if (!resp.ok) throw new Error("HTTP " + resp.status);
+              const blob = await resp.blob();
+              const objUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = objUrl;
+              a.download = name;
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+              btn.innerHTML = "&check; Downloaded";
+              setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+            } catch (err) {
+              btn.innerHTML = "&times; Failed";
+              setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 2000);
+            }
+          });
+        });
       }
 
       function renderError(msg) {
