@@ -5536,6 +5536,41 @@ if __name__ == "__main__":
     })();
   </script>
 
+  <script>
+    // Equalize all top nav buttons to the widest button's width (desktop only)
+    (function equalizeTabBtns() {
+      var mq = window.matchMedia('(max-width: 700px)');
+      function apply() {
+        var btns = document.querySelectorAll('.tabs .tab-btn');
+        if (!btns.length) return;
+        // Reset first so we can re-measure natural widths
+        btns.forEach(function (b) { b.style.minWidth = ''; b.style.width = ''; });
+        if (mq.matches) return; // mobile: keep auto sizing
+        var max = 0;
+        btns.forEach(function (b) {
+          var w = b.getBoundingClientRect().width;
+          if (w > max) max = w;
+        });
+        if (max <= 0) return;
+        var px = Math.ceil(max) + 'px';
+        btns.forEach(function (b) { b.style.minWidth = px; });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', apply);
+      } else {
+        apply();
+      }
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(apply).catch(function () {});
+      }
+      var t;
+      window.addEventListener('resize', function () {
+        clearTimeout(t);
+        t = setTimeout(apply, 100);
+      });
+    })();
+  </script>
+
   <footer style="text-align:center; padding:18px 0 14px; font-size:0.72rem; color:#ffaa00; opacity:0.7;">
     - All information provided on this site is not official information from Cisco Systems. Please use it with caution. -
   </footer>
