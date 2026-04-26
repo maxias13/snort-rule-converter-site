@@ -4325,6 +4325,7 @@ if __name__ == "__main__":
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
+        if (viewId === "scriptDlView" && window.__scriptDlLoad) window.__scriptDlLoad();
       }
 
       function handleFileLoad(event) {
@@ -5629,6 +5630,12 @@ if __name__ == "__main__":
       let unlocked = false;
 
       btn.addEventListener("click", () => loadList());
+
+      // Expose loader so switchView can trigger it (tab nav, ?v=scriptDlView refresh, deep-link)
+      window.__scriptDlLoad = () => loadList();
+
+      // Auto-load if scriptDlView is already active on initial page load
+      if (view.classList.contains("active")) loadList();
 
       function fmtSize(bytes) {
         if (bytes == null) return "";
