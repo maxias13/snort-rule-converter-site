@@ -81,43 +81,36 @@
       min-height: 100%;
     }
 
+    /* ── App layout: fixed left sidebar + content area ─ */
     .app {
       max-width: 1400px;
-      margin: 0 auto;
-      padding: 18px 16px;
-      padding-top: 150px; /* compensate for fixed .top-nav height */
+      margin: 0 auto 0 240px;
+      padding: 18px 24px;
       display: flex;
       flex-direction: column;
       gap: 14px;
     }
 
-    .top-nav-wrap {
+    /* ── Sidebar: fixed vertical navigation ─ */
+    .sidebar {
       position: fixed;
       top: 0;
       left: 0;
-      right: 0;
+      width: 240px;
+      height: 100vh;
+      overflow-y: auto;
       z-index: 100;
-      padding: 10px 18px 0;
-      background: linear-gradient(180deg, rgba(7, 12, 24, 0.92) 0%, rgba(7, 12, 24, 0.6) 80%, rgba(7, 12, 24, 0) 100%);
-      backdrop-filter: blur(6px);
-      pointer-events: none;
-    }
-    .top-nav-wrap > .top-nav { pointer-events: auto; }
-
-    .top-nav {
-      max-width: 1400px;
-      margin: 0 auto;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 12px 16px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px 14px;
+      border-right: 1px solid var(--border);
       background: linear-gradient(180deg, rgba(16, 26, 45, 0.97), rgba(9, 15, 28, 0.97));
-      box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.45);
+      box-shadow: 1px 0 0 rgba(0, 212, 255, 0.12), 6px 0 24px rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(4px);
     }
+    .sidebar::-webkit-scrollbar { width: 6px; }
+    .sidebar::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 3px; }
 
     .logo {
       color: var(--primary);
@@ -126,21 +119,27 @@
       font-size: 1.05rem;
       text-shadow: 0 0 12px rgba(0, 212, 255, 0.45);
       white-space: nowrap;
+      display: flex;
+      justify-content: center;
+      padding: 4px 0 12px;
+      border-bottom: 1px solid var(--border);
     }
 
     .tabs {
       display: flex;
+      flex-direction: column;
       gap: 6px;
-      flex-wrap: wrap;
     }
 
     .tab-btn {
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      height: 36px;
-      padding: 0 14px;
+      justify-content: flex-start;
+      gap: 10px;
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
       border: 1px solid var(--border);
       color: var(--text);
       background: rgba(15, 22, 41, 0.9);
@@ -153,6 +152,16 @@
       text-decoration: none;
       font-family: inherit;
     }
+    .tab-btn .icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+    .tab-btn .label { flex: 1; text-align: left; pointer-events: none; }
     a.tab-btn,
     a.tab-btn:hover,
     a.tab-btn:visited,
@@ -593,11 +602,25 @@
       .textarea { min-height: 260px; }
     }
 
-    @media (max-width: 700px) {
-      .top-nav { flex-direction: column; align-items: flex-start; }
-      .tabs { width: 100%; }
-      .tab-btn { flex: 1 1 auto; }
-      .app { padding-top: 280px; }
+    @media (max-width: 900px) {
+      /* ── Sidebar collapses to top horizontal bar on narrow viewports ─ */
+      .sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        box-shadow: 0 1px 0 rgba(0, 212, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.45);
+        flex-direction: row;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        overflow-x: auto;
+      }
+      .sidebar .logo { padding: 0 10px 0 0; border-bottom: none; border-right: 1px solid var(--border); }
+      .sidebar .tabs { flex-direction: row; flex-wrap: nowrap; }
+      .sidebar .tab-btn { width: auto; height: 36px; }
+      .app { margin-left: auto; margin-right: auto; padding: 14px; }
     }
 
     .py-script-wrap {
@@ -1030,26 +1053,24 @@
   </style>
 </head>
 <body>
-  <div class="app">
-    <div class="top-nav-wrap">
-    <nav class="top-nav">
-      <div class="logo" style="cursor:pointer;" id="logoBtn">
-        <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:86px; width:auto; display:block;" />
-      </div>
-      <div class="tabs">
-        <button class="tab-btn active" data-view="homeView">Home</button>
-        <button class="tab-btn" data-view="optimizerView">Rule Optimization</button>
-        <button class="tab-btn" data-view="validatorView">Python Validator</button>
-        <button class="tab-btn" data-view="sruView">Snort SRU Updates</button>
-        <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
-<a class="tab-btn" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer">Snort 2 Manual</a>
-<a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">Snort 3 Manual</a>
-<button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button">Useful Script Download</button>
-<button class="tab-btn siteinfo-btn" data-view="siteinfoView">Site Information</button>
-<button class="tab-btn feedback-btn" data-view="feedbackView">Feedback</button>
-      </div>
-    </nav>
+  <aside class="sidebar">
+    <div class="logo" style="cursor:pointer;" id="logoBtn">
+      <img id="snortLogo" src="snort-logo.png" alt="Snort" style="height:64px; width:auto; display:block;" />
     </div>
+    <div class="tabs">
+      <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
+      <button class="tab-btn" data-view="optimizerView"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span></button>
+      <button class="tab-btn" data-view="validatorView"><span class="icon" aria-hidden="true">✅</span><span class="label">Python Validator</span></button>
+      <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort SRU Updates</span></button>
+      <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort LSP Updates</span></button>
+      <a class="tab-btn" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort 2 Manual</span></a>
+      <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📘</span><span class="label">Snort 3 Manual</span></a>
+      <button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button"><span class="icon" aria-hidden="true">📥</span><span class="label">Useful Script Download</span></button>
+      <button class="tab-btn siteinfo-btn" data-view="siteinfoView"><span class="icon" aria-hidden="true">ℹ️</span><span class="label">Site Information</span></button>
+      <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
+    </div>
+  </aside>
+  <div class="app">
 
     <section id="homeView" class="view active">
       <div class="split">
