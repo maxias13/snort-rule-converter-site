@@ -784,7 +784,7 @@
     .si-value a { color: var(--primary); text-decoration: none; }
     .si-value a:hover { text-decoration: underline; }
 
-    /* ── Useful Script Download (header button + modal) ─────────────────── */
+    /* ── Useful Script Download (header button + inline view) ─────────────── */
     .scriptdl-btn:hover {
       background: rgba(0,212,255,0.06) !important;
       color: #fff !important;
@@ -1029,7 +1029,7 @@
         <button class="tab-btn" data-view="lspView">Snort LSP Updates</button>
 <a class="tab-btn" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer">Snort 2 Manual</a>
 <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer">Snort 3 Manual</a>
-<button class="tab-btn scriptdl-btn" id="scriptDlBtn" type="button">Useful Script Download</button>
+<button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button">Useful Script Download</button>
 <button class="tab-btn siteinfo-btn" data-view="siteinfoView">Site Information</button>
 <button class="tab-btn feedback-btn" data-view="feedbackView">Feedback</button>
       </div>
@@ -1841,7 +1841,7 @@ python3 trigger_rules.py --delay 1
           <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
           <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, and suggestions</span></div>
-          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Modal-based file browser that lists files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Anyone can download; admins (password-gated, SHA-256 client-side hash) can upload new scripts directly to the repo via a Personal Access Token stored in browser localStorage.</span></div>
+          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Inline page (nav button switches the main view) that lists files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Anyone can download; admins (password-gated, SHA-256 client-side hash) can upload new scripts directly to the repo via a Personal Access Token stored in browser localStorage.</span></div>
         </div>
 
         <div class="si-card">
@@ -1849,7 +1849,7 @@ python3 trigger_rules.py --delay 1
           <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
           <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers + GitHub Issues API</span></div>
           <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a></span></div>
-          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download modal</span></div>
+          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download inline page</span></div>
           <div class="si-row"><span class="si-label">Admin Auth</span><span class="si-value">Client-side SHA-256 password gate (used by Notice posts and Useful Script uploads). The hash is in <code style="color:var(--primary);">index.html</code> only — no server-side secret.</span></div>
           <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / JavaScript</span></div>
         </div>
@@ -5436,15 +5436,14 @@ if __name__ == "__main__":
     })();
   </script>
 
-  <!-- ── Useful Script Download Modal ────────────────────────────────── -->
-  <div class="scriptdl-overlay" id="scriptDlOverlay" role="dialog" aria-modal="true" aria-labelledby="scriptDlTitle" aria-hidden="true">
-    <div class="scriptdl-modal" role="document">
-      <div class="scriptdl-head">
+  <!-- ── Useful Script Download (inline view) ─────────────────────────── -->
+  <section id="scriptDlView" class="view">
+    <div class="panel">
+      <div class="scriptdl-head" style="border:0; padding:0; margin-bottom:14px;">
         <div>
-          <h3 class="scriptdl-title" id="scriptDlTitle">&#128229; Useful Script Download</h3>
-          <p class="scriptdl-sub">Admin-published utility scripts &amp; programs</p>
+          <h3 class="scriptdl-title" id="scriptDlTitle" style="margin:0 0 4px;">&#128229; Useful Script Download</h3>
+          <p class="scriptdl-sub" style="margin:0;">Admin-published utility scripts &amp; programs</p>
         </div>
-        <button class="scriptdl-close" id="scriptDlClose" type="button" aria-label="Close">&#10005;</button>
       </div>
       <div class="scriptdl-tabs" role="tablist">
         <button class="scriptdl-tab active" id="scriptDlTabDownload" type="button" role="tab" aria-selected="true">&#128229; Download</button>
@@ -5490,7 +5489,7 @@ if __name__ == "__main__":
             <label for="scriptDlFile">File to upload</label>
             <input type="file" id="scriptDlFile" />
             <div class="scriptdl-hint">
-              Will be committed to <code>/scripts/&lt;filename&gt;</code> on <code>main</code>. Existing files with the same name will be overwritten.
+              Will be committed to <code>/Download_Files/&lt;filename&gt;</code> on <code>main</code>. Existing files with the same name will be overwritten.
             </div>
           </div>
           <div class="scriptdl-actions">
@@ -5502,13 +5501,13 @@ if __name__ == "__main__":
       </div>
       <div class="scriptdl-foot">
         <span>Files served live from
-          <a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/scripts" target="_blank" rel="noopener noreferrer">/scripts</a>
+          <a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener noreferrer">/Download_Files</a>
           on GitHub.
         </span>
         <span id="scriptDlCount"></span>
       </div>
     </div>
-  </div>
+  </section>
 
   <script>
     // ── Useful Script Download (GitHub Contents API) ──────────────────────
@@ -5523,8 +5522,7 @@ if __name__ == "__main__":
       const EXCLUDE = new Set(["README.md", ".gitkeep", ".DS_Store"]);
 
       const btn        = document.getElementById("scriptDlBtn");
-      const overlay    = document.getElementById("scriptDlOverlay");
-      const closeBtn   = document.getElementById("scriptDlClose");
+      const view       = document.getElementById("scriptDlView");
       const body       = document.getElementById("scriptDlBody");
       const countEl    = document.getElementById("scriptDlCount");
 
@@ -5545,31 +5543,12 @@ if __name__ == "__main__":
       const logoutBtn  = document.getElementById("scriptDlLogout");
       const upMsg      = document.getElementById("scriptDlUploadMsg");
 
-      if (!btn || !overlay) return;
+      if (!btn || !view) return;
 
       let cached = null;
       let unlocked = false;
 
-      function openModal() {
-        overlay.classList.add("open");
-        overlay.setAttribute("aria-hidden", "false");
-        document.body.style.overflow = "hidden";
-        loadList();
-      }
-      function closeModal() {
-        overlay.classList.remove("open");
-        overlay.setAttribute("aria-hidden", "true");
-        document.body.style.overflow = "";
-      }
-
-      btn.addEventListener("click", openModal);
-      closeBtn.addEventListener("click", closeModal);
-      overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) closeModal();
-      });
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && overlay.classList.contains("open")) closeModal();
-      });
+      btn.addEventListener("click", () => loadList());
 
       function fmtSize(bytes) {
         if (bytes == null) return "";

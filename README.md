@@ -160,7 +160,7 @@ Static informational page covering:
 
 ### 7. Useful Script Download
 
-A modal launched from the header **"Useful Script Download"** button that lists helper scripts (e.g. FMC Snort 2 rule exporter) directly from the GitHub repository's `Download_Files/` folder.
+An inline page (the header **"Useful Script Download"** button switches the main view, just like Home / Rule Optimization / etc.) that lists helper scripts (e.g. FMC Snort 2 rule exporter) directly from the GitHub repository's `Download_Files/` folder.
 
 #### Architecture
 
