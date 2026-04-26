@@ -1804,17 +1804,35 @@ python3 trigger_rules.py --delay 1
       <div class="panel">
         <h3 style="margin:0 0 18px;">&#8505; Site Information</h3>
 
+        <!-- ─── About ─── -->
         <div class="si-card">
           <h4>About</h4>
           <div class="si-row"><span class="si-label">Site Owner</span><span class="si-value">Jungsub Shin (<a href="mailto:kaishin@cisco.com">kaishin@cisco.com</a>)</span></div>
           <div class="si-row"><span class="si-label">Site Name</span><span class="si-value">Snort 2 → Snort 3 Local Rule Converter</span></div>
-          <div class="si-row"><span class="si-label">Purpose</span><span class="si-value">Converts Snort 2 local rules to Snort 3 format, provides rule optimization analysis, Python-based validator script generation, and weekly SRU/LSP update news.</span></div>
-          <div class="si-row"><span class="si-label">Target Users</span><span class="si-value">Network security engineers managing Cisco Secure Firewall(formerly Firepower) with custom local rules.</span></div>
+          <div class="si-row"><span class="si-label">Purpose</span><span class="si-value">A one-stop toolkit for Cisco Secure Firewall (formerly Firepower) engineers managing custom local Snort rules: automated Snort 2 → 3 conversion, rule optimization analysis, Python-based offline validator, weekly Talos SRU/LSP update news, and shared utility script distribution.</span></div>
+          <div class="si-row"><span class="si-label">Target Users</span><span class="si-value">Network security engineers, TAC engineers, and partners managing Cisco Secure Firewall (formerly Firepower) deployments with custom local rules.</span></div>
+          <div class="si-row"><span class="si-label">Cisco Suggested</span><span class="si-value">FMC <b style="color:var(--primary);">7.6.5</b> ⭐ &nbsp;·&nbsp; FTD <b style="color:var(--primary);">7.6.4</b> ⭐ &nbsp;·&nbsp; Snort 3 default (FTD 7.0+) &nbsp;·&nbsp; <a href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/compatibility/management-center-compatibility.html" target="_blank" rel="noopener">Compatibility Guide ↗</a></span></div>
         </div>
 
+        <!-- ─── Navigation Map ─── -->
+        <div class="si-card">
+          <h4>Navigation Map</h4>
+          <div class="si-row"><span class="si-label">🏠 Home</span><span class="si-value">Main Snort 2 → Snort 3 rule converter. Paste or load a <code style="color:var(--primary);">.rules</code> file, optionally remap SIDs from a Start SID, and view side-by-side diff with built-in duplicate detection.</span></div>
+          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Displays "All Optimized Rules" panel and per-rule optimized output.</span></div>
+          <div class="si-row"><span class="si-label">✅ Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
+          <div class="si-row"><span class="si-label">🔄 Snort SRU Updates</span><span class="si-value">Weekly Snort 2 SRU (Sourcefire Rule Update) news from Talos advisories.</span></div>
+          <div class="si-row"><span class="si-label">📋 Snort LSP Updates</span><span class="si-value">Weekly Snort 3 LSP (Lightweight Security Package) update news from Talos advisories.</span></div>
+          <div class="si-row"><span class="si-label">📥 Useful Script Download</span><span class="si-value">Inline page (no modal) listing utility scripts from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-gated upload for contributors.</span></div>
+          <div class="si-row"><span class="si-label">📖 Snort 2 Manual</span><span class="si-value">External link to the official Snort 2 manual (manual-snort-org).</span></div>
+          <div class="si-row"><span class="si-label">📘 Snort 3 Manual</span><span class="si-value">External link to the official Snort 3 documentation (docs.snort.org).</span></div>
+          <div class="si-row"><span class="si-label">ℹ️ Site Information</span><span class="si-value">This page — site overview, feature catalog, technical stack, and changelog.</span></div>
+          <div class="si-row"><span class="si-label">💬 Feedback</span><span class="si-value">Community board for bug reports, feature requests, suggestions, and admin Notice posts. Backed by GitHub Issues.</span></div>
+        </div>
+
+        <!-- ─── Features ─── -->
         <div class="si-card">
           <h4>Features</h4>
-          <div class="si-row" style="margin-top:10px;"><span class="si-label">Rule Converter</span><span class="si-value">Automated Snort 2 → 3 syntax migration with SID remapping</span></div>
+          <div class="si-row" style="margin-top:10px;"><span class="si-label">Rule Converter</span><span class="si-value">Automated Snort 2 → 3 syntax migration with optional SID remapping (Start SID + sequential renumbering, mapping persisted to localStorage for cross-session traceability).</span></div>
           <div style="margin-top:14px; margin-bottom:18px; padding:14px 16px; background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.15); border-radius:8px; font-size:0.84rem; line-height:1.75;">
             <div style="color:var(--primary); font-weight:700; margin-bottom:10px;">&#128295; Conversion Algorithm — How It Works</div>
 
@@ -1916,24 +1934,55 @@ python3 trigger_rules.py --delay 1
               <b style="color:#fff;">Final steps:</b> <code style="color:var(--primary);">gid</code>, <code style="color:var(--primary);">sid</code>, <code style="color:var(--primary);">rev</code> are always sorted to the end of the options in that order. If a Start SID is specified, each rule's SID is remapped sequentially from that value, and the original→new SID mapping is persisted to localStorage for cross-session traceability.
             </div>
           </div>
-          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions (Korean)</span></div>
-          <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation</span></div>
+          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3 (Korean comments). Displays the "All Optimized Rules" consolidated panel plus per-rule optimized output. Inline copy buttons via event delegation. Auto fast_pattern placement after content modifiers; gid/sid/rev auto-reorder; syntax error detection.</span></div>
+          <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
-          <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories</span></div>
-          <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, and suggestions</span></div>
-          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Inline page (nav button switches the main view) that lists files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Anyone can download; admins (password-gated, SHA-256 client-side hash) can upload new scripts directly to the repo via a Personal Access Token stored in browser localStorage.</span></div>
+          <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories.</span></div>
+          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Inline view (sidebar nav switches the main panel — no modal) listing files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-only upload (SHA-256 password gate + GitHub PAT in browser localStorage). Auto-loads on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation. Files are fetched as binary blobs to force proper download (no raw-text browser preview).</span></div>
+          <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, suggestions, and admin "Notice" posts. Backed by GitHub Issues via Cloudflare Workers proxy.</span></div>
+          <div class="si-row"><span class="si-label">Cisco Suggested Releases Box</span><span class="si-value">Always-visible sidebar widget at the bottom of the left navigation showing current Cisco-recommended FMC / FTD versions and Snort engine default, with a direct link to the official Compatibility Guide. Hidden on mobile (≤900 px) to preserve screen space.</span></div>
         </div>
 
+        <!-- ─── UI / Layout ─── -->
+        <div class="si-card">
+          <h4>UI / Layout</h4>
+          <div class="si-row"><span class="si-label">Navigation</span><span class="si-value">Fixed left sidebar (240 px wide) with vertically stacked menu buttons, each with a contextual emoji icon. Replaces the previous top navigation. Sidebar stays visible on scroll.</span></div>
+          <div class="si-row"><span class="si-label">Logo</span><span class="si-value">Snort logo at 96 px height (transparent background) at the top of the sidebar.</span></div>
+          <div class="si-row"><span class="si-label">View Persistence</span><span class="si-value">Active view is encoded in the URL as <code style="color:var(--primary);">?v=&lt;viewId&gt;</code>. Refresh and deep-links restore the correct view automatically. Compatible with browser back/forward.</span></div>
+          <div class="si-row"><span class="si-label">Responsive</span><span class="si-value">Optimized for desktop. The Cisco Suggested info box is hidden on screens ≤900 px to keep the sidebar compact on mobile/tablet.</span></div>
+          <div class="si-row"><span class="si-label">Theme</span><span class="si-value">Dark theme with cyan (<code style="color:var(--primary);">#00d4ff</code>) accent. Optimized for long reading sessions.</span></div>
+        </div>
+
+        <!-- ─── Technical ─── -->
         <div class="si-card">
           <h4>Technical</h4>
           <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
-          <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers + GitHub Issues API</span></div>
-          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a></span></div>
-          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download inline page</span></div>
-          <div class="si-row"><span class="si-label">Admin Auth</span><span class="si-value">Client-side SHA-256 password gate (used by Notice posts and Useful Script uploads). The hash is in <code style="color:var(--primary);">index.html</code> only — no server-side secret.</span></div>
-          <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / JavaScript</span></div>
+          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a> (single-file <code style="color:var(--primary);">index.html</code>)</span></div>
+          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download view</span></div>
+          <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers proxy + GitHub Issues API (no direct token exposure to the browser)</span></div>
+          <div class="si-row"><span class="si-label">Admin Auth</span><span class="si-value">Client-side SHA-256 password gate (used by Notice posts and Useful Script uploads). The hash is in <code style="color:var(--primary);">index.html</code> only — no server-side secret. Current password: <code style="color:var(--primary);">***REDACTED***</code>.</span></div>
+          <div class="si-row"><span class="si-label">Persistence</span><span class="si-value">Browser <code style="color:var(--primary);">localStorage</code> for SID remap mappings and admin GitHub PAT (never transmitted to any server other than the GitHub API itself)</span></div>
+          <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / vanilla JavaScript. No frameworks, no build step.</span></div>
         </div>
 
+        <!-- ─── Recent Updates ─── -->
+        <div class="si-card">
+          <h4>Recent Updates</h4>
+          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Auto-load script list on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation (fixes infinite "Loading scripts from GitHub…" placeholder)</span></div>
+          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Bumped Cisco Suggested info box font sizes one step up for readability</span></div>
+          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Added Cisco Suggested Releases info box at the bottom of the sidebar (FMC 7.6.5 / FTD 7.6.4 / Snort 3 default + Compatibility Guide link)</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Force binary file download via fetch + blob (instead of opening raw text in browser) for Useful Script Download</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Moved Useful Script Download below Snort LSP Updates in the sidebar</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Enlarged Snort logo from 64 px to 96 px height in the sidebar</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Replaced top nav with fixed left sidebar (240 px) + per-menu emoji icons</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Converted Useful Script Download from modal to inline view</span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Switched script storage from <code style="color:var(--primary);">/scripts</code> to <code style="color:var(--primary);">/Download_Files</code></span></div>
+          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Added admin upload tab with SHA-256 password gate + GitHub PAT</span></div>
+          <div class="si-row"><span class="si-label">2026-04-24</span><span class="si-value">Strengthened Snort 2 → Snort 3 converter using snort2-to-3-migration-tool skill</span></div>
+          <div class="si-row"><span class="si-label">2026-04-24</span><span class="si-value">Enhanced Rule Optimization algorithm with parity for Snort 2 and Snort 3</span></div>
+        </div>
+
+        <!-- ─── Disclaimer ─── -->
         <div class="si-card">
           <h4>Disclaimer</h4>
           <div class="si-row"><span class="si-value" style="color:#ffaa00;">All information provided on this site is not official information from Cisco Systems. Please use it with caution. Always verify converted rules in a test environment before deployment.</span></div>
