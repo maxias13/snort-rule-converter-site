@@ -158,7 +158,42 @@ Static informational page covering:
 
 ---
 
-### 7. Feedback Board
+### 7. Useful Script Download
+
+A modal launched from the header **"Useful Script Download"** button that lists helper scripts (e.g. FMC Snort 2 rule exporter) directly from the GitHub repository's `Download_Files/` folder.
+
+#### Architecture
+
+```
+Browser
+    ↓  GET (public, no auth)
+GitHub Contents API
+    ↓
+maxias13/snort-rule-converter-site/Download_Files/  (branch: main)
+```
+
+- Download list is fetched live via the GitHub Contents API on every modal open — no rebuild required when files are added or removed.
+- File browser link in the modal footer opens `tree/main/Download_Files` on GitHub for direct browsing.
+
+#### Tabs
+
+| Tab | Access | Behavior |
+|-----|--------|----------|
+| Download | Public | Lists every file in `Download_Files/` with size + click-to-download |
+| Upload (Admin) | Password + GitHub PAT | Drops a new file into `Download_Files/` via authenticated `PUT` |
+
+#### Upload Flow (Admin)
+
+1. Enter admin password — verified client-side via SHA-256 hash compare against the embedded hash constant.
+2. Provide a GitHub PAT (Personal Access Token) with `contents:write` scope on this repo. The PAT is persisted in `localStorage` (`scriptdl_pat`) so it survives reloads.
+3. Drop or pick a file → it is base64-encoded in the browser and `PUT` to `Download_Files/<filename>` via the GitHub Contents API with commit message `"Add Download_Files/<filename> via web upload"`.
+4. The download list refreshes immediately after the upload commit.
+
+> Files are served live from `/Download_Files` on GitHub — anything pushed to that folder (via the web UI or `git push`) appears in the modal automatically.
+
+---
+
+### 8. Feedback Board
 
 Community bulletin board where visitors can leave feedback without a GitHub account.
 
@@ -179,7 +214,7 @@ GitHub Issues API (maxias13/snort-rule-converter, label: feedback)
 | Feature Request | Cyan | Open to all visitors |
 | Bug Report | Red | Open to all visitors |
 | Suggestion | Yellow | Open to all visitors |
-| Notice | Gold ★ | **Admin only** — requires password `maxias` |
+| Notice | Gold ★ | **Admin only** — requires password (SHA-256 hashed, client-side gate) |
 
 #### Behavior
 - **Notice** posts always appear at the top of the list
@@ -213,6 +248,7 @@ GitHub Issues API (maxias13/snort-rule-converter, label: feedback)
 | Snort LSP Updates | `#lspView` | Weekly Snort 3 rule changes |
 | Site Information | `#siteinfoView` | About this site |
 | Feedback | `#feedbackView` | Community board |
+| Useful Script Download | (modal) | Lists & downloads files from `Download_Files/`; admin upload |
 | How to write Snort 3 rules ↗ | — | External link to docs.snort.org |
 
 ---
