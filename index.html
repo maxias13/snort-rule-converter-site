@@ -1925,10 +1925,83 @@ python3 trigger_rules.py --delay 1
         </div>
 
         <!-- Post list -->
-        <div id="fbPostList">
-          <div class="fb-empty" id="fbLoadingMsg">
-            <span class="spinner"></span>&nbsp; Loading feedback...
+         <div id="fbPostList">
+           <div class="fb-empty" id="fbLoadingMsg">
+             <span class="spinner"></span>&nbsp; Loading feedback...
+           </div>
+         </div>
+       </div>
+     </section>
+
+    <!-- ── Useful Script Download (inline view) ─────────────────────────── -->
+    <section id="scriptDlView" class="view">
+      <div class="panel">
+        <div class="scriptdl-head" style="border:0; padding:0; margin-bottom:14px;">
+          <div>
+            <h3 class="scriptdl-title" id="scriptDlTitle" style="margin:0 0 4px;">&#128229; Useful Script Download</h3>
+            <p class="scriptdl-sub" style="margin:0;">Admin-published utility scripts &amp; programs</p>
           </div>
+        </div>
+        <div class="scriptdl-tabs" role="tablist">
+          <button class="scriptdl-tab active" id="scriptDlTabDownload" type="button" role="tab" aria-selected="true">&#128229; Download</button>
+          <button class="scriptdl-tab" id="scriptDlTabUpload" type="button" role="tab" aria-selected="false">&#128228; Upload (Admin)</button>
+        </div>
+        <div class="scriptdl-pane active" id="scriptDlPaneDownload" role="tabpanel">
+          <div class="scriptdl-body" id="scriptDlBody">
+            <div class="scriptdl-state">
+              <div class="scriptdl-spinner"></div>
+              Loading scripts from GitHub…
+            </div>
+          </div>
+        </div>
+        <div class="scriptdl-pane" id="scriptDlPaneUpload" role="tabpanel">
+          <!-- Step 1: Password gate -->
+          <div class="scriptdl-upload" id="scriptDlPwGate">
+            <div class="scriptdl-locked">
+              <span class="scriptdl-lock-icon">&#128274;</span>
+              Admin password required to upload files.
+            </div>
+            <div class="scriptdl-field">
+              <label for="scriptDlPw">Admin password</label>
+              <input type="password" id="scriptDlPw" autocomplete="current-password" placeholder="Enter admin password" />
+            </div>
+            <div class="scriptdl-actions">
+              <button class="scriptdl-primary" id="scriptDlPwSubmit" type="button">Unlock</button>
+            </div>
+            <div class="scriptdl-msg err" id="scriptDlPwMsg" style="display:none;"></div>
+          </div>
+          <!-- Step 2: Upload form (hidden until unlocked) -->
+          <div class="scriptdl-upload" id="scriptDlUploadForm" style="display:none;">
+            <div class="scriptdl-field">
+              <label for="scriptDlPat">GitHub Personal Access Token</label>
+              <input type="password" id="scriptDlPat" autocomplete="off" placeholder="ghp_..." />
+              <div class="scriptdl-hint">
+                Needs <code>contents:write</code> scope on
+                <a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener noreferrer">this repo</a>.
+                Stored only in this browser tab (sessionStorage). Create one
+                <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">here</a>.
+              </div>
+            </div>
+            <div class="scriptdl-field">
+              <label for="scriptDlFile">File to upload</label>
+              <input type="file" id="scriptDlFile" />
+              <div class="scriptdl-hint">
+                Will be committed to <code>/Download_Files/&lt;filename&gt;</code> on <code>main</code>. Existing files with the same name will be overwritten.
+              </div>
+            </div>
+            <div class="scriptdl-actions">
+              <button class="scriptdl-primary" id="scriptDlUploadBtn" type="button" disabled>&#128228; Upload to GitHub</button>
+              <button class="scriptdl-secondary" id="scriptDlLogout" type="button">Lock</button>
+            </div>
+            <div class="scriptdl-msg" id="scriptDlUploadMsg" style="display:none;"></div>
+          </div>
+        </div>
+        <div class="scriptdl-foot">
+          <span>Files served live from
+            <a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener noreferrer">/Download_Files</a>
+            on GitHub.
+          </span>
+          <span id="scriptDlCount"></span>
         </div>
       </div>
     </section>
@@ -5451,79 +5524,6 @@ if __name__ == "__main__":
       }
     })();
   </script>
-
-  <!-- ── Useful Script Download (inline view) ─────────────────────────── -->
-  <section id="scriptDlView" class="view">
-    <div class="panel">
-      <div class="scriptdl-head" style="border:0; padding:0; margin-bottom:14px;">
-        <div>
-          <h3 class="scriptdl-title" id="scriptDlTitle" style="margin:0 0 4px;">&#128229; Useful Script Download</h3>
-          <p class="scriptdl-sub" style="margin:0;">Admin-published utility scripts &amp; programs</p>
-        </div>
-      </div>
-      <div class="scriptdl-tabs" role="tablist">
-        <button class="scriptdl-tab active" id="scriptDlTabDownload" type="button" role="tab" aria-selected="true">&#128229; Download</button>
-        <button class="scriptdl-tab" id="scriptDlTabUpload" type="button" role="tab" aria-selected="false">&#128228; Upload (Admin)</button>
-      </div>
-      <div class="scriptdl-pane active" id="scriptDlPaneDownload" role="tabpanel">
-        <div class="scriptdl-body" id="scriptDlBody">
-          <div class="scriptdl-state">
-            <div class="scriptdl-spinner"></div>
-            Loading scripts from GitHub…
-          </div>
-        </div>
-      </div>
-      <div class="scriptdl-pane" id="scriptDlPaneUpload" role="tabpanel">
-        <!-- Step 1: Password gate -->
-        <div class="scriptdl-upload" id="scriptDlPwGate">
-          <div class="scriptdl-locked">
-            <span class="scriptdl-lock-icon">&#128274;</span>
-            Admin password required to upload files.
-          </div>
-          <div class="scriptdl-field">
-            <label for="scriptDlPw">Admin password</label>
-            <input type="password" id="scriptDlPw" autocomplete="current-password" placeholder="Enter admin password" />
-          </div>
-          <div class="scriptdl-actions">
-            <button class="scriptdl-primary" id="scriptDlPwSubmit" type="button">Unlock</button>
-          </div>
-          <div class="scriptdl-msg err" id="scriptDlPwMsg" style="display:none;"></div>
-        </div>
-        <!-- Step 2: Upload form (hidden until unlocked) -->
-        <div class="scriptdl-upload" id="scriptDlUploadForm" style="display:none;">
-          <div class="scriptdl-field">
-            <label for="scriptDlPat">GitHub Personal Access Token</label>
-            <input type="password" id="scriptDlPat" autocomplete="off" placeholder="ghp_..." />
-            <div class="scriptdl-hint">
-              Needs <code>contents:write</code> scope on
-              <a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener noreferrer">this repo</a>.
-              Stored only in this browser tab (sessionStorage). Create one
-              <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">here</a>.
-            </div>
-          </div>
-          <div class="scriptdl-field">
-            <label for="scriptDlFile">File to upload</label>
-            <input type="file" id="scriptDlFile" />
-            <div class="scriptdl-hint">
-              Will be committed to <code>/Download_Files/&lt;filename&gt;</code> on <code>main</code>. Existing files with the same name will be overwritten.
-            </div>
-          </div>
-          <div class="scriptdl-actions">
-            <button class="scriptdl-primary" id="scriptDlUploadBtn" type="button" disabled>&#128228; Upload to GitHub</button>
-            <button class="scriptdl-secondary" id="scriptDlLogout" type="button">Lock</button>
-          </div>
-          <div class="scriptdl-msg" id="scriptDlUploadMsg" style="display:none;"></div>
-        </div>
-      </div>
-      <div class="scriptdl-foot">
-        <span>Files served live from
-          <a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener noreferrer">/Download_Files</a>
-          on GitHub.
-        </span>
-        <span id="scriptDlCount"></span>
-      </div>
-    </div>
-  </section>
 
   <script>
     // ── Useful Script Download (GitHub Contents API) ──────────────────────
