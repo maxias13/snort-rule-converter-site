@@ -935,6 +935,84 @@
     }
     .scriptdl-foot a { color: var(--primary); text-decoration: none; }
     .scriptdl-foot a:hover { text-decoration: underline; }
+
+    /* Tabs inside the modal */
+    .scriptdl-tabs {
+      display: flex; gap: 6px;
+      padding: 10px 18px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .scriptdl-tab {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-bottom: none;
+      border-radius: 6px 6px 0 0;
+      padding: 8px 14px; font-size: 0.82rem; cursor: pointer;
+      font-family: inherit;
+    }
+    .scriptdl-tab:hover { color: var(--text); }
+    .scriptdl-tab.active {
+      background: var(--bg); color: var(--primary);
+      border-color: var(--border);
+      box-shadow: 0 1px 0 0 var(--bg);
+      position: relative; top: 1px;
+    }
+    .scriptdl-pane { display: none; }
+    .scriptdl-pane.active { display: block; }
+
+    /* Upload form */
+    .scriptdl-upload {
+      padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .scriptdl-field { display: flex; flex-direction: column; gap: 4px; }
+    .scriptdl-field label {
+      font-size: 0.78rem; color: var(--muted); font-weight: 600;
+    }
+    .scriptdl-field input[type="password"],
+    .scriptdl-field input[type="text"],
+    .scriptdl-field input[type="file"] {
+      background: var(--bg); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 10px; font-family: inherit; font-size: 0.85rem;
+      width: 100%; box-sizing: border-box;
+    }
+    .scriptdl-field input:focus {
+      outline: none; border-color: var(--primary);
+    }
+    .scriptdl-hint {
+      font-size: 0.72rem; color: var(--muted); line-height: 1.4;
+    }
+    .scriptdl-hint a { color: var(--primary); text-decoration: none; }
+    .scriptdl-hint a:hover { text-decoration: underline; }
+    .scriptdl-actions {
+      display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    }
+    .scriptdl-primary {
+      background: var(--primary); color: #001a26;
+      border: none; border-radius: 6px;
+      padding: 8px 16px; font-weight: 700; cursor: pointer;
+      font-family: inherit; font-size: 0.85rem;
+    }
+    .scriptdl-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .scriptdl-secondary {
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 8px 14px; cursor: pointer;
+      font-family: inherit; font-size: 0.82rem;
+    }
+    .scriptdl-secondary:hover { color: var(--text); border-color: var(--primary); }
+    .scriptdl-msg {
+      padding: 8px 12px; border-radius: 6px; font-size: 0.82rem;
+      border: 1px solid var(--border);
+    }
+    .scriptdl-msg.ok    { color: #6cf; border-color: #285; background: rgba(40,140,90,0.08); }
+    .scriptdl-msg.err   { color: #ff8a8a; border-color: #844; background: rgba(140,40,40,0.08); }
+    .scriptdl-msg.info  { color: var(--muted); }
+    .scriptdl-locked {
+      padding: 18px; text-align: center; color: var(--muted); font-size: 0.88rem;
+    }
+    .scriptdl-locked .scriptdl-lock-icon {
+      font-size: 2rem; display: block; margin-bottom: 8px;
+    }
   </style>
 </head>
 <body>
@@ -5365,10 +5443,58 @@ if __name__ == "__main__":
         </div>
         <button class="scriptdl-close" id="scriptDlClose" type="button" aria-label="Close">&#10005;</button>
       </div>
-      <div class="scriptdl-body" id="scriptDlBody">
-        <div class="scriptdl-state">
-          <div class="scriptdl-spinner"></div>
-          Loading scripts from GitHub…
+      <div class="scriptdl-tabs" role="tablist">
+        <button class="scriptdl-tab active" id="scriptDlTabDownload" type="button" role="tab" aria-selected="true">&#128229; Download</button>
+        <button class="scriptdl-tab" id="scriptDlTabUpload" type="button" role="tab" aria-selected="false">&#128228; Upload (Admin)</button>
+      </div>
+      <div class="scriptdl-pane active" id="scriptDlPaneDownload" role="tabpanel">
+        <div class="scriptdl-body" id="scriptDlBody">
+          <div class="scriptdl-state">
+            <div class="scriptdl-spinner"></div>
+            Loading scripts from GitHub…
+          </div>
+        </div>
+      </div>
+      <div class="scriptdl-pane" id="scriptDlPaneUpload" role="tabpanel">
+        <!-- Step 1: Password gate -->
+        <div class="scriptdl-upload" id="scriptDlPwGate">
+          <div class="scriptdl-locked">
+            <span class="scriptdl-lock-icon">&#128274;</span>
+            Admin password required to upload files.
+          </div>
+          <div class="scriptdl-field">
+            <label for="scriptDlPw">Admin password</label>
+            <input type="password" id="scriptDlPw" autocomplete="current-password" placeholder="Enter admin password" />
+          </div>
+          <div class="scriptdl-actions">
+            <button class="scriptdl-primary" id="scriptDlPwSubmit" type="button">Unlock</button>
+          </div>
+          <div class="scriptdl-msg err" id="scriptDlPwMsg" style="display:none;"></div>
+        </div>
+        <!-- Step 2: Upload form (hidden until unlocked) -->
+        <div class="scriptdl-upload" id="scriptDlUploadForm" style="display:none;">
+          <div class="scriptdl-field">
+            <label for="scriptDlPat">GitHub Personal Access Token</label>
+            <input type="password" id="scriptDlPat" autocomplete="off" placeholder="ghp_..." />
+            <div class="scriptdl-hint">
+              Needs <code>contents:write</code> scope on
+              <a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener noreferrer">this repo</a>.
+              Stored only in this browser tab (sessionStorage). Create one
+              <a href="https://github.com/settings/tokens?type=beta" target="_blank" rel="noopener noreferrer">here</a>.
+            </div>
+          </div>
+          <div class="scriptdl-field">
+            <label for="scriptDlFile">File to upload</label>
+            <input type="file" id="scriptDlFile" />
+            <div class="scriptdl-hint">
+              Will be committed to <code>/scripts/&lt;filename&gt;</code> on <code>main</code>. Existing files with the same name will be overwritten.
+            </div>
+          </div>
+          <div class="scriptdl-actions">
+            <button class="scriptdl-primary" id="scriptDlUploadBtn" type="button" disabled>&#128228; Upload to GitHub</button>
+            <button class="scriptdl-secondary" id="scriptDlLogout" type="button">Lock</button>
+          </div>
+          <div class="scriptdl-msg" id="scriptDlUploadMsg" style="display:none;"></div>
         </div>
       </div>
       <div class="scriptdl-foot">
@@ -5388,19 +5514,38 @@ if __name__ == "__main__":
       const REPO_NAME  = "snort-rule-converter-site";
       const REPO_BRANCH = "main";
       const SCRIPTS_DIR = "scripts";
+      const ADMIN_PW_HASH = "82db005418ab69cca2c7286bf82299578ceb70de61c2ceb71b5c232cc5ed5a43";
+      const PAT_STORAGE_KEY = "scriptdl_pat";
       // Files inside scripts/ that should NOT appear in the download list
       const EXCLUDE = new Set(["README.md", ".gitkeep", ".DS_Store"]);
 
-      const btn      = document.getElementById("scriptDlBtn");
-      const overlay  = document.getElementById("scriptDlOverlay");
-      const closeBtn = document.getElementById("scriptDlClose");
-      const body     = document.getElementById("scriptDlBody");
-      const countEl  = document.getElementById("scriptDlCount");
+      const btn        = document.getElementById("scriptDlBtn");
+      const overlay    = document.getElementById("scriptDlOverlay");
+      const closeBtn   = document.getElementById("scriptDlClose");
+      const body       = document.getElementById("scriptDlBody");
+      const countEl    = document.getElementById("scriptDlCount");
+
+      const tabDl      = document.getElementById("scriptDlTabDownload");
+      const tabUp      = document.getElementById("scriptDlTabUpload");
+      const paneDl     = document.getElementById("scriptDlPaneDownload");
+      const paneUp     = document.getElementById("scriptDlPaneUpload");
+
+      const pwGate     = document.getElementById("scriptDlPwGate");
+      const pwInput    = document.getElementById("scriptDlPw");
+      const pwSubmit   = document.getElementById("scriptDlPwSubmit");
+      const pwMsg      = document.getElementById("scriptDlPwMsg");
+
+      const upForm     = document.getElementById("scriptDlUploadForm");
+      const patInput   = document.getElementById("scriptDlPat");
+      const fileInput  = document.getElementById("scriptDlFile");
+      const upBtn      = document.getElementById("scriptDlUploadBtn");
+      const logoutBtn  = document.getElementById("scriptDlLogout");
+      const upMsg      = document.getElementById("scriptDlUploadMsg");
 
       if (!btn || !overlay) return;
 
-      // Cache list within this page session (avoid burning the 60 req/h limit)
       let cached = null;
+      let unlocked = false;
 
       function openModal() {
         overlay.classList.add("open");
@@ -5498,8 +5643,8 @@ if __name__ == "__main__":
           </div>`;
       }
 
-      async function loadList() {
-        if (cached) { renderList(cached); return; }
+      async function loadList(force) {
+        if (cached && !force) { renderList(cached); return; }
 
         body.innerHTML = `
           <div class="scriptdl-state">
@@ -5507,11 +5652,12 @@ if __name__ == "__main__":
             Loading scripts from GitHub…
           </div>`;
 
-        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${SCRIPTS_DIR}?ref=${REPO_BRANCH}`;
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${SCRIPTS_DIR}?ref=${REPO_BRANCH}&t=${Date.now()}`;
         try {
-          const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" } });
+          const res = await fetch(url, { headers: { "Accept": "application/vnd.github+json" }, cache: "no-store" });
           if (res.status === 404) {
-            renderError("The /scripts folder does not exist yet on GitHub.");
+            cached = [];
+            renderList([]);
             return;
           }
           if (res.status === 403) {
@@ -5533,6 +5679,188 @@ if __name__ == "__main__":
           renderError("Network error: " + (err && err.message ? err.message : "unknown"));
         }
       }
+
+      // ── Tab switching ───────────────────────────────────────────────────
+      function activateTab(which) {
+        const isUp = which === "upload";
+        tabDl.classList.toggle("active", !isUp);
+        tabUp.classList.toggle("active", isUp);
+        tabDl.setAttribute("aria-selected", String(!isUp));
+        tabUp.setAttribute("aria-selected", String(isUp));
+        paneDl.classList.toggle("active", !isUp);
+        paneUp.classList.toggle("active", isUp);
+        if (isUp) {
+          renderUploadPane();
+        }
+      }
+      tabDl.addEventListener("click", () => activateTab("download"));
+      tabUp.addEventListener("click", () => activateTab("upload"));
+
+      // ── Password gate (SHA-256 client-side check) ───────────────────────
+      async function sha256Hex(str) {
+        const buf = new TextEncoder().encode(str);
+        const digest = await crypto.subtle.digest("SHA-256", buf);
+        return Array.from(new Uint8Array(digest))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+      }
+
+      function showMsg(el, text, kind) {
+        el.className = "scriptdl-msg " + (kind || "info");
+        el.textContent = text;
+        el.style.display = text ? "" : "none";
+      }
+
+      function renderUploadPane() {
+        const savedPat = sessionStorage.getItem(PAT_STORAGE_KEY);
+        if (unlocked) {
+          pwGate.style.display = "none";
+          upForm.style.display = "";
+          if (savedPat && !patInput.value) patInput.value = savedPat;
+          updateUploadBtnState();
+        } else {
+          pwGate.style.display = "";
+          upForm.style.display = "none";
+          showMsg(pwMsg, "", "");
+          pwInput.value = "";
+          setTimeout(() => pwInput.focus(), 50);
+        }
+      }
+
+      async function tryUnlock() {
+        const pw = pwInput.value;
+        if (!pw) {
+          showMsg(pwMsg, "Enter the admin password.", "err");
+          return;
+        }
+        pwSubmit.disabled = true;
+        try {
+          const h = await sha256Hex(pw);
+          if (h === ADMIN_PW_HASH) {
+            unlocked = true;
+            pwInput.value = "";
+            renderUploadPane();
+          } else {
+            showMsg(pwMsg, "Incorrect password.", "err");
+          }
+        } catch (e) {
+          showMsg(pwMsg, "Crypto error: " + (e && e.message ? e.message : "unknown"), "err");
+        } finally {
+          pwSubmit.disabled = false;
+        }
+      }
+      pwSubmit.addEventListener("click", tryUnlock);
+      pwInput.addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+
+      logoutBtn.addEventListener("click", () => {
+        unlocked = false;
+        sessionStorage.removeItem(PAT_STORAGE_KEY);
+        patInput.value = "";
+        fileInput.value = "";
+        showMsg(upMsg, "", "");
+        renderUploadPane();
+      });
+
+      // ── Upload to GitHub via Contents API ───────────────────────────────
+      function updateUploadBtnState() {
+        const hasPat = !!patInput.value.trim();
+        const hasFile = !!(fileInput.files && fileInput.files[0]);
+        upBtn.disabled = !(hasPat && hasFile);
+      }
+      patInput.addEventListener("input", () => {
+        sessionStorage.setItem(PAT_STORAGE_KEY, patInput.value.trim());
+        updateUploadBtnState();
+      });
+      fileInput.addEventListener("change", updateUploadBtnState);
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            // strip "data:*/*;base64," prefix
+            const s = String(reader.result || "");
+            const i = s.indexOf(",");
+            resolve(i >= 0 ? s.slice(i + 1) : s);
+          };
+          reader.onerror = () => reject(reader.error || new Error("FileReader error"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function getExistingSha(filename, pat) {
+        const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${SCRIPTS_DIR}/${encodeURIComponent(filename)}?ref=${REPO_BRANCH}`;
+        const res = await fetch(url, {
+          headers: {
+            "Accept": "application/vnd.github+json",
+            "Authorization": "Bearer " + pat,
+          },
+          cache: "no-store",
+        });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`Failed to check existing file: HTTP ${res.status}`);
+        const j = await res.json();
+        return j && j.sha ? j.sha : null;
+      }
+
+      upBtn.addEventListener("click", async () => {
+        const pat = patInput.value.trim();
+        const file = fileInput.files && fileInput.files[0];
+        if (!pat || !file) return;
+        if (file.size > 95 * 1024 * 1024) {
+          showMsg(upMsg, "File too large. GitHub Contents API limit is ~100 MB.", "err");
+          return;
+        }
+        upBtn.disabled = true;
+        showMsg(upMsg, "Uploading " + file.name + "…", "info");
+        try {
+          const b64 = await fileToBase64(file);
+          let existingSha = null;
+          try {
+            existingSha = await getExistingSha(file.name, pat);
+          } catch (e) {
+            // ignore – may be permission issue, still try PUT
+          }
+          const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${SCRIPTS_DIR}/${encodeURIComponent(file.name)}`;
+          const payload = {
+            message: (existingSha ? "Update " : "Add ") + SCRIPTS_DIR + "/" + file.name + " via web upload",
+            content: b64,
+            branch: REPO_BRANCH,
+          };
+          if (existingSha) payload.sha = existingSha;
+          const res = await fetch(url, {
+            method: "PUT",
+            headers: {
+              "Accept": "application/vnd.github+json",
+              "Authorization": "Bearer " + pat,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+          if (res.status === 401) {
+            showMsg(upMsg, "Unauthorized. Check that your PAT is valid and has contents:write scope.", "err");
+            return;
+          }
+          if (res.status === 403) {
+            showMsg(upMsg, "Forbidden. PAT lacks write access to this repo.", "err");
+            return;
+          }
+          if (!res.ok) {
+            const t = await res.text().catch(() => "");
+            showMsg(upMsg, `Upload failed: HTTP ${res.status} ${t.slice(0, 200)}`, "err");
+            return;
+          }
+          showMsg(upMsg, `✓ Uploaded "${file.name}" to /${SCRIPTS_DIR}.`, "ok");
+          fileInput.value = "";
+          updateUploadBtnState();
+          // Force-refresh download list so the new file shows up
+          cached = null;
+          loadList(true);
+        } catch (err) {
+          showMsg(upMsg, "Error: " + (err && err.message ? err.message : "unknown"), "err");
+        } finally {
+          updateUploadBtnState();
+        }
+      });
     })();
   </script>
 
