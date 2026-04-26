@@ -112,6 +112,39 @@
     .sidebar::-webkit-scrollbar { width: 6px; }
     .sidebar::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 3px; }
 
+    /* ── Cisco Suggested Releases info box (bottom of sidebar) ─ */
+    .version-info {
+      margin-top: auto;
+      padding: 12px 10px 4px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.65);
+    }
+    .vi-title {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .vi-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .vi-label { color: rgba(255, 255, 255, 0.5); font-weight: 500; }
+    .vi-value { color: rgba(255, 255, 255, 0.92); font-weight: 600; font-size: 0.74rem; }
+    .vi-value.small { font-size: 0.66rem; font-weight: 500; color: rgba(255,255,255,0.75); }
+    .vi-source {
+      color: var(--primary);
+      font-size: 0.66rem;
+      margin-top: 4px;
+      text-decoration: none;
+      opacity: 0.85;
+    }
+    .vi-source:hover { text-decoration: underline; opacity: 1; }
+    .vi-stamp { color: rgba(255, 255, 255, 0.35); font-size: 0.62rem; font-style: italic; }
+
     .logo {
       color: var(--primary);
       font-weight: 800;
@@ -620,6 +653,7 @@
       .sidebar .logo { padding: 0 10px 0 0; border-bottom: none; border-right: 1px solid var(--border); }
       .sidebar .tabs { flex-direction: row; flex-wrap: nowrap; }
       .sidebar .tab-btn { width: auto; height: 36px; }
+      .sidebar .version-info { display: none; }
       .app { margin-left: auto; margin-right: auto; padding: 14px; }
     }
 
@@ -1068,6 +1102,15 @@
       <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📘</span><span class="label">Snort 3 Manual</span></a>
       <button class="tab-btn siteinfo-btn" data-view="siteinfoView"><span class="icon" aria-hidden="true">ℹ️</span><span class="label">Site Information</span></button>
       <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
+    </div>
+    <!-- Cisco Suggested Releases (manually maintained — no public API) -->
+    <div class="version-info" id="versionInfo">
+      <div class="vi-title">Cisco Suggested</div>
+      <div class="vi-row"><span class="vi-label">Snort 3</span><span class="vi-value small">FTD 7.0+ default</span></div>
+      <div class="vi-row"><span class="vi-label">FMC</span><span class="vi-value">7.6.5 ⭐</span></div>
+      <div class="vi-row"><span class="vi-label">FTD</span><span class="vi-value">7.6.4 ⭐</span></div>
+      <a class="vi-source" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/compatibility/management-center-compatibility.html" target="_blank" rel="noopener">↗ Compatibility Guide</a>
+      <div class="vi-stamp">Verified: 2026-04-26</div>
     </div>
   </aside>
   <div class="app">
