@@ -855,7 +855,7 @@
     .si-value a { color: var(--primary); text-decoration: none; }
     .si-value a:hover { text-decoration: underline; }
 
-    /* ── Useful Script Download (header button + inline view) ─────────────── */
+    /* ── Download Files (header button + inline view) ─────────────── */
     .scriptdl-btn:hover {
       background: rgba(0,212,255,0.06) !important;
       color: #fff !important;
@@ -1097,7 +1097,7 @@
       <button class="tab-btn" data-view="validatorView"><span class="icon" aria-hidden="true">✅</span><span class="label">Python Validator</span></button>
       <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort SRU Updates</span></button>
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort LSP Updates</span></button>
-      <button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button"><span class="icon" aria-hidden="true">📥</span><span class="label">Useful Script Download</span></button>
+      <button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button"><span class="icon" aria-hidden="true">📥</span><span class="label">Download Files</span></button>
       <a class="tab-btn" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort 2 Manual</span></a>
       <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📘</span><span class="label">Snort 3 Manual</span></a>
       <button class="tab-btn siteinfo-btn" data-view="siteinfoView"><span class="icon" aria-hidden="true">ℹ️</span><span class="label">Site Information</span></button>
@@ -1822,7 +1822,7 @@ python3 trigger_rules.py --delay 1
           <div class="si-row"><span class="si-label">✅ Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">🔄 Snort SRU Updates</span><span class="si-value">Weekly Snort 2 SRU (Sourcefire Rule Update) news from Talos advisories.</span></div>
           <div class="si-row"><span class="si-label">📋 Snort LSP Updates</span><span class="si-value">Weekly Snort 3 LSP (Lightweight Security Package) update news from Talos advisories.</span></div>
-          <div class="si-row"><span class="si-label">📥 Useful Script Download</span><span class="si-value">Inline page (no modal) listing utility scripts from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-gated upload for contributors.</span></div>
+          <div class="si-row"><span class="si-label">📥 Download Files</span><span class="si-value">Inline page (no modal) listing utility scripts from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-gated upload for contributors.</span></div>
           <div class="si-row"><span class="si-label">📖 Snort 2 Manual</span><span class="si-value">External link to the official Snort 2 manual (manual-snort-org).</span></div>
           <div class="si-row"><span class="si-label">📘 Snort 3 Manual</span><span class="si-value">External link to the official Snort 3 documentation (docs.snort.org).</span></div>
           <div class="si-row"><span class="si-label">ℹ️ Site Information</span><span class="si-value">This page — site overview, feature catalog, technical stack, and changelog.</span></div>
@@ -1938,7 +1938,7 @@ python3 trigger_rules.py --delay 1
           <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories.</span></div>
-          <div class="si-row"><span class="si-label">Useful Script Download</span><span class="si-value">Inline view (sidebar nav switches the main panel — no modal) listing files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-only upload (SHA-256 password gate + GitHub PAT in browser localStorage). Auto-loads on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation. Files are fetched as binary blobs to force proper download (no raw-text browser preview).</span></div>
+          <div class="si-row"><span class="si-label">Download Files</span><span class="si-value">Inline view (sidebar nav switches the main panel — no modal) listing files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-only upload (SHA-256 password gate + GitHub PAT in browser localStorage). Auto-loads on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation. Files are fetched as binary blobs to force proper download (no raw-text browser preview).</span></div>
           <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, suggestions, and admin "Notice" posts. Backed by GitHub Issues via Cloudflare Workers proxy.</span></div>
           <div class="si-row"><span class="si-label">Cisco Suggested Releases Box</span><span class="si-value">Always-visible sidebar widget at the bottom of the left navigation showing current Cisco-recommended FMC / FTD versions and Snort engine default, with a direct link to the official Compatibility Guide. Hidden on mobile (≤900 px) to preserve screen space.</span></div>
         </div>
@@ -1958,7 +1958,7 @@ python3 trigger_rules.py --delay 1
           <h4>Technical</h4>
           <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
           <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a> (single-file <code style="color:var(--primary);">index.html</code>)</span></div>
-          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Useful Script Download view</span></div>
+          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Download Files view</span></div>
           <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers proxy + GitHub Issues API (no direct token exposure to the browser)</span></div>
           <div class="si-row"><span class="si-label">Persistence</span><span class="si-value">Browser <code style="color:var(--primary);">localStorage</code> for SID remap mappings and admin GitHub PAT (never transmitted to any server other than the GitHub API itself)</span></div>
           <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / vanilla JavaScript. No frameworks, no build step.</span></div>
@@ -2045,12 +2045,12 @@ python3 trigger_rules.py --delay 1
        </div>
      </section>
 
-    <!-- ── Useful Script Download (inline view) ─────────────────────────── -->
+    <!-- ── Download Files (inline view) ─────────────────────────── -->
     <section id="scriptDlView" class="view">
       <div class="panel">
         <div class="scriptdl-head" style="border:0; padding:0; margin-bottom:14px;">
           <div>
-            <h3 class="scriptdl-title" id="scriptDlTitle" style="margin:0 0 4px;">&#128229; Useful Script Download</h3>
+            <h3 class="scriptdl-title" id="scriptDlTitle" style="margin:0 0 4px;">&#128229; Download Files</h3>
             <p class="scriptdl-sub" style="margin:0;">Admin-published utility scripts &amp; programs</p>
           </div>
         </div>
@@ -5639,7 +5639,7 @@ if __name__ == "__main__":
   </script>
 
   <script>
-    // ── Useful Script Download (GitHub Contents API) ──────────────────────
+    // ── Download Files (GitHub Contents API) ──────────────────────
     (function () {
       const REPO_OWNER = "maxias13";
       const REPO_NAME  = "snort-rule-converter-site";
