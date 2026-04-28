@@ -5983,17 +5983,42 @@ if __name__ == "__main__":
             },
             body: JSON.stringify(payload),
           });
-          if (res.status === 401) {
-            showMsg(upMsg, "Unauthorized. Check that your PAT is valid and has contents:write scope.", "err");
-            return;
-          }
-          if (res.status === 403) {
-            showMsg(upMsg, "Forbidden. PAT lacks write access to this repo.", "err");
-            return;
-          }
           if (!res.ok) {
-            const t = await res.text().catch(() => "");
-            showMsg(upMsg, `Upload failed: HTTP ${res.status} ${t.slice(0, 200)}`, "err");
+            // Try to extract GitHub's actual error message for accurate diagnosis
+            let ghMsg = "";
+            let ghDocUrl = "";
+            try {
+              const j = await res.clone().json();
+              ghMsg = j && j.message ? j.message : "";
+              ghDocUrl = j && j.documentation_url ? j.documentation_url : "";
+            } catch (_) {
+              try { ghMsg = (await res.text()).slice(0, 300); } catch (_) {}
+            }
+
+            let hint = "";
+            if (res.status === 401) {
+              hint = "Token is invalid, expired, or revoked. Generate a new PAT.";
+            } else if (res.status === 403) {
+              if (/Resource not accessible by personal access token/i.test(ghMsg)) {
+                hint = "Fine-grained PAT is missing the 'Contents: Read and write' permission on this repo. Re-issue the token with that permission (Fine-grained PATs cannot be edited after creation).";
+              } else if (/SAML|SSO/i.test(ghMsg)) {
+                hint = "Token needs SSO authorization for the org. Visit github.com/settings/tokens and click 'Configure SSO' on the token.";
+              } else {
+                hint = "Token does not have write access to this repo. Check token's repository selection and Contents permission, or that you are a collaborator.";
+              }
+            } else if (res.status === 404) {
+              hint = "Repo or path not found, or the token cannot see this repo. Check Resource owner and Repository access on the token.";
+            } else if (res.status === 422) {
+              hint = "GitHub rejected the request body (often a stale/missing sha for an existing file). Refresh and retry.";
+            }
+
+            const docLink = ghDocUrl ? ` (docs: ${ghDocUrl})` : "";
+            showMsg(
+              upMsg,
+              `Upload failed: HTTP ${res.status}. GitHub says: "${ghMsg || "(no message)"}"${docLink}` +
+                (hint ? ` — ${hint}` : ""),
+              "err"
+            );
             return;
           }
           showMsg(upMsg, `✓ Uploaded "${file.name}" to /${SCRIPTS_DIR}.`, "ok");
