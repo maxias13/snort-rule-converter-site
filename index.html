@@ -2078,6 +2078,7 @@ python3 trigger_rules.py --delay 1
         <!-- ─── Recent Updates ─── -->
         <div class="si-card">
           <h4>Recent Updates</h4>
+          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 &amp; 3 optimizer cross-validation against official manuals — fixed 7 inaccuracies: (1) <code style="color:var(--primary);">replace</code>/<code style="color:var(--primary);">react</code> incorrectly listed as Snort 3 removed (both still exist — <code style="color:var(--primary);">replace</code> §7.1.21, <code style="color:var(--primary);">react</code> active response); (2) Snort 3 <code style="color:var(--primary);">rawbytes</code> now correctly suggested as <code style="color:var(--primary);">raw_data</code> sticky buffer per §7.1.16; (3) <code style="color:var(--primary);">dce2</code> preprocessor reference replaced with correct Snort 3 inspector names <code style="color:var(--primary);">dce_smb</code>/<code style="color:var(--primary);">dce_tcp</code>/<code style="color:var(--primary);">dce_udp</code> per §6.1.4; (4) <code style="color:var(--primary);">urilen</code> message updated — option is removed in Snort 3 (use <code style="color:var(--primary);">http_uri</code> + <code style="color:var(--primary);">bufferlen</code>) per §7.1.20; (5) OPT_EXPLAIN entries reconciled with manual section refs; (6) FP_INCOMPAT_MODS comments clarified for §3.5.22 incompatibility list; (7) <code style="color:var(--primary);">resp</code> properly tagged as removed in Snort 3 remnants list</span></div>
           <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: SID auto-conversion — <code style="color:var(--primary);">sid &lt; 1,000,000</code> is automatically remapped to local rule range (1,000,000 + original SID, e.g. sid:3 → sid:1000003) per Manual §3.4.4</span></div>
           <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: complete rewrite based on Snort 2.9.16 Manual Chapter 3 — added 9 new correctness/performance checks (HTTP modifier mutual exclusivity, fast_pattern incompatible modifier, rawbytes+HTTP conflict, PCRE flag exclusivity, discrete check ordering, ICMP protocol, multiple fast_pattern, missing flow, SID range advisory)</span></div>
           <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: <code style="color:var(--primary);">fast_pattern:only</code> and <code style="color:var(--primary);">uricontent</code> no longer auto-converted (both are valid Snort 2 syntax — previous auto-fix was incorrect)</span></div>
@@ -3702,6 +3703,8 @@ if __name__ == "__main__":
         //   • fast_pattern is mutually exclusive with distance/within on the same content
         //   • fast_pattern cannot be used on content paired with: http_cookie, http_raw_cookie,
         //     http_raw_header, http_method, http_raw_uri, http_stat_code, http_stat_msg
+        // Snort 2 §3.5.22: http_cookie, http_raw_cookie, http_raw_header, http_method,
+        // http_raw_uri, http_stat_code, http_stat_msg are all FP-incompatible.
         const FP_INCOMPAT_MODS = new Set([
           "http_cookie","http_raw_cookie","http_raw_header",
           "http_method","http_raw_uri","http_stat_code","http_stat_msg"
@@ -3932,26 +3935,26 @@ if __name__ == "__main__":
       // ── Option explanation database ──────────────────────────────────
       const OPT_EXPLAIN = {
         msg:        { category:"meta",      desc:"Alert message displayed when the rule fires. Should clearly describe the threat (Manual §3.4.1)." },
-        sid:        { category:"meta",      desc:"Unique rule identifier (SID). Snort/Talos: 1–999,999. Local rules: 1,000,000–9,999,999 (Manual §3.4.4)." },
+        sid:        { category:"meta",      desc:"Unique rule identifier (SID). Snort/Talos distribution: 100–999,999. Local rules: 1,000,000+ (Manual §3.4.4). This tool auto-rewrites SIDs &lt; 1,000,000 to the local range (e.g. sid:3 → sid:1000003)." },
         rev:        { category:"meta",      desc:"Rule revision number. Increment by 1 each time the rule is modified (Manual §3.4.5)." },
         gid:        { category:"meta",      desc:"Generator ID. Default is 1 (Snort engine). Custom preprocessors use higher GIDs. gid:1 can be omitted (Manual §3.4.3)." },
         classtype:  { category:"meta",      desc:"Rule classification category (e.g. trojan-activity, web-application-attack). Affects alert priority (Manual §3.4.6)." },
         priority:   { category:"meta",      desc:"Overrides the default priority from classtype (1=high, 4=low) (Manual §3.4.7)." },
         metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. service, policy). Not used for detection. Migrate to standalone service: in Snort 3 (Manual §3.4.9)." },
         reference:  { category:"meta",      desc:"External reference URL or CVE identifier associated with the rule (Manual §3.4.2)." },
-        flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections (Manual §3.6.2)." },
+        flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections (Manual §3.6.9)." },
         flowbits:   { category:"flow",      desc:"(Snort 2) Sets/checks per-flow state flag bits between packets. set/isset/unset/toggle/noalert actions available. Replaced by xbits in Snort 3 (Manual §3.6.7)." },
         xbits:      { category:"flow",      desc:"(Snort 3) Sets/checks named bits per host (track ip_src/ip_dst). Replaces flowbits (Manual §3.6.7)." },
         content:    { category:"detection", desc:"Searches for a literal string or hex bytes in the payload. The most basic and efficient detection method. Precede PCRE with a content anchor (Manual §3.5.1)." },
         nocase:     { category:"modifier",  desc:"Makes the preceding content match case-insensitive. Has a performance cost — use only when necessary (Manual §3.5.1)." },
-        offset:     { category:"modifier",  desc:"Byte offset from the start of the payload (or buffer) at which to begin searching for content (Manual §3.5.1)." },
-        depth:      { category:"modifier",  desc:"Limits content search to N bytes from the offset position. Must be ≥ content length (Manual §3.5.1)." },
-        distance:   { category:"modifier",  desc:"Number of bytes to skip after the previous match before searching for the next content. Mutually exclusive with fast_pattern on same content (Manual §3.5.1)." },
-        within:     { category:"modifier",  desc:"The next content must be found within N bytes of the end of the previous match. Mutually exclusive with fast_pattern on same content (Manual §3.5.1)." },
-        fast_pattern: { category:"perf",    desc:"Designates this content as the fast-pattern candidate for the multi-pattern search engine. Max 1 per rule. Not allowed with: distance/within, http_cookie, http_raw_cookie, http_raw_header, http_method, http_raw_uri, http_stat_code (Manual §3.5.22)." },
-        rawbytes:   { category:"buffer",    desc:"(Snort 2) Matches against raw, undecoded payload bytes. Cannot be combined with HTTP buffer modifiers on same content. Removed in Snort 3 — use raw_data; sticky buffer (Manual §3.5.10)." },
-        pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor. Use non-greedy quantifiers (Manual §3.5.23)." },
-        uricontent:  { category:"HTTP",     desc:"(Snort 2) Legacy shorthand for content+http_uri (decoded URI match). Fully valid in Snort 2. Migrate to content:\"...\"; http_uri; for Snort 3 compatibility (Manual §3.5.5)." },
+        offset:     { category:"modifier",  desc:"Byte offset from the start of the payload (or buffer) at which to begin searching for content (Manual §3.5.8)." },
+        depth:      { category:"modifier",  desc:"Limits content search to N bytes from the offset position. Must be ≥ content length (Manual §3.5.7)." },
+        distance:   { category:"modifier",  desc:"Number of bytes to skip after the previous match before searching for the next content. Mutually exclusive with fast_pattern on same content (Manual §3.5.9)." },
+        within:     { category:"modifier",  desc:"The next content must be found within N bytes of the end of the previous match. Must be ≥ content length. Mutually exclusive with fast_pattern on same content (Manual §3.5.10)." },
+        fast_pattern: { category:"perf",    desc:"Designates this content as the fast-pattern candidate for the multi-pattern search engine. Max 1 per rule. In Snort 2 not allowed with: http_cookie, http_raw_cookie, http_raw_header, http_method, http_raw_uri, http_stat_code, http_stat_msg, distance/within (Manual §3.5.22). In Snort 3 http_cookie IS eligible for fast_pattern (Snort 3 Manual: 'http_cookie matches are eligible for fast patterns, which is a change new to Snort 3')." },
+        rawbytes:   { category:"buffer",    desc:"(Snort 2) Matches against raw, undecoded payload bytes. Cannot be combined with HTTP buffer modifiers on same content (Manual §3.5.6). Removed in Snort 3 — use raw_data; sticky buffer (Snort 3 Manual: 'raw_data replaces the old rawbytes keyword from Snort 2')." },
+        pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor. Use non-greedy quantifiers; tune pcre_match_limit (Manual §3.5.26, config §2.1.7)." },
+        uricontent:  { category:"HTTP",     desc:"(Snort 2) Legacy shorthand for content+http_uri (decoded URI match). Fully valid in Snort 2. Migrate to content:\"...\"; http_uri; for Snort 3 compatibility (Manual §3.5.23)." },
         http_uri:    { category:"HTTP",     desc:"(Snort 2 modifier / Snort 3 sticky buffer) Matches against the normalized/decoded URI. Cannot coexist with http_raw_uri on same rule (Manual §3.5.8)." },
         http_raw_uri: { category:"HTTP",    desc:"(Snort 2 modifier) Matches against the raw, un-decoded URI. Mutually exclusive with http_uri. Not allowed with fast_pattern (Manual §3.5.9)." },
         http_method: { category:"HTTP",     desc:"Matches against the HTTP method (GET, POST, etc.). Not allowed with fast_pattern in Snort 2 (Manual §3.5.11)." },
@@ -3963,13 +3966,13 @@ if __name__ == "__main__":
         http_cookie: { category:"HTTP",     desc:"Matches against the HTTP cookie (normalized). Cannot coexist with http_raw_cookie. Not allowed with fast_pattern (Manual §3.5.17)." },
         http_raw_cookie: { category:"HTTP", desc:"Matches against the raw HTTP cookie. Mutually exclusive with http_cookie. Not allowed with fast_pattern (Manual §3.5.18)." },
         file_data:   { category:"buffer",   desc:"Inspects file/MIME data in the packet (HTTP response body, email attachments, etc.). file_data:mime not supported in Snort 3 (Manual §3.5.28)." },
-        byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator (e.g. byte_test:2,>,1000,0). Verify sub-option order when migrating to Snort 3 (Manual §3.5.24)." },
-        byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation. from_beginning/from_end/post_offset: verify compatibility in Snort 3 (Manual §3.5.25)." },
-        byte_extract: { category:"detection", desc:"(Snort 2) Extracts a value from the packet into a named variable for use in byte_test/byte_jump. Example: byte_extract:2,0,my_var; (Manual §3.5.26)." },
-        isdataat:    { category:"detection", desc:"Checks whether data exists at a specific position in the payload. Relative to the previous match is also supported (Manual §3.5.27)." },
+        byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator (e.g. byte_test:2,>,1000,0). Verify sub-option order when migrating to Snort 3 (Manual §3.5.31)." },
+        byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation. from_beginning/from_end/post_offset: verify compatibility in Snort 3 (Manual §3.5.32)." },
+        byte_extract: { category:"detection", desc:"(Snort 2) Extracts a value from the packet into a named variable for use in byte_test/byte_jump. Example: byte_extract:2,0,my_var; (Manual §3.5.33)." },
+        isdataat:    { category:"detection", desc:"Checks whether data exists at a specific position in the payload. Relative to the previous match is also supported (Manual §3.5.30)." },
         threshold:   { category:"rate",     desc:"(Snort 2) Limits alert frequency. Replaced by detection_filter in Snort 3. Use detection_filter for Snort 3 compatibility (Manual §3.8.5)." },
-        detection_filter: { category:"rate", desc:"Suppresses alerts until the rule fires a specified number of times within a time window (Manual §3.8.6)." },
-        dce_stub_data: { category:"protocol", desc:"Sticky buffer for DCE/RPC stub data. Requires the dce2 inspector to be enabled in snort.lua." },
+        detection_filter: { category:"rate", desc:"Suppresses alerts until the rule fires a specified number of times within a time window (Manual §3.7.7)." },
+        dce_stub_data: { category:"protocol", desc:"Sticky buffer for DCE/RPC stub data. In Snort 3, requires one of the dce_smb / dce_tcp / dce_udp inspectors to be enabled in snort.lua." },
         service:      { category:"meta",    desc:"Declares the application-layer protocol this rule targets (e.g. http, dns, smtp). Used by Snort 3 traffic classification. In Snort 2, found inside metadata." },
         flags:        { category:"TCP",     desc:"Matches specific TCP flag combinations (e.g. S=SYN, SA=SYN-ACK, F=FIN). Requires TCP protocol rule header (Manual §3.7.2)." },
         dsize:        { category:"payload", desc:"Inspects the payload length. Useful for filtering packets that cannot contain a specific exploit. Place before content/pcre for best performance (Manual §3.9.4)." },
@@ -3990,9 +3993,9 @@ if __name__ == "__main__":
         sameip:       { category:"IP",      desc:"Checks if the source IP equals the destination IP (Manual §3.7.20)." },
         tag:          { category:"meta",    desc:"(Snort 2) Tags additional packets after the initial alert for further inspection. Limited support in Snort 3 (Manual §3.8.7)." },
         session:      { category:"meta",    desc:"(Snort 2 only) Logs session data. Removed in Snort 3." },
-        replace:      { category:"action",  desc:"(Snort 2 only) Replaces packet content inline. Removed in Snort 3 — use rewrite action or DAQ module." },
-        resp:         { category:"action",  desc:"(Snort 2 only) Active response: sends RST/ICMP unreachable. Removed in Snort 3." },
-        react:        { category:"action",  desc:"(Snort 2 only) Sends an HTTP block page to the client. Removed in Snort 3." },
+        replace:      { category:"action",  desc:"Overwrite prior matching content with the given string. Snort 3: requires the 'rewrite' rule action and works on raw packets only (Snort 3 Manual: 'replace ... should be used with the rewrite rule action, and it works for raw packets only')." },
+        resp:         { category:"action",  desc:"(Snort 2 only) Active response: sends RST/ICMP unreachable. Replaced by 'reject' active response in Snort 3." },
+        react:        { category:"action",  desc:"Active response that sends a response to the client and terminates the session. Available in both Snort 2 and Snort 3 (Snort 3 Manual: 'react -> send response to client and terminate session')." },
         logto:        { category:"action",  desc:"(Snort 2 only) Logs packets to a named file. Removed in Snort 3." },
         stream_reassemble: { category:"meta", desc:"(Snort 2 only) Configures TCP stream reassembly. Removed in Snort 3 — configure in snort.lua (Manual §3.8)." },
         activates:    { category:"meta",    desc:"(Snort 2 only) Dynamic rule activation. Removed in Snort 3." },
@@ -4013,7 +4016,8 @@ if __name__ == "__main__":
         const s3only = ["xbits","block","rewrite"];
         // Snort-2-only keywords found in a Snort 3 rule
         // flowbits is valid in both Snort 2 and 3 — not Snort 2-only
-        const s2only = ["uricontent","rawbytes","threshold","activates","activated_by","resp","react","logto","session","stream_reassemble","replace"];
+        // Note: replace and react still exist in Snort 3 (Manual §7.1.3, §7.1.7) — not Snort 2-only
+        const s2only = ["uricontent","rawbytes","threshold","activates","activated_by","resp","logto","session","stream_reassemble"];
 
         if (isSnort2) {
           const found = s3only.filter(kw => has(kw));
@@ -4447,16 +4451,15 @@ if __name__ == "__main__":
         } else {
           const remnants = [
             ["uricontent",    "Snort 2 keyword — use content + http_uri;"],
-            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
+            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer (Manual §7.1.16)"],
             // flowbits is valid in Snort 3 — not listed as a remnant
+            // replace and react are still valid in Snort 3 (handled separately below)
             ["threshold",     "replaced by detection_filter"],
             ["activates",     "dynamic rules are not supported in Snort 3"],
             ["activated_by",  "dynamic rules are not supported in Snort 3"],
-            ["resp",          "removed in Snort 3"],
-            ["react",         "removed in Snort 3"],
+            ["resp",          "removed in Snort 3 — use reject action"],
             ["logto",         "removed in Snort 3"],
             ["stream_reassemble","removed in Snort 3 — configure in snort.lua"],
-            ["replace",       "removed in Snort 3 — use rewrite action"],
           ];
           remnants.forEach(([kw, msg]) => {
             if (has(kw)) suggestions.push({ level:"warn", msg:`Snort 3 rule contains '${kw}': ${msg}.` });
@@ -4492,7 +4495,7 @@ if __name__ == "__main__":
           });
 
           if (has("dce_stub_data"))
-            suggestions.push({ level:"info", msg:"dce_stub_data requires the dce2 inspector to be enabled in snort.lua." });
+            suggestions.push({ level:"info", msg:"dce_stub_data requires one of the dce_smb / dce_tcp / dce_udp inspectors to be enabled in snort.lua (Manual §6.1.4)." });
 
           // ── Sticky buffer ordering: buffer must precede content/pcre ──
           {
@@ -4538,9 +4541,9 @@ if __name__ == "__main__":
               suggestions.push({ level:"perf", msg:"Rule uses HTTP sticky buffers but the action protocol is 'tcp'. In Snort 3 prefer 'alert http' (service rule) for better performance.", fix:"Change 'alert tcp ...' to 'alert http ...'" });
           }
 
-          // ── urilen → bufferlen recommendation (Snort 3 prefers bufferlen) ──
+          // ── urilen removed in Snort 3 — replaced by bufferlen on sticky buffer (Manual §7.1.20) ──
           if (has("urilen"))
-            suggestions.push({ level:"info", msg:"In Snort 3, 'urilen' still works but 'bufferlen' (after a sticky buffer like http_uri;) is the preferred form.", fix:"http_uri; bufferlen:>10;" });
+            suggestions.push({ level:"warn", msg:"Snort 2's 'urilen' option has been removed in Snort 3. Use 'bufferlen' after a sticky buffer like 'http_uri;' instead (Manual §7.1.20).", fix:"http_uri; bufferlen:>10;" });
 
           // ── pcre escape checks (Snort 3) ──────────────────────────────
           opts.forEach(o => {
@@ -5185,16 +5188,16 @@ if __name__ == "__main__":
 
           // ── dce_stub_data: keep but note ─────────────────────────────
           if (lower === "dce_stub_data") {
-            // Still valid in Snort 3 (via dce2 inspector) but needs dce2 enabled
-            warnings.push("dce_stub_data requires dce2 inspector to be enabled in snort.lua");
+            // Manual §6.1.4: dce_smb / dce_tcp / dce_udp inspectors must be enabled in snort.lua
+            warnings.push("dce_stub_data requires dce_smb / dce_tcp / dce_udp inspector to be enabled in snort.lua");
             transformed.push(opt);
             return;
           }
 
           if (lower === "rawbytes") {
-            // Per snort2-to-3-migration-tool skill mapping: rawbytes → pkt_data
-            warnings.push("rawbytes converted to pkt_data sticky buffer (Snort 3 raw packet payload)");
-            transformed.push("pkt_data");
+            // Manual §7.1.16: raw_data sticky buffer replaces the old rawbytes keyword
+            warnings.push("rawbytes converted to raw_data sticky buffer (Manual §7.1.16)");
+            transformed.push("raw_data");
             changeCount += 1;
             return;
           }
