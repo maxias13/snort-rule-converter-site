@@ -3567,39 +3567,39 @@ if __name__ == "__main__":
         let opts = splitOptions(line.slice(parenStart + 1, parenEnd));
         if (opts.length > rawTokenCount) changes.push("Missing semicolons between options fixed");
 
-        // 1. fast_pattern:only → fast_pattern
-        let fpFixed = false;
+        // 1. SID auto-conversion: sid < 1,000,000 → 1,000,000 + sid (Manual §3.4.4)
+        // Local rules must use SID 1,000,000–9,999,999; Snort/Talos uses 1–999,999.
         opts = opts.map(o => {
-          if (/fast_pattern\s*:\s*only/i.test(o)) { fpFixed = true; return o.replace(/fast_pattern\s*:\s*only/i, "fast_pattern"); }
+          if (optionKeyword(o).toLowerCase() !== "sid") return o;
+          const col = o.indexOf(":");
+          if (col === -1) return o;
+          const val = parseInt(o.slice(col + 1).trim(), 10);
+          if (!isNaN(val) && val > 0 && val < 1000000) {
+            const newSid = 1000000 + val;
+            changes.push(`SID converted to local range: sid:${val} → sid:${newSid} (Manual §3.4.4)`);
+            return `sid:${newSid}`;
+          }
           return o;
         });
-        if (fpFixed) changes.push("fast_pattern:only → fast_pattern");
 
-        // 2. uricontent → content + http_uri
-        const expanded = [];
-        let uriFixed = false;
-        opts.forEach(o => {
-          if (optionKeyword(o).toLowerCase() === "uricontent") {
-            const val = o.slice(o.indexOf(":") + 1).trim();
-            expanded.push(`content:${val}`, "http_uri");
-            uriFixed = true;
-          } else {
-            expanded.push(o);
-          }
-        });
-        if (uriFixed) changes.push("uricontent → content + http_uri");
-        opts = expanded;
-
-        // 3. Add fast_pattern to first eligible non-negated content if ≥2 contents and none present
-        // Snort 2 restriction: fast_pattern is mutually exclusive with distance/within on the same content
+        // 2. Add fast_pattern to first eligible non-negated content if ≥2 contents and none present.
+        // Snort 2 restrictions (Manual §3.5.22):
+        //   • fast_pattern is mutually exclusive with distance/within on the same content
+        //   • fast_pattern cannot be used on content paired with: http_cookie, http_raw_cookie,
+        //     http_raw_header, http_method, http_raw_uri, http_stat_code, http_stat_msg
+        const FP_INCOMPAT_MODS = new Set([
+          "http_cookie","http_raw_cookie","http_raw_header",
+          "http_method","http_raw_uri","http_stat_code","http_stat_msg"
+        ]);
         const contentCount = opts.filter(o => optionKeyword(o).toLowerCase() === "content").length;
         const hasFP = opts.some(o => /fast_pattern/i.test(o));
         if (contentCount >= 2 && !hasFP) {
-          const hasRelativeMod = (contentIdx) => {
+          const hasIncompatibleMod = (contentIdx) => {
             for (let i = contentIdx + 1; i < opts.length; i++) {
               const kw = optionKeyword(opts[i]).toLowerCase();
               if (kw === "content" || kw === "pcre" || kw === "uricontent") break;
               if (kw === "distance" || kw === "within") return true;
+              if (FP_INCOMPAT_MODS.has(kw)) return true;
             }
             return false;
           };
@@ -3607,7 +3607,7 @@ if __name__ == "__main__":
           for (let i = 0; i < opts.length; i++) {
             if (optionKeyword(opts[i]).toLowerCase() !== "content") continue;
             if (opts[i].slice(opts[i].indexOf(":") + 1).trim().startsWith("!")) continue;
-            if (hasRelativeMod(i)) continue;
+            if (hasIncompatibleMod(i)) continue;
             fpIdx = i;
             break;
           }
@@ -3622,11 +3622,11 @@ if __name__ == "__main__":
               insertAt++;
             }
             opts.splice(insertAt, 0, "fast_pattern");
-            changes.push("fast_pattern added to first eligible content option");
+            changes.push("fast_pattern added to first eligible content option (Manual §3.5.22)");
           }
         }
 
-        // 4. Move msg to front
+        // 3. Move msg to front (convention per Manual §3.4)
         const msgIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "msg");
         if (msgIdx > 0) {
           const [msgOpt] = opts.splice(msgIdx, 1);
@@ -3634,7 +3634,7 @@ if __name__ == "__main__":
           changes.push("msg moved to front of options");
         }
 
-        // 5. Reorder gid/sid/rev to tail
+        // 4. Reorder gid/sid/rev to tail (Manual §3.4.4)
         const TAIL = ["gid", "sid", "rev"];
         const tailMap = {}, others = [];
         for (const o of opts) {
@@ -3647,7 +3647,7 @@ if __name__ == "__main__":
         if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
         opts = [...others, ...tailOrdered];
 
-        // 6. PCRE escape: replace literal " ; \ inside regex body with \x22 \x3b \x5c
+        // 5. PCRE escape: replace literal " ; inside regex body with \x22 \x3b
         let pcreEscaped = false;
         opts = opts.map(o => {
           if (optionKeyword(o).toLowerCase() !== "pcre") return o;
@@ -3665,7 +3665,7 @@ if __name__ == "__main__":
         });
         if (pcreEscaped) changes.push("PCRE special characters (\" ;) escaped to \\x22 \\x3b");
 
-        // 7. Increment rev if any changes were made
+        // 6. Increment rev if any changes were made
         if (changes.length > 0) {
           const revIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
           if (revIdx !== -1) {
@@ -3816,48 +3816,72 @@ if __name__ == "__main__":
 
       // ── Option explanation database ──────────────────────────────────
       const OPT_EXPLAIN = {
-        msg:        { category:"meta",      desc:"Alert message displayed when the rule fires. Should clearly describe the threat." },
-        sid:        { category:"meta",      desc:"Unique rule identifier (SID). Local rules must use SID 1,000,000 or higher." },
-        rev:        { category:"meta",      desc:"Rule revision number. Increment by 1 each time the rule is modified." },
-        gid:        { category:"meta",      desc:"Generator ID. Default is 1 (Snort engine). Custom preprocessors use higher GIDs." },
-        classtype:  { category:"meta",      desc:"Rule classification category (e.g. trojan-activity, web-application-attack). Affects alert priority." },
-        priority:   { category:"meta",      desc:"Overrides the default priority from classtype (1=high, 4=low)." },
-        metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. service, policy). Not used for detection." },
-        reference:  { category:"meta",      desc:"External reference URL or CVE identifier associated with the rule." },
-        flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections." },
-        flowbits:   { category:"flow",      desc:"(Snort 2) Sets/checks per-flow state flag bits between packets. Replaced by xbits in Snort 3." },
-        xbits:      { category:"flow",      desc:"(Snort 3) Sets/checks named bits per host (track ip_src/ip_dst). Replaces flowbits." },
-        content:    { category:"detection", desc:"Searches for a literal string or hex bytes in the payload. The most basic and efficient detection method." },
-        nocase:     { category:"modifier",  desc:"Makes the preceding content match case-insensitive. Has a performance cost — use only when necessary." },
-        offset:     { category:"modifier",  desc:"Byte offset from the start of the payload (or buffer) at which to begin searching for content." },
-        depth:      { category:"modifier",  desc:"Limits content search to N bytes from the offset position." },
-        distance:   { category:"modifier",  desc:"Number of bytes to skip after the previous match before searching for the next content." },
-        within:     { category:"modifier",  desc:"The next content must be found within N bytes of the end of the previous match." },
-        fast_pattern: { category:"perf",    desc:"Designates this content as the fast-pattern candidate for the multi-pattern search engine. Reduces overall rule evaluation cost." },
-        rawbytes:   { category:"buffer",    desc:"(Snort 2 only) Matches against raw, undecoded payload bytes. Removed in Snort 3 — use raw_data; sticky buffer." },
-        pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor." },
-        uricontent:  { category:"HTTP",     desc:"(Snort 2 only) Legacy shorthand for content+http_uri. Use content:\"...\"; http_uri; in Snort 3." },
-        http_uri:    { category:"HTTP",     desc:"(Snort 3 sticky buffer) Matches against the normalized URI. Place before content/pcre options." },
-        http_method: { category:"HTTP",     desc:"[HTTP] Matches against the HTTP method (GET, POST, etc.). Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
-        http_header: { category:"HTTP",     desc:"[HTTP] Matches against HTTP request/response headers. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
-        http_client_body: { category:"HTTP", desc:"[HTTP] Matches against the HTTP request body. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
-        http_stat_code:   { category:"HTTP", desc:"[HTTP] Matches against the HTTP status code. Supported in Snort 2 and Snort 3 (sticky buffer in Snort 3)." },
-        file_data:   { category:"buffer",   desc:"Inspects file/MIME data in the packet (HTTP response body, email attachments, etc.)." },
-        byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator. Useful for protocol field validation." },
-        byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation." },
-        isdataat:    { category:"detection", desc:"Checks whether data exists at a specific position in the payload. Relative to the previous match is also supported." },
-        threshold:   { category:"rate",     desc:"(Snort 2) Limits alert frequency. Replaced by detection_filter or rate_filter in Snort 3." },
-        detection_filter: { category:"rate", desc:"Suppresses alerts until the rule fires a specified number of times within a time window." },
+        msg:        { category:"meta",      desc:"Alert message displayed when the rule fires. Should clearly describe the threat (Manual §3.4.1)." },
+        sid:        { category:"meta",      desc:"Unique rule identifier (SID). Snort/Talos: 1–999,999. Local rules: 1,000,000–9,999,999 (Manual §3.4.4)." },
+        rev:        { category:"meta",      desc:"Rule revision number. Increment by 1 each time the rule is modified (Manual §3.4.5)." },
+        gid:        { category:"meta",      desc:"Generator ID. Default is 1 (Snort engine). Custom preprocessors use higher GIDs. gid:1 can be omitted (Manual §3.4.3)." },
+        classtype:  { category:"meta",      desc:"Rule classification category (e.g. trojan-activity, web-application-attack). Affects alert priority (Manual §3.4.6)." },
+        priority:   { category:"meta",      desc:"Overrides the default priority from classtype (1=high, 4=low) (Manual §3.4.7)." },
+        metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. service, policy). Not used for detection. Migrate to standalone service: in Snort 3 (Manual §3.4.9)." },
+        reference:  { category:"meta",      desc:"External reference URL or CVE identifier associated with the rule (Manual §3.4.2)." },
+        flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections (Manual §3.6.2)." },
+        flowbits:   { category:"flow",      desc:"(Snort 2) Sets/checks per-flow state flag bits between packets. set/isset/unset/toggle/noalert actions available. Replaced by xbits in Snort 3 (Manual §3.6.7)." },
+        xbits:      { category:"flow",      desc:"(Snort 3) Sets/checks named bits per host (track ip_src/ip_dst). Replaces flowbits (Manual §3.6.7)." },
+        content:    { category:"detection", desc:"Searches for a literal string or hex bytes in the payload. The most basic and efficient detection method. Precede PCRE with a content anchor (Manual §3.5.1)." },
+        nocase:     { category:"modifier",  desc:"Makes the preceding content match case-insensitive. Has a performance cost — use only when necessary (Manual §3.5.1)." },
+        offset:     { category:"modifier",  desc:"Byte offset from the start of the payload (or buffer) at which to begin searching for content (Manual §3.5.1)." },
+        depth:      { category:"modifier",  desc:"Limits content search to N bytes from the offset position. Must be ≥ content length (Manual §3.5.1)." },
+        distance:   { category:"modifier",  desc:"Number of bytes to skip after the previous match before searching for the next content. Mutually exclusive with fast_pattern on same content (Manual §3.5.1)." },
+        within:     { category:"modifier",  desc:"The next content must be found within N bytes of the end of the previous match. Mutually exclusive with fast_pattern on same content (Manual §3.5.1)." },
+        fast_pattern: { category:"perf",    desc:"Designates this content as the fast-pattern candidate for the multi-pattern search engine. Max 1 per rule. Not allowed with: distance/within, http_cookie, http_raw_cookie, http_raw_header, http_method, http_raw_uri, http_stat_code (Manual §3.5.22)." },
+        rawbytes:   { category:"buffer",    desc:"(Snort 2) Matches against raw, undecoded payload bytes. Cannot be combined with HTTP buffer modifiers on same content. Removed in Snort 3 — use raw_data; sticky buffer (Manual §3.5.10)." },
+        pcre:       { category:"detection", desc:"Matches payload against a Perl-compatible regular expression. Powerful but CPU-intensive — always precede with a content anchor. Use non-greedy quantifiers (Manual §3.5.23)." },
+        uricontent:  { category:"HTTP",     desc:"(Snort 2) Legacy shorthand for content+http_uri (decoded URI match). Fully valid in Snort 2. Migrate to content:\"...\"; http_uri; for Snort 3 compatibility (Manual §3.5.5)." },
+        http_uri:    { category:"HTTP",     desc:"(Snort 2 modifier / Snort 3 sticky buffer) Matches against the normalized/decoded URI. Cannot coexist with http_raw_uri on same rule (Manual §3.5.8)." },
+        http_raw_uri: { category:"HTTP",    desc:"(Snort 2 modifier) Matches against the raw, un-decoded URI. Mutually exclusive with http_uri. Not allowed with fast_pattern (Manual §3.5.9)." },
+        http_method: { category:"HTTP",     desc:"Matches against the HTTP method (GET, POST, etc.). Not allowed with fast_pattern in Snort 2 (Manual §3.5.11)." },
+        http_header: { category:"HTTP",     desc:"Matches against HTTP request/response headers (normalized). Cannot coexist with http_raw_header on same rule (Manual §3.5.12)." },
+        http_raw_header: { category:"HTTP", desc:"Matches against raw HTTP headers. Mutually exclusive with http_header. Not allowed with fast_pattern (Manual §3.5.13)." },
+        http_client_body: { category:"HTTP", desc:"Matches against the HTTP request body. Supports fast_pattern in Snort 2 (Manual §3.5.14)." },
+        http_stat_code: { category:"HTTP",  desc:"Matches against the HTTP response status code. Not allowed with fast_pattern in Snort 2 (Manual §3.5.15)." },
+        http_stat_msg: { category:"HTTP",   desc:"Matches against the HTTP response status message. Not allowed with fast_pattern in Snort 2 (Manual §3.5.16)." },
+        http_cookie: { category:"HTTP",     desc:"Matches against the HTTP cookie (normalized). Cannot coexist with http_raw_cookie. Not allowed with fast_pattern (Manual §3.5.17)." },
+        http_raw_cookie: { category:"HTTP", desc:"Matches against the raw HTTP cookie. Mutually exclusive with http_cookie. Not allowed with fast_pattern (Manual §3.5.18)." },
+        file_data:   { category:"buffer",   desc:"Inspects file/MIME data in the packet (HTTP response body, email attachments, etc.). file_data:mime not supported in Snort 3 (Manual §3.5.28)." },
+        byte_test:   { category:"detection", desc:"Tests a specified number of bytes against a value using a binary operator (e.g. byte_test:2,>,1000,0). Verify sub-option order when migrating to Snort 3 (Manual §3.5.24)." },
+        byte_jump:   { category:"detection", desc:"Moves the inspection cursor by the number of bytes extracted from the packet. Used for variable-length protocol field navigation. from_beginning/from_end/post_offset: verify compatibility in Snort 3 (Manual §3.5.25)." },
+        byte_extract: { category:"detection", desc:"(Snort 2) Extracts a value from the packet into a named variable for use in byte_test/byte_jump. Example: byte_extract:2,0,my_var; (Manual §3.5.26)." },
+        isdataat:    { category:"detection", desc:"Checks whether data exists at a specific position in the payload. Relative to the previous match is also supported (Manual §3.5.27)." },
+        threshold:   { category:"rate",     desc:"(Snort 2) Limits alert frequency. Replaced by detection_filter in Snort 3. Use detection_filter for Snort 3 compatibility (Manual §3.8.5)." },
+        detection_filter: { category:"rate", desc:"Suppresses alerts until the rule fires a specified number of times within a time window (Manual §3.8.6)." },
         dce_stub_data: { category:"protocol", desc:"Sticky buffer for DCE/RPC stub data. Requires the dce2 inspector to be enabled in snort.lua." },
-        service:      { category:"meta",    desc:"Declares the application-layer protocol this rule targets (e.g. http, dns, smtp). Used by Snort 3 traffic classification." },
-        flags:        { category:"TCP",     desc:"Matches specific TCP flag combinations (e.g. S=SYN, SA=SYN-ACK, F=FIN)." },
-        dsize:        { category:"payload", desc:"Inspects the payload length. Useful for filtering packets that cannot contain a specific exploit." },
-        itype:        { category:"ICMP",    desc:"Matches against the ICMP message type field." },
-        icode:        { category:"ICMP",    desc:"Matches against the ICMP code field." },
-        ttl:          { category:"IP",      desc:"Inspects the IP Time-To-Live value." },
-        tos:          { category:"IP",      desc:"Inspects the IP Type-of-Service field." },
-        id:           { category:"IP",      desc:"Inspects the IP header identification field." },
-        fragbits:     { category:"IP",      desc:"Inspects IP fragmentation flag bits (More Fragments, Don't Fragment, Reserved)." },
+        service:      { category:"meta",    desc:"Declares the application-layer protocol this rule targets (e.g. http, dns, smtp). Used by Snort 3 traffic classification. In Snort 2, found inside metadata." },
+        flags:        { category:"TCP",     desc:"Matches specific TCP flag combinations (e.g. S=SYN, SA=SYN-ACK, F=FIN). Requires TCP protocol rule header (Manual §3.7.2)." },
+        dsize:        { category:"payload", desc:"Inspects the payload length. Useful for filtering packets that cannot contain a specific exploit. Place before content/pcre for best performance (Manual §3.9.4)." },
+        itype:        { category:"ICMP",    desc:"Matches against the ICMP message type field. Requires ICMP protocol rule header (Manual §3.7.8)." },
+        icode:        { category:"ICMP",    desc:"Matches against the ICMP code field. Requires ICMP protocol rule header (Manual §3.7.9)." },
+        icmp_id:      { category:"ICMP",    desc:"Checks the ICMP ID field (echo request/reply). Requires ICMP protocol rule header (Manual §3.7.10)." },
+        icmp_seq:     { category:"ICMP",    desc:"Checks the ICMP sequence number. Requires ICMP protocol rule header (Manual §3.7.11)." },
+        ttl:          { category:"IP",      desc:"Inspects the IP Time-To-Live value. Place before content/pcre for best performance (Manual §3.7.13)." },
+        tos:          { category:"IP",      desc:"Inspects the IP Type-of-Service field (Manual §3.7.14)." },
+        id:           { category:"IP",      desc:"Inspects the IP header identification field (Manual §3.7.15)." },
+        ip_proto:     { category:"IP",      desc:"Inspects the IP protocol number (e.g. ip_proto:17; for UDP) (Manual §3.7.19)." },
+        fragbits:     { category:"IP",      desc:"Inspects IP fragmentation flag bits (M=More Fragments, D=Don't Fragment, R=Reserved). Place before content/pcre for best performance (Manual §3.7.16)." },
+        fragoffset:   { category:"IP",      desc:"Tests the IP fragmentation offset field (Manual §3.7.17)." },
+        seq:          { category:"TCP",     desc:"Checks the TCP sequence number (Manual §3.7.3)." },
+        ack:          { category:"TCP",     desc:"Checks the TCP acknowledgement number (Manual §3.7.4)." },
+        window:       { category:"TCP",     desc:"Inspects the TCP window size (Manual §3.7.5)." },
+        ipopts:       { category:"IP",      desc:"Checks for specific IP header options (e.g. rr, ts, lsrr, ssrr, satid, any, rfc1883) (Manual §3.7.18)." },
+        sameip:       { category:"IP",      desc:"Checks if the source IP equals the destination IP (Manual §3.7.20)." },
+        tag:          { category:"meta",    desc:"(Snort 2) Tags additional packets after the initial alert for further inspection. Limited support in Snort 3 (Manual §3.8.7)." },
+        session:      { category:"meta",    desc:"(Snort 2 only) Logs session data. Removed in Snort 3." },
+        replace:      { category:"action",  desc:"(Snort 2 only) Replaces packet content inline. Removed in Snort 3 — use rewrite action or DAQ module." },
+        resp:         { category:"action",  desc:"(Snort 2 only) Active response: sends RST/ICMP unreachable. Removed in Snort 3." },
+        react:        { category:"action",  desc:"(Snort 2 only) Sends an HTTP block page to the client. Removed in Snort 3." },
+        logto:        { category:"action",  desc:"(Snort 2 only) Logs packets to a named file. Removed in Snort 3." },
+        stream_reassemble: { category:"meta", desc:"(Snort 2 only) Configures TCP stream reassembly. Removed in Snort 3 — configure in snort.lua (Manual §3.8)." },
+        activates:    { category:"meta",    desc:"(Snort 2 only) Dynamic rule activation. Removed in Snort 3." },
+        activated_by: { category:"meta",    desc:"(Snort 2 only) Dynamic rule trigger. Removed in Snort 3." },
         xbits_note:   {},
       };
 
@@ -3989,10 +4013,12 @@ if __name__ == "__main__":
           }
         }
 
-        // ── SID range advisory ───────────────────────────────────────────
+        // ── SID range advisory (Manual §3.4.4) ───────────────────────────
         const sidVal = parseInt(get("sid") || "0", 10);
         if (sidVal > 0 && sidVal < 1000000)
-          suggestions.push({ level:"info", msg:`SID ${sidVal} is in the Snort/Talos reserved range (1–999,999). Local rules must use SID 1,000,000 or higher.` });
+          suggestions.push({ level:"info", msg:`SID ${sidVal} is in the Snort/Talos reserved range (1–999,999). Auto-fix will convert to ${1000000 + sidVal} for the local rule range (Manual §3.4.4).` });
+        if (sidVal > 9999999)
+          suggestions.push({ level:"warn", msg:`SID ${sidVal} exceeds the recommended local rule range (1,000,000–9,999,999). Consider using a SID within that range (Manual §3.4.4).` });
 
         // ── gid:1 is default ─────────────────────────────────────────────
         if (get("gid") === "1")
@@ -4174,6 +4200,133 @@ if __name__ == "__main__":
             if (k === "distance" && !isNaN(v) && v < 0)
               suggestions.push({ level:"warn", msg:`distance:${v} (negative) is not allowed.` });
           });
+
+          // ── HTTP modifier mutual exclusivity (Manual §3.5.11–3.5.21) ──
+          // http_raw_cookie and http_cookie cannot both appear in the same rule
+          // http_raw_header and http_header cannot both appear in the same rule
+          // http_raw_uri and http_uri cannot both appear in the same rule
+          {
+            const mutuallyExclusive = [
+              ["http_raw_cookie", "http_cookie"],
+              ["http_raw_header", "http_header"],
+              ["http_raw_uri",    "http_uri"],
+            ];
+            mutuallyExclusive.forEach(([a, b]) => {
+              if (has(a) && has(b))
+                suggestions.push({ level:"warn", msg:`'${a}' and '${b}' are mutually exclusive — using both in the same rule will cause a parser error (Manual §3.5.11–3.5.21).` });
+            });
+          }
+
+          // ── fast_pattern incompatible HTTP modifiers (Manual §3.5.22) ─
+          // fast_pattern cannot be used on content paired with:
+          // http_cookie, http_raw_cookie, http_raw_header, http_method, http_raw_uri, http_stat_code, http_stat_msg
+          {
+            const FP_INCOMPAT = new Set(["http_cookie","http_raw_cookie","http_raw_header","http_method","http_raw_uri","http_stat_code","http_stat_msg"]);
+            let inGroup = false;
+            let groupHasFP = false;
+            let groupIncompatMod = "";
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") {
+                inGroup = true; groupHasFP = false; groupIncompatMod = "";
+              } else if (inGroup) {
+                if (kw === "fast_pattern") groupHasFP = true;
+                else if (FP_INCOMPAT.has(kw)) groupIncompatMod = kw;
+              }
+              // At group boundary (or end): emit if both found
+              if (groupHasFP && groupIncompatMod) {
+                suggestions.push({ level:"warn", msg:`fast_pattern cannot be combined with '${groupIncompatMod}' on the same content option — this combination is not allowed in Snort 2 (Manual §3.5.22).` });
+                groupHasFP = false; groupIncompatMod = "";
+              }
+            }
+          }
+
+          // ── rawbytes mutual exclusivity with HTTP modifiers ───────────
+          // rawbytes cannot be used on the same content as any HTTP buffer modifier
+          {
+            const HTTP_MODS = new Set(["http_uri","http_header","http_method","http_client_body","http_stat_code","http_stat_msg","http_cookie","http_raw_uri","http_raw_header","http_raw_cookie"]);
+            let groupHasRaw = false;
+            let groupHttpMod = "";
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") {
+                groupHasRaw = false; groupHttpMod = "";
+              } else {
+                if (kw === "rawbytes") groupHasRaw = true;
+                else if (HTTP_MODS.has(kw)) groupHttpMod = kw;
+              }
+              if (groupHasRaw && groupHttpMod) {
+                suggestions.push({ level:"warn", msg:`rawbytes cannot be combined with HTTP buffer modifier '${groupHttpMod}' on the same content option (Manual §3.5.10).` });
+                groupHasRaw = false; groupHttpMod = "";
+              }
+            }
+          }
+
+          // ── PCRE flag mutual exclusivity (Manual §3.5.23) ────────────
+          // U + I (http_uri + http_raw_uri), H + D (http_header + http_raw_header),
+          // C + K (http_cookie + http_raw_cookie) are mutually exclusive flag pairs
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const flagMatch = (o.slice(o.indexOf(":") + 1).trim()).match(/\/[a-zA-Z]*\/([a-zA-Z]+)"?$/);
+            const flags = flagMatch ? flagMatch[1] : "";
+            if (/U/.test(flags) && /I/.test(flags))
+              suggestions.push({ level:"warn", msg:"PCRE flags U (HTTP URI) and I (HTTP raw URI) are mutually exclusive (Manual §3.5.23)." });
+            if (/H/.test(flags) && /D/.test(flags))
+              suggestions.push({ level:"warn", msg:"PCRE flags H (HTTP header) and D (HTTP raw header) are mutually exclusive (Manual §3.5.23)." });
+            if (/C/.test(flags) && /K/.test(flags))
+              suggestions.push({ level:"warn", msg:"PCRE flags C (HTTP cookie) and K (HTTP raw cookie) are mutually exclusive (Manual §3.5.23)." });
+          });
+
+          // ── Discrete check ordering (Manual §3.9.4) ──────────────────
+          // Non-payload options (dsize, flags, flow, fragbits, icmp_id, icmp_seq,
+          // icode, id, ipopts, ip_proto, itype, seq, tos, ttl, ack, window, sameip)
+          // should appear BEFORE content/pcre detection options for best performance.
+          {
+            const DISCRETE = new Set(["dsize","flags","flow","fragbits","icmp_id","icmp_seq","icode","id","ipopts","ip_proto","itype","seq","tos","ttl","ack","window","sameip"]);
+            let firstDetectionIdx = -1;
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "content" || kw === "pcre" || kw === "uricontent") { firstDetectionIdx = i; break; }
+            }
+            if (firstDetectionIdx > 0) {
+              const misorderedDiscrete = [];
+              for (let i = firstDetectionIdx + 1; i < opts.length; i++) {
+                const kw = optionKeyword(opts[i]).toLowerCase();
+                if (DISCRETE.has(kw)) misorderedDiscrete.push(kw);
+              }
+              if (misorderedDiscrete.length)
+                suggestions.push({ level:"perf", msg:`Discrete/non-payload checks (${misorderedDiscrete.join(", ")}) appear after content/pcre options. Moving them before detection options improves performance (Manual §3.9.4).` });
+            }
+          }
+
+          // ── itype / icode require ICMP protocol ──────────────────────
+          {
+            const headerLower2 = line.slice(0, parenStart).toLowerCase();
+            const isIcmp2 = /\balert\s+icmp\b/.test(headerLower2);
+            if (!isIcmp2) {
+              if (has("itype"))
+                suggestions.push({ level:"warn", msg:"'itype' is only valid for ICMP protocol rules." });
+              if (has("icode"))
+                suggestions.push({ level:"warn", msg:"'icode' is only valid for ICMP protocol rules." });
+              if (has("icmp_id") || has("icmp_seq"))
+                suggestions.push({ level:"warn", msg:"'icmp_id' / 'icmp_seq' are only valid for ICMP protocol rules." });
+            }
+          }
+
+          // ── Multiple fast_pattern check (max 1 per rule) ──────────────
+          {
+            const fpCount = opts.filter(o => /fast_pattern/i.test(o)).length;
+            if (fpCount > 1)
+              suggestions.push({ level:"warn", msg:`Rule contains ${fpCount} fast_pattern modifiers — only one is allowed per rule. Only the last one will be honoured; others will be ignored or cause a parser error (Manual §3.5.22).` });
+          }
+
+          // ── Missing flow option advisory ──────────────────────────────
+          {
+            const headerLower3 = line.slice(0, parenStart).toLowerCase();
+            const isTcp3 = /\balert\s+(tcp|http)\b/.test(headerLower3);
+            if (isTcp3 && !has("flow"))
+              suggestions.push({ level:"perf", msg:"TCP rule has no flow option. Adding flow:established,to_server (or to_client) limits evaluation to established sessions and significantly reduces false positives (Manual §3.6.2)." });
+          }
 
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
@@ -5245,12 +5398,13 @@ if __name__ == "__main__":
         // Pattern: closing quote (") followed by whitespace then a known keyword.
         const KW = '(?:content|pcre|flow|flowbits|noalert|msg|sid|rev|gid|flags|nocase|' +
           'distance|within|offset|depth|fast_pattern|http_uri|http_header|http_method|' +
-          'http_client_body|http_stat_code|http_cookie|http_raw_uri|http_raw_header|' +
-          'http_raw_cookie|uricontent|rawbytes|isdataat|byte_test|byte_jump|dsize|' +
-          'itype|icode|ttl|id|ip_proto|sameip|same_ip|threshold|detection_filter|' +
-          'service|metadata|reference|classtype|priority|tag|logto|activates|' +
-          'activated_by|replace|react|resp|file_data|dce_stub_data|stream_reassemble|' +
-          'xbits|fast_pattern)';
+          'http_client_body|http_stat_code|http_stat_msg|http_cookie|http_raw_uri|' +
+          'http_raw_header|http_raw_cookie|uricontent|rawbytes|isdataat|byte_test|' +
+          'byte_jump|byte_extract|dsize|itype|icode|icmp_id|icmp_seq|ttl|id|tos|' +
+          'ip_proto|ipopts|seq|ack|window|sameip|fragbits|fragoffset|threshold|' +
+          'detection_filter|service|metadata|reference|classtype|priority|tag|logto|' +
+          'activates|activated_by|replace|react|resp|file_data|dce_stub_data|' +
+          'stream_reassemble|xbits|flowbits)';
         optionsStr = optionsStr.replace(
           new RegExp('(")(\\s+)(' + KW + '\\s*[;:])', 'gi'),
           (_, quote, space, kw) => quote + '; ' + kw.trimStart()
