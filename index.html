@@ -1818,7 +1818,7 @@ python3 trigger_rules.py --delay 1
         <div class="si-card">
           <h4>Navigation Map</h4>
           <div class="si-row"><span class="si-label">🏠 Home</span><span class="si-value">Main Snort 2 → Snort 3 rule converter. Paste or load a <code style="color:var(--primary);">.rules</code> file, optionally remap SIDs from a Start SID, and view side-by-side diff with built-in duplicate detection.</span></div>
-          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Displays "All Optimized Rules" panel and per-rule optimized output.</span></div>
+          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3). Includes SID auto-conversion to the local rule range (1,000,000–9,999,999), fast_pattern placement, gid/sid/rev reordering, PCRE escaping, and 10+ correctness/performance checks. Displays "All Optimized Rules" panel and per-rule optimized output with inline copy buttons.</span></div>
           <div class="si-row"><span class="si-label">✅ Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">🔄 Snort SRU Updates</span><span class="si-value">Weekly Snort 2 SRU (Sourcefire Rule Update) news from Talos advisories.</span></div>
           <div class="si-row"><span class="si-label">📋 Snort LSP Updates</span><span class="si-value">Weekly Snort 3 LSP (Lightweight Security Package) update news from Talos advisories.</span></div>
@@ -1934,7 +1934,118 @@ python3 trigger_rules.py --delay 1
               <b style="color:#fff;">Final steps:</b> <code style="color:var(--primary);">gid</code>, <code style="color:var(--primary);">sid</code>, <code style="color:var(--primary);">rev</code> are always sorted to the end of the options in that order. If a Start SID is specified, each rule's SID is remapped sequentially from that value, and the original→new SID mapping is persisted to localStorage for cross-session traceability.
             </div>
           </div>
-          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3 (Korean comments). Displays the "All Optimized Rules" consolidated panel plus per-rule optimized output. Inline copy buttons via event delegation. Auto fast_pattern placement after content modifiers; gid/sid/rev auto-reorder; syntax error detection.</span></div>
+          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3 (Korean comments). Displays the "All Optimized Rules" consolidated panel plus per-rule optimized output with inline copy buttons. The Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3) — see algorithm detail below.</span></div>
+          <div style="margin-top:14px; margin-bottom:18px; padding:14px 16px; background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.15); border-radius:8px; font-size:0.84rem; line-height:1.75;">
+            <div style="color:var(--primary); font-weight:700; margin-bottom:10px;">&#9889; Snort 2 Optimization Algorithm — How It Works</div>
+            <div style="color:#a0bcd8; margin-bottom:10px;">
+              All analysis is grounded in the <b style="color:#fff;">Snort 2.9.16 Manual Chapter 3</b>. Processing runs in two phases: <b style="color:#fff;">Phase 1</b> auto-applies safe structural fixes, then <b style="color:#fff;">Phase 2</b> reports correctness and performance advisory checks inline.
+            </div>
+
+            <div style="color:#fff; font-weight:600; margin-bottom:6px;">&#9312; Phase 1 — Auto-Fixes (applied automatically)</div>
+            <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:0.82rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Condition</th>
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Fix Applied</th>
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Ref</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sid &lt; 1,000,000</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;">Auto-converted to local rule range: <code style="color:var(--success);">sid:3 → sid:1000003</code></td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">msg not first option</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--success);">msg</code> moved to the front of the options list</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.4.1</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">gid/sid/rev not at tail</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;">Reordered to end of options in sequence <code style="color:var(--success);">gid → sid → rev</code></td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">No fast_pattern on any content</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;">Inserts <code style="color:var(--success);">fast_pattern</code> after the longest eligible <code>content</code> (skips contents with incompatible HTTP modifiers)</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">PCRE unescaped chars</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;">Fixes unescaped special characters inside PCRE strings</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.23</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">Fixes were applied</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--success);">rev</code> automatically incremented by 1</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="color:#fff; font-weight:600; margin-bottom:6px;">&#9313; Phase 2 — Analysis Checks (inline advisory)</div>
+            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border);">
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Check</th>
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Severity</th>
+                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Ref</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;">HTTP modifier mutual exclusivity (http_raw_cookie↔http_cookie, http_raw_header↔http_header, http_raw_uri↔http_uri)</td>
+                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.11–3.5.21</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">fast_pattern</code> used with incompatible HTTP modifier (http_cookie, http_raw_*, http_method, http_stat_code/msg)</td>
+                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">rawbytes</code> combined with any HTTP modifier on the same content</td>
+                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.10</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;">PCRE flag mutual exclusivity: U+I, H+D, or C+K in same PCRE</td>
+                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.23</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;">Multiple <code style="color:var(--warn);">fast_pattern</code> options in one rule (&gt; 1)</td>
+                  <td style="padding:4px 8px; color:var(--warn);">WARN</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;">Discrete options (dsize, flags, fragbits, ipopts, ip_proto, tos, ttl, etc.) placed after content/pcre</td>
+                  <td style="padding:4px 8px; color:var(--primary);">ADVISORY</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.9.4</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">itype</code>, <code style="color:var(--warn);">icode</code>, <code style="color:var(--warn);">icmp_id</code>, or <code style="color:var(--warn);">icmp_seq</code> used on non-ICMP rule</td>
+                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.9</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
+                  <td style="padding:4px 8px; color:#a0bcd8;">TCP rule with content but no <code style="color:var(--warn);">flow</code> option</td>
+                  <td style="padding:4px 8px; color:var(--primary);">ADVISORY</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.9.4</td>
+                </tr>
+                <tr>
+                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">sid</code> &gt; 9,999,999 (above local rule range)</td>
+                  <td style="padding:4px 8px; color:var(--warn);">WARN</td>
+                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top:10px; color:#a0bcd8;">
+              <b style="color:#fff;">Note:</b> <code style="color:var(--primary);">fast_pattern:only</code> and <code style="color:var(--primary);">uricontent</code> are <b style="color:#fff;">valid in Snort 2</b> and are preserved as-is (not auto-converted). All suggestion messages include the Manual section reference (e.g. <code style="color:var(--primary);">Manual §3.5.22</code>).
+            </div>
+          </div>
           <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
           <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories.</span></div>
@@ -1967,6 +2078,10 @@ python3 trigger_rules.py --delay 1
         <!-- ─── Recent Updates ─── -->
         <div class="si-card">
           <h4>Recent Updates</h4>
+          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: SID auto-conversion — <code style="color:var(--primary);">sid &lt; 1,000,000</code> is automatically remapped to local rule range (1,000,000 + original SID, e.g. sid:3 → sid:1000003) per Manual §3.4.4</span></div>
+          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: complete rewrite based on Snort 2.9.16 Manual Chapter 3 — added 9 new correctness/performance checks (HTTP modifier mutual exclusivity, fast_pattern incompatible modifier, rawbytes+HTTP conflict, PCRE flag exclusivity, discrete check ordering, ICMP protocol, multiple fast_pattern, missing flow, SID range advisory)</span></div>
+          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">Snort 2 optimizer: <code style="color:var(--primary);">fast_pattern:only</code> and <code style="color:var(--primary);">uricontent</code> no longer auto-converted (both are valid Snort 2 syntax — previous auto-fix was incorrect)</span></div>
+          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value">OPT_EXPLAIN expanded from 28 to 60+ entries; all Snort 2 entries now include Manual §x.x.x section references; <code style="color:var(--primary);">splitOptions()</code> keyword list extended with byte_extract, icmp_id, icmp_seq, http_stat_msg, tos, ipopts, seq, ack, window, fragoffset</span></div>
           <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Auto-load script list on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation (fixes infinite "Loading scripts from GitHub…" placeholder)</span></div>
           <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Bumped Cisco Suggested info box font sizes one step up for readability</span></div>
           <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Added Cisco Suggested Releases info box at the bottom of the sidebar (FMC 7.6.5 / FTD 7.6.4 / Snort 3 default + Compatibility Guide link)</span></div>
