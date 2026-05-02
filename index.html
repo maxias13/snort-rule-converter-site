@@ -1364,7 +1364,7 @@ content:"/other", distance 0;</pre>
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>In Snort 3, HTTP inspection uses <b>sticky buffers</b>. The buffer keyword must be placed <b>immediately before</b> <code>content</code> or <code>pcre</code>.</p>
+            <p>In Snort 3, HTTP inspection uses <b>sticky buffers</b>. Place the buffer keyword <b>before</b> the related <code>content</code> or <code>pcre</code>; it remains active until another sticky buffer changes the detection cursor.</p>
             <pre class="guide-code"># URI-based detection
 http_uri; content:"/cgi-bin/.%2e/", fast_pattern;
 
@@ -1380,8 +1380,11 @@ http_method; content:"POST";
 # Status code detection (response detection)
 http_stat_code; content:"200";
 
-# service keyword required — activates the HTTP inspector
-service:http;</pre>
+# traditional TCP header: add service scoping when not using a service rule
+service:http;
+
+# service rule header: no service option is needed
+alert http ( http_uri; content:"/admin",fast_pattern; sid:1000001; rev:1; )</pre>
             <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
               <thead><tr style="border-bottom:1px solid var(--border);">
                 <th style="text-align:left;padding:4px 8px;color:var(--muted);">Sticky Buffer</th>
@@ -1450,12 +1453,12 @@ http_uri; pcre:"/\/\.\.\/etc\/passwd/i";
             <span class="guide-chevron">&#9660;</span>
           </summary>
           <div class="guide-body">
-            <p>Snort 2's <code>flowbits</code> is replaced by <code>xbits</code> in Snort 3. <code>xbits</code> provides <b>host-based</b> state tracking with finer-grained control.</p>
+            <p>Snort 3 still supports <code>flowbits</code> for transport-session state tracking. Use <code>xbits</code> when you intentionally need host/IP-based state with explicit tracking scope.</p>
             <pre class="guide-code"># Snort 2 (flowbits)
 flowbits:set,malware.stage1;
 flowbits:isset,malware.stage1;
 
-# Snort 3 (xbits) — track clause is required
+# Snort 3 alternative (xbits) — track clause is required
 xbits:set,malware.stage1,track ip_src;
 xbits:isset,malware.stage1,track ip_src;
 xbits:unset,malware.stage1,track ip_src;
@@ -1469,10 +1472,9 @@ alert tcp ... (content:"stage1"; xbits:set,attack.stage1,track ip_src,expire 60;
 # Rule 2: detect stage 2 only from IPs with bit set
 alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:1000002;)</pre>
             <ul>
-              <li>Choose between <code>track ip_src</code>, <code>track ip_dst</code>, or <code>track ip_pair</code></li>
-              <li>Without <code>expire</code>, a default timeout applies — always set it explicitly</li>
-              <li><code>flowbits:noalert</code> → use the standalone <code>noalert;</code> option in Snort 3</li>
-              <li><code>flowbits:reset</code> → no equivalent in Snort 3 (removed)</li>
+              <li>Keep <code>flowbits</code> when session-scoped state is correct for the rule logic</li>
+              <li>Choose <code>xbits</code> tracking scope explicitly: <code>track ip_src</code>, <code>track ip_dst</code>, or another supported IP scope</li>
+              <li>Without <code>expire</code>, a default timeout applies — set it explicitly for predictable cleanup</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/xbits" target="_blank" rel="noopener">&#8599; xbits option — docs.snort.org</a>
@@ -1490,7 +1492,7 @@ alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:100
           </summary>
           <div class="guide-body">
             <p><code>service</code> declares which application-layer protocol the rule targets. This ensures Snort 3's inspector is correctly invoked to parse HTTP, DNS, and other protocols.</p>
-            <pre class="guide-code">service:http;           # Activate HTTP inspector (required when using sticky buffers)
+            <pre class="guide-code">service:http;           # Traditional TCP rule scoping for HTTP traffic
 service:https;          # HTTPS (HTTP inspection after TLS decryption)
 service:dns;            # DNS inspector
 service:smtp;           # SMTP inspector
@@ -1498,9 +1500,9 @@ service:ftp;            # FTP inspector
 service:ssh;            # SSH
 service:http,dns;       # Multiple services can be specified</pre>
             <ul>
-              <li>HTTP sticky buffers (<code>http_uri</code>, <code>http_header</code>, etc.) may not function without <code>service:http</code></li>
-              <li>Snort 2's <code>metadata:service http</code> → replaced by the standalone <code>service:http</code> option in Snort 3</li>
-              <li>Works based on <b>automatic traffic classification (AppID)</b>, not port numbers</li>
+              <li>For traditional <code>alert tcp ...</code> rules, use <code>service:http</code> to scope the rule to HTTP-classified traffic</li>
+              <li>For Snort 3 service rules such as <code>alert http (...)</code>, do <b>not</b> add a redundant <code>service:http</code> option</li>
+              <li>Snort 2's <code>metadata:service http</code> has no detection effect in Snort 3 — move service scoping to <code>service:http</code> or use an <code>alert http</code> service rule</li>
             </ul>
             <div class="guide-links">
               <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/service" target="_blank" rel="noopener">&#8599; service option — docs.snort.org</a>
@@ -1562,11 +1564,12 @@ alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
               <tbody>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">uricontent</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">http_uri; content:"..."</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">rawbytes</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">raw_data; sticky buffer</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">flowbits</td><td style="padding:5px 8px;color:var(--warn);">Replaced</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">xbits:action,name,track ip_src</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#9beeff;">flowbits</td><td style="padding:5px 8px;color:var(--success);">Supported</td><td style="padding:5px 8px;color:var(--muted);">Keep for session state; use xbits only for host/IP state</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">threshold</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">detection_filter (inline)</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">fast_pattern:only</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">fast_pattern (no argument)</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp / react</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">rewrite action or DAQ module</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">No equivalent</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Use reject active response where appropriate</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#9beeff;">react</td><td style="padding:5px 8px;color:var(--success);">Supported</td><td style="padding:5px 8px;color:var(--muted);">Snort 3 active response: send response and terminate session</td></tr>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--warn);">Changed / limited</td><td style="padding:5px 8px;color:var(--muted);">Review support in target Snort 3 deployment</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">activates / activated_by</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Dynamic rules not supported</td></tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">logto / session</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">No equivalent</td></tr>
                 <tr><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">stream_reassemble</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Moved to stream config in snort.lua</td></tr>
@@ -1743,11 +1746,11 @@ python3 trigger_rules.py --delay 1
                 <tr><td>Rule structure</td><td class="check-row-error">ERROR</td><td>Valid header and option parentheses</td></tr>
                 <tr><td>Required fields</td><td class="check-row-error">ERROR</td><td>msg, sid must be present (rev is optional)</td></tr>
                 <tr><td>Direction operator</td><td class="check-row-error">ERROR</td><td>Must be <code>-&gt;</code> or <code>&lt;&gt;</code></td></tr>
-                <tr><td>Deprecated Snort 2 keywords</td><td class="check-row-error">ERROR</td><td>uricontent, rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session</td></tr>
+                <tr><td>Deprecated / changed Snort 2 keywords</td><td class="check-row-error">ERROR</td><td>uricontent, rawbytes, threshold, resp, activates, activated_by, logto, session; review tag/react behavior by Snort 3 version</td></tr>
                 <tr><td>fast_pattern:only</td><td class="check-row-error">ERROR</td><td>Removed in Snort 3 — use plain <code>fast_pattern</code></td></tr>
                 <tr><td>PCRE HTTP flags</td><td class="check-row-error">ERROR</td><td>Uppercase flags (U, I, H, D, P, C, M, S, Y, K) must be converted to sticky buffers</td></tr>
                 <tr><td>metadata:service</td><td class="check-row-warn">WARN</td><td>Should be extracted as standalone <code>service:</code> option</td></tr>
-                <tr><td>gid/sid/rev order</td><td class="check-row-warn">WARN</td><td>Should appear at end in gid &#8594; sid &#8594; rev order</td></tr>
+                <tr><td>sid/rev/gid order</td><td class="check-row-warn">WARN</td><td>Should appear at end in sid &#8594; rev &#8594; gid order for FMC local-rule imports</td></tr>
                 <tr><td>Unusual action/protocol</td><td class="check-row-warn">WARN</td><td>Flags non-standard action or protocol values</td></tr>
               </tbody>
             </table>
@@ -1818,7 +1821,7 @@ python3 trigger_rules.py --delay 1
         <div class="si-card">
           <h4>Navigation Map</h4>
           <div class="si-row"><span class="si-label">🏠 Home</span><span class="si-value">Main Snort 2 → Snort 3 rule converter. Paste or load a <code style="color:var(--primary);">.rules</code> file, optionally remap SIDs from a Start SID, and view side-by-side diff with built-in duplicate detection.</span></div>
-          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3). Includes SID auto-conversion to the local rule range (1,000,000–9,999,999), fast_pattern placement, gid/sid/rev reordering, PCRE escaping, and 10+ correctness/performance checks. Displays "All Optimized Rules" panel and per-rule optimized output with inline copy buttons.</span></div>
+          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3). Includes SID auto-conversion to the local rule range (1,000,000+), fast_pattern placement, sid/rev/gid reordering, PCRE escaping, and 10+ correctness/performance checks. Displays "All Optimized Rules" panel and per-rule optimized output with inline copy buttons.</span></div>
           <div class="si-row"><span class="si-label">✅ Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
           <div class="si-row"><span class="si-label">🔄 Snort SRU Updates</span><span class="si-value">Weekly Snort 2 SRU (Sourcefire Rule Update) news from Talos advisories.</span></div>
           <div class="si-row"><span class="si-label">📋 Snort LSP Updates</span><span class="si-value">Weekly Snort 3 LSP (Lightweight Security Package) update news from Talos advisories.</span></div>
@@ -1962,8 +1965,8 @@ python3 trigger_rules.py --delay 1
                   <td style="padding:4px 8px; color:var(--muted);">§3.4.1</td>
                 </tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">gid/sid/rev not at tail</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;">Reordered to end of options in sequence <code style="color:var(--success);">gid → sid → rev</code></td>
+                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sid/rev/gid not at tail</td>
+                  <td style="padding:4px 8px; color:#a0bcd8;">Reordered to end of options in sequence <code style="color:var(--success);">sid → rev → gid</code></td>
                   <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
                 </tr>
                 <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
@@ -2291,8 +2294,7 @@ SNORT2_DEPRECATED = {
     "rawbytes":      "removed in Snort 3",
     "threshold":     "use detection_filter (inline) or event_filter (global) in Snort 3",
     "resp":          "removed in Snort 3",
-    "react":         "removed in Snort 3",
-    "tag":           "removed in Snort 3",
+    "tag":           "changed or limited in Snort 3; review target deployment support",
     "activates":     "removed in Snort 3",
     "activated_by":  "removed in Snort 3",
     "logto":         "removed in Snort 3",
@@ -2437,12 +2439,12 @@ def validate_rule(line: str) -> tuple[list[str], list[str], str]:
         indices        = [i for i, _ in tail_indices]
         expected_start = len(keys) - len(tail_indices)
         if min(indices) < expected_start:
-            warnings.append("gid/sid/rev should be the last options in the rule")
+            warnings.append("sid/rev/gid should be the last options in the rule")
         actual_order   = [k for _, k in tail_indices if k in TAIL_ORDER]
         expected_order = sorted(actual_order, key=lambda x: TAIL_ORDER.index(x))
         if actual_order != expected_order:
             warnings.append(
-                f"gid/sid/rev order should be gid -> sid -> rev, "
+                f"sid/rev/gid order should be sid -> rev -> gid, "
                 f"got: {' -> '.join(actual_order)}"
             )
 
@@ -3685,7 +3687,7 @@ if __name__ == "__main__":
         if (opts.length > rawTokenCount) changes.push("Missing semicolons between options fixed");
 
         // 1. SID auto-conversion: sid < 1,000,000 → 1,000,000 + sid (Manual §3.4.4)
-        // Local rules must use SID 1,000,000–9,999,999; Snort/Talos uses 1–999,999.
+        // Local rules should use SID 1,000,000+; Snort/Talos uses 1–999,999.
         opts = opts.map(o => {
           if (optionKeyword(o).toLowerCase() !== "sid") return o;
           const col = o.indexOf(":");
@@ -3753,8 +3755,8 @@ if __name__ == "__main__":
           changes.push("msg moved to front of options");
         }
 
-        // 4. Reorder gid/sid/rev to tail (Manual §3.4.4)
-        const TAIL = ["gid", "sid", "rev"];
+        // 4. Reorder sid/rev/gid to tail (FMC local-rule convention)
+        const TAIL = ["sid", "rev", "gid"];
         const tailMap = {}, others = [];
         for (const o of opts) {
           const kw = optionKeyword(o).toLowerCase();
@@ -3763,7 +3765,7 @@ if __name__ == "__main__":
         const tailOrdered = TAIL.filter(k => tailMap[k]).map(k => tailMap[k]);
         const beforeTail = opts.slice(opts.length - tailOrdered.length).map(o => optionKeyword(o).toLowerCase()).join(",");
         const afterTail  = tailOrdered.map(o => optionKeyword(o).toLowerCase()).join(",");
-        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
+        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("sid/rev/gid reordered to end of options");
         opts = [...others, ...tailOrdered];
 
         // 5. PCRE escape: replace literal " ; inside regex body with \x22 \x3b
@@ -3818,7 +3820,7 @@ if __name__ == "__main__":
       // - rawbytes → raw_data; sticky buffer
       // - Move HTTP sticky buffers to BEFORE the related content/pcre when they appear after
       // - PCRE escape: " → \x22, ; → \x3b inside the regex body
-      // - gid/sid/rev → tail
+      // - sid/rev/gid → tail
       function applySnort3Fixes(line) {
         const changes = [];
         const pStart = line.indexOf("(");
@@ -3886,8 +3888,8 @@ if __name__ == "__main__":
         });
         if (pcreEscaped) changes.push("PCRE special characters escaped");
 
-        // 4. Reorder gid/sid/rev to tail (in correct order)
-        const TAIL = ["gid", "sid", "rev"];
+        // 4. Reorder sid/rev/gid to tail (FMC-friendly Snort 3 order)
+        const TAIL = ["sid", "rev", "gid"];
         const tailMap = {}, others = [];
         for (const o of opts) {
           const kw = optionKeyword(o).toLowerCase();
@@ -3896,7 +3898,7 @@ if __name__ == "__main__":
         const tailOrdered = TAIL.filter(k => tailMap[k]).map(k => tailMap[k]);
         const beforeTail = opts.slice(opts.length - tailOrdered.length).map(o => optionKeyword(o).toLowerCase()).join(",");
         const afterTail  = tailOrdered.map(o => optionKeyword(o).toLowerCase()).join(",");
-        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("gid/sid/rev reordered to end of options");
+        if (tailOrdered.length > 0 && beforeTail !== afterTail) changes.push("sid/rev/gid reordered to end of options");
         opts = [...others, ...tailOrdered];
 
         // 5. Increment rev if any changes
@@ -3941,10 +3943,10 @@ if __name__ == "__main__":
         gid:        { category:"meta",      desc:"Generator ID. Default is 1 (Snort engine). Custom preprocessors use higher GIDs. gid:1 can be omitted (Manual §3.4.3)." },
         classtype:  { category:"meta",      desc:"Rule classification category (e.g. trojan-activity, web-application-attack). Affects alert priority (Manual §3.4.6)." },
         priority:   { category:"meta",      desc:"Overrides the default priority from classtype (1=high, 4=low) (Manual §3.4.7)." },
-        metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. service, policy). Not used for detection. Migrate to standalone service: in Snort 3 (Manual §3.4.9)." },
+        metadata:   { category:"meta",      desc:"Key-value pairs for rule management (e.g. policy, service). In Snort 3 metadata has no detection impact; move service scoping to standalone service: or a service rule header (Manual §3.4.9)." },
         reference:  { category:"meta",      desc:"External reference URL or CVE identifier associated with the rule (Manual §3.4.2)." },
         flow:       { category:"flow",      desc:"Restricts rule evaluation to a specific traffic direction and TCP state (e.g. to_server,established). Dramatically reduces unnecessary inspections (Manual §3.6.9)." },
-        flowbits:   { category:"flow",      desc:"(Snort 2) Sets/checks per-flow state flag bits between packets. set/isset/unset/toggle/noalert actions available. Replaced by xbits in Snort 3 (Manual §3.6.7)." },
+        flowbits:   { category:"flow",      desc:"Sets/checks per-flow state flag bits between packets. Snort 3 still supports flowbits for transport-session state; use xbits only when host/IP-scoped tracking is required (Manual §3.6.7 / Snort 3 flowbits guide)." },
         xbits:      { category:"flow",      desc:"(Snort 3) Sets/checks named bits per host (track ip_src/ip_dst). Replaces flowbits (Manual §3.6.7)." },
         content:    { category:"detection", desc:"Searches for a literal string or hex bytes in the payload. The most basic and efficient detection method. Precede PCRE with a content anchor (Manual §3.5.1)." },
         nocase:     { category:"modifier",  desc:"Makes the preceding content match case-insensitive. Has a performance cost — use only when necessary (Manual §3.5.1)." },
@@ -4047,7 +4049,7 @@ if __name__ == "__main__":
           // Version-specific notes
           let note = "";
           if (kw === "flowbits" && !isSnort2)
-            note = "Snort 2-only keyword. Use xbits in Snort 3.";
+            note = "Valid in Snort 3 for transport-session state; use xbits only for host/IP-scoped state tracking.";
           if (kw === "xbits" && isSnort2)
             note = "Snort 3-only keyword. Cannot be used in Snort 2 rules.";
           if (kw === "rawbytes" && !isSnort2)
@@ -4129,7 +4131,7 @@ if __name__ == "__main__":
             const inOrder    = presentPos.every((v, i) => i === 0 || v > presentPos[i - 1]);
             const atEnd      = presentPos.every(p => p >= opts.length - present.length);
             if (!inOrder || !atEnd)
-              suggestions.push({ level:"info", msg:"gid, sid, rev should appear at the end of the options block in that order.", fix:"... gid:1; sid:XXXXXX; rev:1;" });
+              suggestions.push({ level:"info", msg:"sid, rev, gid should appear at the end of the options block in that order for FMC local-rule imports.", fix:"... sid:XXXXXX; rev:1; gid:1;" });
           }
         }
 
@@ -4138,7 +4140,7 @@ if __name__ == "__main__":
         if (sidVal > 0 && sidVal < 1000000)
           suggestions.push({ level:"info", msg:`SID ${sidVal} is in the Snort/Talos reserved range (1–999,999). Auto-fix will convert to ${1000000 + sidVal} for the local rule range (Manual §3.4.4).` });
         if (sidVal > 9999999)
-          suggestions.push({ level:"warn", msg:`SID ${sidVal} exceeds the recommended local rule range (1,000,000–9,999,999). Consider using a SID within that range (Manual §3.4.4).` });
+          suggestions.push({ level:"info", msg:`SID ${sidVal} exceeds the common FMC local-rule convention range (1,000,000–9,999,999), but Snort's manual only requires local rules to start at 1,000,000 (Manual §3.4.4).` });
 
         // ── gid:1 is default ─────────────────────────────────────────────
         if (get("gid") === "1")
@@ -4153,12 +4155,11 @@ if __name__ == "__main__":
             ["activates",     "dynamic rules removed in Snort 3"],
             ["activated_by",  "dynamic rules removed in Snort 3"],
             ["resp",          "removed in Snort 3"],
-            ["react",         "removed in Snort 3"],
             ["logto",         "removed in Snort 3"],
             ["session",       "removed in Snort 3"],
             ["tag",           "limited support in Snort 3"],
             ["stream_reassemble","removed in Snort 3 — configure in snort.lua"],
-            ["replace",       "removed in Snort 3 — use rewrite action or DAQ module"],
+            ["replace",       "requires the rewrite action in Snort 3"],
           ];
           deprecated2.forEach(([kw, msg, fix]) => {
             if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}' cannot be migrated to Snort 3: ${msg}.`, fix });
@@ -4168,9 +4169,9 @@ if __name__ == "__main__":
             if (optionKeyword(o).toLowerCase() === "flowbits") {
               const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
               if (val.startsWith("reset"))
-                suggestions.push({ level:"warn", msg:"flowbits:reset has no equivalent in Snort 3 and will be removed during migration." });
+                suggestions.push({ level:"warn", msg:"flowbits:reset is not documented in the Snort 3 flowbits operations. Verify manually before migrating this rule." });
               else if (val.startsWith("noalert"))
-                suggestions.push({ level:"info", msg:"flowbits:noalert will be converted to standalone noalert keyword in Snort 3.", fix:"noalert;" });
+                suggestions.push({ level:"info", msg:"flowbits:noalert is supported in Snort 3 flowbits syntax; no migration is required." });
               else
                 suggestions.push({ level:"info", msg:"flowbits is fully supported in Snort 3 with the same syntax — no change required.", fix:"flowbits:set,<name>; / flowbits:isset,<name>;" });
             }
@@ -4209,7 +4210,7 @@ if __name__ == "__main__":
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "metadata") {
               if ((o.slice(o.indexOf(":") + 1) || "").toLowerCase().includes("service"))
-                suggestions.push({ level:"info", msg:"The service value inside metadata must be moved to a standalone service: option in Snort 3.", fix:"service:http,dns;" });
+                suggestions.push({ level:"info", msg:"In Snort 3, metadata has no detection impact. Move service scoping to standalone service: or a service rule header.", fix:"service:http,dns; or alert http (...)" });
             }
           });
 
@@ -4481,7 +4482,7 @@ if __name__ == "__main__":
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "metadata") {
               if ((o.slice(o.indexOf(":") + 1) || "").toLowerCase().includes("service"))
-                suggestions.push({ level:"info", msg:"The service value inside metadata should be moved to a standalone service: option.", fix:"service:http,dns;" });
+                suggestions.push({ level:"info", msg:"In Snort 3, metadata has no detection impact. Move service scoping to standalone service: or a service rule header.", fix:"service:http,dns; or alert http (...)" });
             }
           });
 
@@ -4523,15 +4524,21 @@ if __name__ == "__main__":
             }
           }
 
-          // ── service: option recommended for app-layer rules ──────────
-          if (!has("service")) {
+          // ── service scoping for app-layer rules ───────────────────────
+          {
             const headerLower = line.slice(0, parenStart).toLowerCase();
+            const isHttpServiceRule = /\b(alert|log|pass|drop|block|reject|rewrite|react)\s+http\s*$/i.test(headerLower.trim());
+            const isFileRule = /\b(alert|log|pass|drop|block|reject|rewrite|react)\s+file\s*$/i.test(headerLower.trim());
             const stickyHttp = opts.some(o => /^http_/.test(optionKeyword(o).toLowerCase()));
             const stickyFile = has("file_data");
-            if (stickyHttp || /\balert\s+http\b/.test(headerLower))
-              suggestions.push({ level:"perf", msg:"HTTP sticky buffer used but no service: declared. Add 'service:http;' so Snort 3 can route the rule to the HTTP inspector efficiently.", fix:"service:http;" });
-            else if (stickyFile)
-              suggestions.push({ level:"info", msg:"file_data; used — consider declaring 'service:http,smtp,imap,pop3;' for the protocols you intend to inspect.", fix:"service:http,smtp;" });
+            if (isHttpServiceRule && has("service"))
+              suggestions.push({ level:"info", msg:"Service rule header 'alert http' already scopes the rule to HTTP; remove redundant service:http from the rule body." });
+            else if (!has("service") && stickyHttp && !isHttpServiceRule)
+              suggestions.push({ level:"perf", msg:"HTTP sticky buffer used in a traditional rule with no service scoping. Add service:http or convert the header to an HTTP service rule.", fix:"service:http; or alert http (...)" });
+            if (isFileRule && (has("service") || has("flow")))
+              suggestions.push({ level:"info", msg:"Snort 3 file rules should normally omit service and flow options; file_data scopes the payload inspection." });
+            else if (!has("service") && stickyFile && !isFileRule)
+              suggestions.push({ level:"info", msg:"file_data; used in a traditional rule — consider declaring the intended services or converting to an alert file rule if protocol-agnostic file detection is desired.", fix:"service:http,smtp; or alert file (...)" });
           }
 
           // ── alert tcp + HTTP sticky buffers → recommend alert http ───
@@ -4540,6 +4547,19 @@ if __name__ == "__main__":
             const stickyHttp = opts.some(o => /^http_/.test(optionKeyword(o).toLowerCase()));
             if (stickyHttp && /\balert\s+tcp\b/.test(headerLower))
               suggestions.push({ level:"perf", msg:"Rule uses HTTP sticky buffers but the action protocol is 'tcp'. In Snort 3 prefer 'alert http' (service rule) for better performance.", fix:"Change 'alert tcp ...' to 'alert http ...'" });
+          }
+
+          // ── Snort 3 fast_pattern ineligible buffers ───────────────────
+          {
+            const FP_INELIGIBLE_BUFFERS = new Set(["http_raw_cookie","http_param","http_raw_body","http_version","http_raw_request","http_raw_status","http_raw_trailer","http_true_ip"]);
+            let currentSticky = "";
+            opts.forEach(o => {
+              const kw = optionKeyword(o).toLowerCase();
+              if (FP_INELIGIBLE_BUFFERS.has(kw)) currentSticky = kw;
+              else if (["http_uri","http_raw_uri","http_header","http_raw_header","http_method","http_client_body","http_cookie","http_stat_code","http_stat_msg","file_data","raw_data","pkt_data","js_data","vba_data"].includes(kw)) currentSticky = kw;
+              if (kw === "content" && /fast_pattern/i.test(o) && FP_INELIGIBLE_BUFFERS.has(currentSticky))
+                suggestions.push({ level:"warn", msg:`Snort 3 fast_pattern cannot be used in the ${currentSticky} buffer; choose a content from an eligible buffer instead.` });
+            });
           }
 
           // ── urilen removed in Snort 3 — replaced by bufferlen on sticky buffer (Manual §7.1.20) ──
@@ -5212,13 +5232,8 @@ if __name__ == "__main__":
             changeCount += 1;
             return;
           }
-          if (lower === "react") {
-            warnings.push("react removed in Snort 3");
-            changeCount += 1;
-            return;
-          }
           if (lower === "tag") {
-            warnings.push("tag removed in Snort 3");
+            warnings.push("tag support changed in Snort 3; review behavior in the target deployment");
             changeCount += 1;
             return;
           }
@@ -5292,9 +5307,9 @@ if __name__ == "__main__":
         const merged = mergeContentModifiers(final);
         if (JSON.stringify(merged) !== JSON.stringify(final)) changeCount += 1;
 
-        // ── PASS 5: Service hint enrichment (snort2-to-3-migration-tool skill) ──
-        // Snort 3 inspectors require explicit service:; HTTP sticky buffer usage
-        // strongly implies HTTP traffic. Add conservatively only when no service is set.
+        // ── PASS 5: Service hint enrichment ───────────────────────────────
+        // Traditional Snort 3 rules with HTTP sticky buffers should be scoped with service:http.
+        // Do not add service:http to service rule headers such as alert http (...).
         const HTTP_BUFFER_KEYS = new Set([
           "http_uri", "http_raw_uri", "http_header", "http_raw_header",
           "http_client_body", "http_raw_body", "http_method", "http_cookie",
@@ -5306,14 +5321,15 @@ if __name__ == "__main__":
         ]);
         const hasHttpBuffer = merged.some((o) => HTTP_BUFFER_KEYS.has(optionKeyword(o).toLowerCase()));
         const hasService = merged.some((o) => optionKeyword(o).toLowerCase() === "service");
-        if (hasHttpBuffer && !hasService) {
+        const isHttpServiceRule = /^\s*(alert|log|pass|drop|block|reject|rewrite|react)\s+http\s*$/i.test(header.trim());
+        if (hasHttpBuffer && !hasService && !isHttpServiceRule) {
           merged.push("service:http");
-          warnings.push("service:http; auto-added based on HTTP sticky buffer usage (Snort 3 inspector hint)");
+          warnings.push("service:http; auto-added for a traditional rule using HTTP sticky buffers");
           changeCount += 1;
         }
 
-        // Ensure gid, sid, rev appear at the end in that order.
-        const TAIL_ORDER = ["gid", "sid", "rev"];
+        // Ensure sid, rev, gid appear at the end in FMC-friendly order.
+        const TAIL_ORDER = ["sid", "rev", "gid"];
         const tail = [];
         const body = merged.filter((opt) => {
           if (TAIL_ORDER.includes(optionKeyword(opt))) {

@@ -27,15 +27,16 @@ Each rule is parsed into a header and semicolon-delimited options (quote-aware, 
 | Snort 2 | Action | Snort 3 Result |
 |---------|--------|----------------|
 | `uricontent:"X"` | Split into sticky buffer + content | `http_uri; content:"X"` |
-| `flowbits:set,name` | Converted to host-tracked xbits | `xbits:set,name,track ip_src` |
+| `flowbits:set,name` | Preserved for session-state logic | `flowbits:set,name` |
 | `flowbits:noalert` | Standalone flag conversion | `noalert` |
 | `flowbits:reset` | No Snort 3 equivalent | ⚠ removed + WARNING |
 | `isdataat:N,rawbytes` | rawbytes sub-option stripped | `isdataat:N` |
 | `file_data:mime` | Parameter stripped | `file_data` |
 | `fast_pattern:only` | `:only` qualifier removed | `fast_pattern` |
-| `metadata:service http` | service entries promoted | `service:http` |
+| `metadata:service http` | service entries promoted | `service:http` or `alert http` |
 | `sameip` | Renamed | `same_ip` |
-| `rawbytes`, `threshold`, `resp`, `react`, `tag`, `activates`, `activated_by`, `logto`, `session`, `stream_reassemble`, `replace` | Removed in Snort 3 | ⚠ removed + WARNING |
+| `rawbytes`, `threshold`, `resp`, `activates`, `activated_by`, `logto`, `session` | Removed in Snort 3 | ⚠ removed + WARNING |
+| `react`, `tag`, `stream_reassemble`, `replace` | Supported or changed depending on Snort 3 context | ⚠ flagged for review / action-specific handling |
 
 **Pass 2 — Sticky Buffer Reordering**
 
@@ -81,7 +82,7 @@ Analyzes Snort 2 or Snort 3 local rules, provides optimization suggestions in **
 - **Per-rule suggestions** — categorized as `PERF` (performance), `WARN` (correctness), `INFO` (best practice)
 - **Per-option detailed explanation** — `OPT_EXPLAIN` database covers ~40 keywords with Korean descriptions
 - **Click to expand** — rule header shows truncated rule, click to reveal full text
-- **Auto-fix engine** — `applySnort2Fixes()` / `applySnort3Fixes()` automatically rewrites each rule to follow best practices and lists the changes that were applied
+- **Auto-fix engine** — `applySnort2Fixes()` / `applySnort3Fixes()` rewrites safe, deterministic issues and lists the changes that were applied
 - **All Optimized Rules panel** — top-of-screen aggregated view of every fixed rule with a one-click **Copy All** button (rendered for **both Snort 2 and Snort 3**)
 - **Per-rule Optimized Rule section** — each rule card shows its fixed version + auto-fixes list + per-rule Copy button (rendered for **both Snort 2 and Snort 3**)
 
@@ -94,9 +95,9 @@ Analyzes Snort 2 or Snort 3 local rules, provides optimization suggestions in **
 | PERF | Missing `flow` option |
 | WARN | Unknown rule action |
 | WARN | Missing `msg`, `sid`, `rev` |
-| WARN | SID not in local rule range (1,000,000–1,999,999) |
+| WARN | SID not in local rule range (1,000,000+) |
 | WARN | Deprecated Snort 2 keywords present |
-| INFO | `flowbits` → `xbits` migration note |
+| INFO | `flowbits` support / `xbits` host-state guidance |
 | INFO | `dce_stub_data` requires dce2 inspector |
 
 #### Auto-Fix Examples
@@ -105,10 +106,10 @@ Analyzes Snort 2 or Snort 3 local rules, provides optimization suggestions in **
 |---------|----------|
 | Snort 2 / 3 | Inject `fast_pattern` on the longest `content` when missing |
 | Snort 2 / 3 | Append `flow:established,to_server;` when `flow` is absent |
-| Snort 2 / 3 | Reorder `gid; sid; rev;` to the end of the option list |
+| Snort 2 / 3 | Reorder `sid; rev; gid;` to the end of the option list for FMC local-rule imports |
 | Snort 3 | Convert `uricontent:"X"` → `http_uri; content:"X"` |
-| Snort 3 | Convert `flowbits:set,name` → `xbits:set,name,track ip_src` |
-| Snort 3 | Strip Snort-2-only modifiers (`rawbytes`, `:only`, `metadata:service http` → `service:http`) |
+| Snort 3 | Preserve `flowbits` when session-state semantics are intended; recommend `xbits` only for host/IP-state tracking |
+| Snort 3 | Strip or flag Snort-2-only/changed modifiers (`rawbytes`, `:only`, `metadata:service http` → `service:http` or `alert http`) |
 | Snort 3 | Inline positional content modifiers (`depth`, `within`, `offset`, `distance`, `nocase`, `fast_pattern`) |
 | Snort 3 | Promote sticky buffers (`http_uri`, `http_header`, …) before their `content` |
 
