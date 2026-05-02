@@ -7,23 +7,45 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" />
-  <!-- Feedback backend via Cloudflare Worker proxy -->
+  <!-- Feedback backend via GitHub Issues API (token injected at deploy time) -->
   <script>
     (function () {
-      const WORKER = "https://snort-feedback.snort-feedback.workers.dev";
+      const REPO  = "maxias13/snort-rule-converter-site";
+      const TOKEN = "__FEEDBACK_TOKEN__";
+
+      const LABEL_MAP = {
+        "Feature Request": "enhancement",
+        "Bug Report":      "bug",
+        "Notice":          "notice",
+        "Suggestion":      "feedback"
+      };
 
       window.__fbSubmit = async (type, title, author, content) => {
-        const res = await fetch(`${WORKER}/issues`, {
+        const body   = `**유형**: ${type}\n**작성자**: ${author || "Anonymous"}\n\n---\n${content}`;
+        const labels = ["feedback"];
+        if (LABEL_MAP[type]) labels.push(LABEL_MAP[type]);
+
+        const res = await fetch(`https://api.github.com/repos/${REPO}/issues`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type, title, author, content })
+          headers: {
+            "Accept":        "application/vnd.github+json",
+            "Authorization": `Bearer ${TOKEN}`,
+            "Content-Type":  "application/json"
+          },
+          body: JSON.stringify({ title, body, labels })
         });
-        if (!res.ok) throw new Error(`Worker error: ${res.status}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `GitHub API error: ${res.status}`);
+        }
       };
 
       window.__fbLoad = async () => {
-        const res = await fetch(`${WORKER}/issues`);
-        if (!res.ok) throw new Error(`Worker error: ${res.status}`);
+        const res = await fetch(
+          `https://api.github.com/repos/${REPO}/issues?labels=feedback&state=open&per_page=100&sort=created&direction=desc`,
+          { headers: { "Accept": "application/vnd.github+json" } }
+        );
+        if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
         const issues = await res.json();
         return issues.map(i => {
           const typeMatch   = i.body?.match(/\*\*유형[^:]*:\*\*\s*(.+)/);
@@ -33,6 +55,7 @@
           let type = "Suggestion";
           if (labelNames.includes("enhancement")) type = "Feature Request";
           else if (labelNames.includes("bug"))    type = "Bug Report";
+          else if (labelNames.includes("notice")) type = "Notice";
           if (typeMatch) type = typeMatch[1].trim();
           return {
             id:        i.number,
