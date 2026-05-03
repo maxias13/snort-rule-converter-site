@@ -1235,374 +1235,149 @@
   <div class="app">
 
     <section id="homeView" class="view active">
-      <!-- ── Site Information (merged into Home) ─────────────────────── -->
-      <div class="panel">
-        <h3 style="margin:0 0 18px;">&#8505; Site Information</h3>
 
-        <!-- ─── About ─── -->
-        <div class="si-card">
-          <h4>About</h4>
-          <div class="si-row"><span class="si-label">Site Owner</span><span class="si-value">Jungsub Shin (<a href="mailto:kaishin@cisco.com">kaishin@cisco.com</a>)</span></div>
-          <div class="si-row"><span class="si-label">Site Name</span><span class="si-value">Snort 2 → Snort 3 Local Rule Converter</span></div>
-          <div class="si-row"><span class="si-label">Purpose</span><span class="si-value">A one-stop toolkit for Cisco Secure Firewall (formerly Firepower) engineers managing custom local Snort rules: automated Snort 2 → 3 conversion, rule optimization analysis, Python-based offline validator, weekly Talos SRU/LSP update news, and shared utility script distribution.</span></div>
-          <div class="si-row"><span class="si-label">Target Users</span><span class="si-value">Network security engineers, TAC engineers, and partners managing Cisco Secure Firewall (formerly Firepower) deployments with custom local rules.</span></div>
-          <div class="si-row"><span class="si-label">Cisco Suggested</span><span class="si-value">FMC <b style="color:var(--primary);">7.6.5</b> ⭐ &nbsp;·&nbsp; FTD <b style="color:var(--primary);">7.6.4</b> ⭐ &nbsp;·&nbsp; Snort 3 default (FTD 7.0+) &nbsp;·&nbsp; <a href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/compatibility/management-center-compatibility.html" target="_blank" rel="noopener">Compatibility Guide ↗</a></span></div>
-        </div>
-
-        <!-- ─── Navigation Map ─── -->
-        <div class="si-card">
-          <h4>Navigation Map</h4>
-          <div class="si-row"><span class="si-label">🏠 Home</span><span class="si-value">Main Snort 2 → Snort 3 rule converter. Paste or load a <code style="color:var(--primary);">.rules</code> file, optionally remap SIDs from a Start SID, and view side-by-side diff with built-in duplicate detection.</span></div>
-          <div class="si-row"><span class="si-label">⚡ Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3. Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3). Includes SID auto-conversion to the local rule range (1,000,000+), fast_pattern placement, sid/rev/gid reordering, PCRE escaping, and 10+ correctness/performance checks. Displays "All Optimized Rules" panel and per-rule optimized output with inline copy buttons.</span></div>
-          <div class="si-row"><span class="si-label">✅ Rule Migration</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
-          <div class="si-row"><span class="si-label">🔄 Snort 2 SRU Updates</span><span class="si-value">Weekly Snort 2 SRU (Sourcefire Rule Update) news from Talos advisories.</span></div>
-          <div class="si-row"><span class="si-label">📋 Snort 3 LSP Updates</span><span class="si-value">Weekly Snort 3 LSP (Lightweight Security Package) update news from Talos advisories.</span></div>
-          <div class="si-row"><span class="si-label">📥 Download Files</span><span class="si-value">Inline page (no modal) listing utility scripts from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-gated upload for contributors.</span></div>
-          <div class="si-row"><span class="si-label">📖 Snort 2 Manual</span><span class="si-value">External link to the official Snort 2 manual (manual-snort-org).</span></div>
-          <div class="si-row"><span class="si-label">📘 Snort 3 Manual</span><span class="si-value">External link to the official Snort 3 documentation (docs.snort.org).</span></div>
-          <div class="si-row"><span class="si-label">💬 Feedback</span><span class="si-value">Community board for bug reports, feature requests, suggestions, and admin Notice posts. Backed by GitHub Issues.</span></div>
-        </div>
-
-        <!-- ─── Features ─── -->
-        <div class="si-card">
-          <h4>Features</h4>
-          <div class="si-row" style="margin-top:10px;"><span class="si-label">Rule Converter</span><span class="si-value">Automated Snort 2 → 3 syntax migration with optional SID remapping (Start SID + sequential renumbering, mapping persisted to localStorage for cross-session traceability).</span></div>
-          <div style="margin-top:14px; margin-bottom:18px; padding:14px 16px; background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.15); border-radius:8px; font-size:0.84rem; line-height:1.75;">
-            <div style="color:var(--primary); font-weight:700; margin-bottom:10px;">&#128295; Conversion Algorithm — How It Works</div>
-
-            <div style="color:#a0bcd8; margin-bottom:8px;">
-              Each rule is processed through <b style="color:#fff;">4 sequential passes</b>. Comments and blank lines are preserved as-is.
-            </div>
-
-            <div style="margin-bottom:12px;">
-              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9312; Pass 1 — Rule Parsing &amp; Option-Level Transformation</div>
-              <div style="color:#a0bcd8;">The rule is split into <b>header</b> (action, protocol, IPs, ports, direction) and <b>options</b> (semicolon-delimited key-value pairs). A quote-aware, escape-aware tokenizer handles edge cases like semicolons inside quoted strings. Each option keyword is then transformed:</div>
-              <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:0.82rem;">
-                <thead>
-                  <tr style="border-bottom:1px solid var(--border);">
-                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Snort 2 Keyword</th>
-                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Action</th>
-                    <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Snort 3 Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">uricontent:"X"</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Split into sticky buffer + content</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">http_uri; content:"X"</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:set,name</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Converted to host-tracked xbits</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">xbits:set,name,track ip_src</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:noalert</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Standalone flag conversion</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">noalert</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">flowbits:reset</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">No Snort 3 equivalent — removed + WARNING</td>
-                    <td style="padding:4px 8px; color:var(--error);">⚠ removed</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">isdataat:N,rawbytes</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">rawbytes sub-option stripped</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">isdataat:N</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">file_data:mime</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Parameter stripped (Snort 3 uses plain file_data)</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">file_data</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">fast_pattern:only</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">:only qualifier removed (not valid in Snort 3)</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">fast_pattern</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">metadata:service http</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">service entries promoted to standalone option</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">service:http</td>
-                  </tr>
-                  <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sameip</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Renamed</td>
-                    <td style="padding:4px 8px; color:var(--success); font-family:monospace;">same_ip</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">rawbytes, threshold, resp, react, tag, activates, activated_by, logto, session, stream_reassemble, replace</td>
-                    <td style="padding:4px 8px; color:#a0bcd8;">Removed from Snort 3 — dropped with WARNING comment</td>
-                    <td style="padding:4px 8px; color:var(--error);">⚠ removed</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <div style="margin-bottom:12px;">
-              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9313; Pass 2 — Sticky Buffer Reordering (content)</div>
-              <div style="color:#a0bcd8;">In Snort 3, a sticky buffer keyword (e.g. <code style="color:var(--primary);">http_uri</code>, <code style="color:var(--primary);">http_header</code>) must appear <b>before</b> its associated <code style="color:var(--primary);">content</code> option. This pass scans the option list and moves any sticky buffer that appears after a content keyword to the correct position immediately preceding it.</div>
-            </div>
-
-            <div style="margin-bottom:12px;">
-              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9314; Pass 3 — PCRE HTTP Flag Conversion</div>
-              <div style="color:#a0bcd8;">Snort 2 PCRE uses single-letter HTTP flags (e.g. <code style="color:var(--primary);">/pattern/Ui</code> for URI, <code style="color:var(--primary);">/pattern/Hi</code> for header). Snort 3 replaces these with sticky buffers placed before the pcre option. This pass reads each pcre's flag string, maps it to the correct sticky buffer, inserts the buffer immediately before the pcre, and strips the HTTP flag from the PCRE modifier string.</div>
-              <div style="margin-top:6px; font-family:monospace; font-size:0.81rem;">
-                <span style="color:var(--warn);">pcre:"/pattern/Ui"</span>
-                &nbsp;→&nbsp;
-                <span style="color:var(--success);">http_uri; pcre:"/pattern/i"</span>
-              </div>
-            </div>
-
-            <div style="margin-bottom:6px;">
-              <div style="color:#fff; font-weight:600; margin-bottom:4px;">&#9315; Pass 4 — Content Modifier Inlining</div>
-              <div style="color:#a0bcd8;">In Snort 2, positional modifiers (<code style="color:var(--primary);">depth</code>, <code style="color:var(--primary);">within</code>, <code style="color:var(--primary);">offset</code>, <code style="color:var(--primary);">distance</code>, <code style="color:var(--primary);">nocase</code>, <code style="color:var(--primary);">fast_pattern</code>) follow a content option as separate semicolon-delimited options. Snort 3 requires these to be inlined as comma-separated arguments inside the content option itself. This pass merges consecutive modifier options into the preceding content option.</div>
-              <div style="margin-top:6px; font-family:monospace; font-size:0.81rem; line-height:1.8;">
-                <div><span style="color:var(--warn);">content:"X"; depth:20; nocase; distance:0;</span></div>
-                <div>→ <span style="color:var(--success);">content:"X", depth 20, nocase, distance 0;</span></div>
-              </div>
-            </div>
-
-            <div style="margin-top:12px; color:#a0bcd8;">
-              <b style="color:#fff;">Final steps:</b> <code style="color:var(--primary);">gid</code>, <code style="color:var(--primary);">sid</code>, <code style="color:var(--primary);">rev</code> are always sorted to the end of the options in that order. If a Start SID is specified, each rule's SID is remapped sequentially from that value, and the original→new SID mapping is persisted to localStorage for cross-session traceability.
-            </div>
+      <div class="panel" style="margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:6px;">
+          <h3 style="margin:0; color:var(--primary);">&#128274; What’s New in Cisco FMC 7.6+ &mdash; Security Features</h3>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="homeFmcStatus" class="muted" style="font-size:0.82rem;">Loading latest from cisco.com…</span>
+            <button class="btn secondary" id="homeFmcRefresh" style="padding:4px 10px; font-size:0.82rem;">&#8635; Refresh</button>
           </div>
-          <div class="si-row"><span class="si-label">Rule Optimization</span><span class="si-value">Per-rule analysis with performance, correctness, and best-practice suggestions for both Snort 2 and Snort 3 (Korean comments). Displays the "All Optimized Rules" consolidated panel plus per-rule optimized output with inline copy buttons. The Snort 2 optimizer is fully based on the Snort 2.9.16 Manual (Chapter 3) — see algorithm detail below.</span></div>
-          <div style="margin-top:14px; margin-bottom:18px; padding:14px 16px; background:rgba(0,212,255,0.04); border:1px solid rgba(0,212,255,0.15); border-radius:8px; font-size:0.84rem; line-height:1.75;">
-            <div style="color:var(--primary); font-weight:700; margin-bottom:10px;">&#9889; Snort 2 Optimization Algorithm — How It Works</div>
-            <div style="color:#a0bcd8; margin-bottom:10px;">
-              All analysis is grounded in the <b style="color:#fff;">Snort 2.9.16 Manual Chapter 3</b>. Processing runs in two phases: <b style="color:#fff;">Phase 1</b> auto-applies safe structural fixes, then <b style="color:#fff;">Phase 2</b> reports correctness and performance advisory checks inline.
-            </div>
-
-            <div style="color:#fff; font-weight:600; margin-bottom:6px;">&#9312; Phase 1 — Auto-Fixes (applied automatically)</div>
-            <table style="width:100%; border-collapse:collapse; margin-bottom:14px; font-size:0.82rem;">
-              <thead>
-                <tr style="border-bottom:1px solid var(--border);">
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Condition</th>
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Fix Applied</th>
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Ref</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sid &lt; 1,000,000</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;">Auto-converted to local rule range: <code style="color:var(--success);">sid:3 → sid:1000003</code></td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">msg not first option</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--success);">msg</code> moved to the front of the options list</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.4.1</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">sid/rev/gid not at tail</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;">Reordered to end of options in sequence <code style="color:var(--success);">sid → rev → gid</code></td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">No fast_pattern on any content</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;">Inserts <code style="color:var(--success);">fast_pattern</code> after the longest eligible <code>content</code> (skips contents with incompatible HTTP modifiers)</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">PCRE unescaped chars</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;">Fixes unescaped special characters inside PCRE strings</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.23</td>
-                </tr>
-                <tr>
-                  <td style="padding:4px 8px; color:var(--warn); font-family:monospace;">Fixes were applied</td>
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--success);">rev</code> automatically incremented by 1</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div style="color:#fff; font-weight:600; margin-bottom:6px;">&#9313; Phase 2 — Analysis Checks (inline advisory)</div>
-            <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
-              <thead>
-                <tr style="border-bottom:1px solid var(--border);">
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Check</th>
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Severity</th>
-                  <th style="text-align:left; padding:4px 8px; color:var(--muted); font-weight:600;">Ref</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;">HTTP modifier mutual exclusivity (http_raw_cookie↔http_cookie, http_raw_header↔http_header, http_raw_uri↔http_uri)</td>
-                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.11–3.5.21</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">fast_pattern</code> used with incompatible HTTP modifier (http_cookie, http_raw_*, http_method, http_stat_code/msg)</td>
-                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">rawbytes</code> combined with any HTTP modifier on the same content</td>
-                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.10</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;">PCRE flag mutual exclusivity: U+I, H+D, or C+K in same PCRE</td>
-                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.23</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;">Multiple <code style="color:var(--warn);">fast_pattern</code> options in one rule (&gt; 1)</td>
-                  <td style="padding:4px 8px; color:var(--warn);">WARN</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.5.22</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;">Discrete options (dsize, flags, fragbits, ipopts, ip_proto, tos, ttl, etc.) placed after content/pcre</td>
-                  <td style="padding:4px 8px; color:var(--primary);">ADVISORY</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.9.4</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">itype</code>, <code style="color:var(--warn);">icode</code>, <code style="color:var(--warn);">icmp_id</code>, or <code style="color:var(--warn);">icmp_seq</code> used on non-ICMP rule</td>
-                  <td style="padding:4px 8px; color:var(--error);">ERROR</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.9</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);">
-                  <td style="padding:4px 8px; color:#a0bcd8;">TCP rule with content but no <code style="color:var(--warn);">flow</code> option</td>
-                  <td style="padding:4px 8px; color:var(--primary);">ADVISORY</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.9.4</td>
-                </tr>
-                <tr>
-                  <td style="padding:4px 8px; color:#a0bcd8;"><code style="color:var(--warn);">sid</code> &gt; 9,999,999 (above local rule range)</td>
-                  <td style="padding:4px 8px; color:var(--warn);">WARN</td>
-                  <td style="padding:4px 8px; color:var(--muted);">§3.4.4</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div style="margin-top:10px; color:#a0bcd8;">
-              <b style="color:#fff;">Note:</b> <code style="color:var(--primary);">fast_pattern:only</code> and <code style="color:var(--primary);">uricontent</code> are <b style="color:#fff;">valid in Snort 2</b> and are preserved as-is (not auto-converted). All suggestion messages include the Manual section reference (e.g. <code style="color:var(--primary);">Manual §3.5.22</code>).
-            </div>
-          </div>
-          <div class="si-row"><span class="si-label">Python Validator</span><span class="si-value">Generates a standalone <code style="color:var(--primary);">validate_snort3.py</code> script for offline rule validation in air-gapped environments.</span></div>
-          <div class="si-row"><span class="si-label">Built-in Duplicate Check</span><span class="si-value">After conversion, automatically detects converted local rules whose SIDs fall in the Talos-managed range (1 – 999,999) and flags them as potential duplicates of Snort 3 built-in rules. Also detects content-level overlap when SIDs were remapped. Displayed below the Snort 2 vs Snort 3 diff view.</span></div>
-          <div class="si-row"><span class="si-label">SRU / LSP Updates</span><span class="si-value">Weekly Snort 2 (SRU) and Snort 3 (LSP) rule update news sourced from Talos advisories.</span></div>
-          <div class="si-row"><span class="si-label">Download Files</span><span class="si-value">Inline view (sidebar nav switches the main panel — no modal) listing files from the repo's <code style="color:var(--primary);">Download_Files/</code> folder via the GitHub Contents API. Public download for everyone; admin-only upload (SHA-256 password gate + GitHub PAT in browser localStorage). Auto-loads on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation. Files are fetched as binary blobs to force proper download (no raw-text browser preview).</span></div>
-          <div class="si-row"><span class="si-label">Feedback Board</span><span class="si-value">Community board for bug reports, feature requests, suggestions, and admin "Notice" posts. Backed by GitHub Issues via Cloudflare Workers proxy.</span></div>
-          <div class="si-row"><span class="si-label">Cisco Suggested Releases Box</span><span class="si-value">Always-visible sidebar widget at the bottom of the left navigation showing current Cisco-recommended FMC / FTD versions and Snort engine default, with a direct link to the official Compatibility Guide. Hidden on mobile (≤900 px) to preserve screen space.</span></div>
         </div>
-
-        <!-- ─── UI / Layout ─── -->
-        <div class="si-card">
-          <h4>UI / Layout</h4>
-          <div class="si-row"><span class="si-label">Navigation</span><span class="si-value">Fixed left sidebar (240 px wide) with vertically stacked menu buttons, each with a contextual emoji icon. Replaces the previous top navigation. Sidebar stays visible on scroll.</span></div>
-          <div class="si-row"><span class="si-label">Logo</span><span class="si-value">Snort logo at 96 px height (transparent background) at the top of the sidebar.</span></div>
-          <div class="si-row"><span class="si-label">View Persistence</span><span class="si-value">Active view is encoded in the URL as <code style="color:var(--primary);">?v=&lt;viewId&gt;</code>. Refresh and deep-links restore the correct view automatically. Compatible with browser back/forward.</span></div>
-          <div class="si-row"><span class="si-label">Responsive</span><span class="si-value">Optimized for desktop. The Cisco Suggested info box is hidden on screens ≤900 px to keep the sidebar compact on mobile/tablet.</span></div>
-          <div class="si-row"><span class="si-label">Theme</span><span class="si-value">Dark theme with cyan (<code style="color:var(--primary);">#00d4ff</code>) accent. Optimized for long reading sessions.</span></div>
-        </div>
-
-        <!-- ─── Technical ─── -->
-        <div class="si-card">
-          <h4>Technical</h4>
-          <div class="si-row"><span class="si-label">Hosting</span><span class="si-value"><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a> — static site, no server</span></div>
-          <div class="si-row"><span class="si-label">Source Code</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site" target="_blank" rel="noopener">github.com/maxias13/snort-rule-converter-site</a> (single-file <code style="color:var(--primary);">index.html</code>)</span></div>
-          <div class="si-row"><span class="si-label">Script Storage</span><span class="si-value"><a href="https://github.com/maxias13/snort-rule-converter-site/tree/main/Download_Files" target="_blank" rel="noopener">Download_Files/</a> — repo folder served live via the GitHub Contents API for the Download Files view</span></div>
-          <div class="si-row"><span class="si-label">Feedback Backend</span><span class="si-value">Cloudflare Workers proxy + GitHub Issues API (no direct token exposure to the browser)</span></div>
-          <div class="si-row"><span class="si-label">Persistence</span><span class="si-value">Browser <code style="color:var(--primary);">localStorage</code> for SID remap mappings and admin GitHub PAT (never transmitted to any server other than the GitHub API itself)</span></div>
-          <div class="si-row"><span class="si-label">Dependencies</span><span class="si-value">None — pure HTML / CSS / vanilla JavaScript. No frameworks, no build step.</span></div>
-        </div>
-
-        <!-- ─── Recent Updates ─── -->
-        <div class="si-card">
-          <h4>Recent Updates</h4>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 3]</b> Optimizer cross-validation against Snort 3 official manual — fixed 5 inaccuracies: (1) <code style="color:var(--primary);">replace</code> removed from "Snort 3 removed" list — option still exists in Snort 3 (§7.1.21, used with <code style="color:var(--primary);">rewrite</code> action); (2) <code style="color:var(--primary);">react</code> removed from "Snort 3 removed" list — still exists as active response; (3) <code style="color:var(--primary);">rawbytes</code> now correctly suggested as <code style="color:var(--primary);">raw_data</code> sticky buffer per §7.1.16; (4) <code style="color:var(--primary);">dce2</code> preprocessor reference replaced with correct Snort 3 inspector names <code style="color:var(--primary);">dce_smb</code>/<code style="color:var(--primary);">dce_tcp</code>/<code style="color:var(--primary);">dce_udp</code> per §6.1.4; (5) <code style="color:var(--primary);">urilen</code> message updated — option is removed in Snort 3 (use <code style="color:var(--primary);">http_uri</code> + <code style="color:var(--primary);">bufferlen</code>) per §7.1.20; <code style="color:var(--primary);">resp</code> properly retained in Snort 3 remnants list &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/04da754" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[04da754]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 2]</b> Optimizer cross-validation against Snort 2.9.16 manual — fixed 2 inaccuracies: (1) OPT_EXPLAIN entries reconciled with correct Manual §x.x.x section refs; (2) FP_INCOMPAT_MODS comments clarified for §3.5.22 fast_pattern incompatibility list &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/04da754" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[04da754]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 2]</b> SID auto-conversion — <code style="color:var(--primary);">sid &lt; 1,000,000</code> is automatically remapped to local rule range (1,000,000 + original SID, e.g. sid:3 → sid:1000003) per Manual §3.4.4 &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/b78423e" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[b78423e]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 2]</b> Complete rewrite based on Snort 2.9.16 Manual Chapter 3 — added 9 new correctness/performance checks (HTTP modifier mutual exclusivity, fast_pattern incompatible modifier, rawbytes+HTTP conflict, PCRE flag exclusivity, discrete check ordering, ICMP protocol, multiple fast_pattern, missing flow, SID range advisory) &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/b78423e" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[b78423e]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 2]</b> <code style="color:var(--primary);">fast_pattern:only</code> and <code style="color:var(--primary);">uricontent</code> no longer auto-converted (both are valid Snort 2 syntax — previous auto-fix was incorrect) &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/b78423e" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[b78423e]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-05-02</span><span class="si-value"><b style="color:var(--primary);">[Snort 2]</b> OPT_EXPLAIN expanded from 28 to 60+ entries; all Snort 2 entries now include Manual §x.x.x section references; <code style="color:var(--primary);">splitOptions()</code> keyword list extended with byte_extract, icmp_id, icmp_seq, http_stat_msg, tos, ipopts, seq, ack, window, fragoffset &nbsp;<a href="https://github.com/maxias13/snort-rule-converter-site/commit/b78423e" target="_blank" rel="noopener" style="color:var(--primary); font-family:monospace; font-size:0.78rem;">[b78423e]</a></span></div>
-          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Auto-load script list on <code style="color:var(--primary);">?v=scriptDlView</code> refresh and tab navigation (fixes infinite "Loading scripts from GitHub…" placeholder)</span></div>
-          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Bumped Cisco Suggested info box font sizes one step up for readability</span></div>
-          <div class="si-row"><span class="si-label">2026-04-26</span><span class="si-value">Added Cisco Suggested Releases info box at the bottom of the sidebar (FMC 7.6.5 / FTD 7.6.4 / Snort 3 default + Compatibility Guide link)</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Force binary file download via fetch + blob (instead of opening raw text in browser) for Useful Script Download</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Moved Useful Script Download below Snort LSP Updates in the sidebar</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Enlarged Snort logo from 64 px to 96 px height in the sidebar</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Replaced top nav with fixed left sidebar (240 px) + per-menu emoji icons</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Converted Useful Script Download from modal to inline view</span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Switched script storage from <code style="color:var(--primary);">/scripts</code> to <code style="color:var(--primary);">/Download_Files</code></span></div>
-          <div class="si-row"><span class="si-label">2026-04-25</span><span class="si-value">Added admin upload tab with SHA-256 password gate + GitHub PAT</span></div>
-          <div class="si-row"><span class="si-label">2026-04-24</span><span class="si-value">Strengthened Snort 2 → Snort 3 converter using snort2-to-3-migration-tool skill</span></div>
-          <div class="si-row"><span class="si-label">2026-04-24</span><span class="si-value">Enhanced Rule Optimization algorithm with parity for Snort 2 and Snort 3</span></div>
-        </div>
-
-        <!-- ─── Disclaimer ─── -->
-        <div class="si-card">
-          <h4>Disclaimer</h4>
-          <div class="si-row"><span class="si-value" style="color:#ffaa00;">All information provided on this site is not official information from Cisco Systems. Please use it with caution. Always verify converted rules in a test environment before deployment.</span></div>
+        <p class="muted" style="margin:0 0 10px;">
+          Live security-feature highlights from Cisco Secure Firewall Management Center release notes (7.6.0 → 7.6.5).
+          Suggested release: <strong style="color:var(--primary);">FMC 7.6.5 &#11088;</strong> &nbsp;/&nbsp; <strong style="color:var(--primary);">FTD 7.6.4 &#11088;</strong>.
+        </p>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; font-size:0.82rem;">
+          <a class="btn secondary" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/roadmap/management-center-new-features-by-release.html" target="_blank" rel="noopener" style="padding:5px 12px;">FMC New Features by Release &#8599;</a>
+          <a class="btn secondary" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/release-notes/threat-defense/760/threat-defense-release-notes-76.html" target="_blank" rel="noopener" style="padding:5px 12px;">FTD 7.6.x Release Notes &#8599;</a>
+          <a class="btn secondary" href="https://secure.cisco.com/secure-firewall/docs/whats-new-in-76" target="_blank" rel="noopener" style="padding:5px 12px;">What’s New in 7.6 (Cisco) &#8599;</a>
         </div>
       </div>
 
-      <div class="split">
-        <div class="panel drop-zone" id="inputDropZone">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-            <h3 style="margin:0;">Snort 2 Rule Input</h3>
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-              <input type="file" id="rulesFileInput" accept=".rules,.txt" class="hidden" />
-              <button class="btn secondary" id="loadFileBtn">📁 File</button>
-              <label style="display:flex;align-items:center;gap:6px;font-size:0.88rem;color:var(--muted);">
-                Start SID
-                <input type="number" id="startSidInput" min="1" placeholder="(keep original)"
-                  style="width:130px;border-radius:8px;border:1px solid var(--border);background:#091124;
-                         color:var(--text);padding:7px 10px;font-size:0.88rem;" />
-              </label>
-              <button class="btn" id="convertBtn">Convert</button>
-              <button class="btn warn" id="clearBtn">Clear</button>
-            </div>
-          </div>
-          <div style="position:relative;">
-            <div class="drop-overlay" id="dropOverlay">&#8595; Drop .rules / .txt file</div>
-            <textarea id="inputRules" class="textarea" placeholder="Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"></textarea>
-          </div>
-        </div>
-        <div class="panel">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <h3 style="margin:0;">Snort 3 Rule Output</h3>
-            <div style="display:flex;gap:6px;">
-              <button class="btn secondary" id="downloadRulesBtn">&#8595; Download .rules</button>
-              <button class="btn success" id="copyOutputBtn">Copy</button>
-            </div>
-          </div>
-          <textarea id="outputRules" class="textarea" readonly placeholder="Converted Snort 3 rules will appear here..."></textarea>
-        </div>
-      </div>
+      <div id="homeFmcCards" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:14px;">
+        <!-- Curated, verified Cisco FMC 7.6+ security feature cards (also rebuilt by JS on refresh) -->
 
-      <div>
-        <div style="padding:0 2px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-          <span style="color:var(--primary);font-size:0.96rem;font-weight:700;letter-spacing:0.02em;">Compare Input Snort 2 Rule vs Converted Snort 3 Rule</span>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <div class="legend" style="margin:0;">
-              <span class="tag red">Removed</span>
-              <span class="tag green">Added</span>
-              <span class="tag yellow">Modified</span>
-            </div>
-            <button class="btn secondary" id="downloadCompareBtn" style="font-size:0.82rem;padding:5px 12px;">&#8595; Download Comparison</button>
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">SnortML — ML-based exploit detection</span>
           </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            New Snort 3 inspector <code>snort_ml</code> uses neural-network ML to detect known and 0-day attacks (currently SQL injections via HTTP URI) without writing per-CVE rules. Disabled by default except in Maximum Detection policy.
+          </p>
         </div>
-        <div class="diff-grid">
-          <div class="panel">
-            <div class="muted" style="margin-bottom:6px;">Original (Snort 2)</div>
-            <div id="diffLeft" class="codebox"></div>
-          </div>
-          <div class="panel">
-            <div class="muted" style="margin-bottom:6px;">Converted (Snort 3)</div>
-            <div id="diffRight" class="codebox"></div>
-          </div>
-        </div>
-      </div>
 
-      <!-- ── Built-in Snort 3 Rule Duplicate Check ──────────────────────── -->
-      <div id="dupCheckPanel" style="display:none; margin-top:18px;">
-        <div style="padding:0 2px;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
-          <span style="color:var(--primary);font-size:0.96rem;font-weight:700;letter-spacing:0.02em;">Built-in Snort 3 Rule Duplicate Check</span>
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">QUIC Decryption</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Decryption Policy can now apply to QUIC sessions, enabling full IPS / malware inspection of encrypted HTTP/3 traffic. Off by default; enable per decryption rule.
+          </p>
         </div>
-        <div id="dupCheckContent"></div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">EVE Exception List</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Bypass Encrypted Visibility Engine block verdicts for trusted destination networks or process names. Bypassed connections are tagged <code>EVE Exempted</code> in events.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">Simplified Do-Not-Decrypt Wizard</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Multistep decryption-policy wizard lets admins define outbound decryption exclusions without disturbing existing decryption rules.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">MITRE ATT&amp;CK Enrichment in Unified Events</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Single-pane Unified Event Viewer with MITRE technique tagging, attack progression graph, and EVE/IOC contextual enrichment.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">AI Assistant for FMC</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Cloud-delivered AI Assistant integrated into FMC for natural-language policy queries, configuration insight, and optimization guidance.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">Policy Analyzer &amp; Optimizer</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Cloud-delivered Access Control policy review with actionable recommendations — detects shadowed, redundant, and overly broad rules.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">Snort 3 CPU &amp; Rule Profilers</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            New profilers expose per-rule and per-module CPU cost so analysts can pinpoint expensive Snort 3 rules without lab packet captures.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.0</span>
+            <span style="font-weight:700; color:var(--primary);">RADIUS Message-Authenticator Enforcement</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Mitigates CVE-2024-3596 (Blast-RADIUS): require Message-Authenticator attribute in all RADIUS responses for VPN, AnyConnect, and admin auth.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.1</span>
+            <span style="font-weight:700; color:var(--primary);">Migrate Firepower 4100/9300 → Secure Firewall 3100/4200</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Guided migration path to retire Firepower 4100/9300 chassis onto modern Secure Firewall hardware while preserving policy.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.4</span>
+            <span style="font-weight:700; color:var(--primary);">FMCv High Availability on OpenStack</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            FMC Virtual now supports HA pairing on OpenStack — closing a long-standing parity gap for private-cloud deployments.
+          </p>
+        </div>
+
+        <div class="panel" style="margin:0; padding:16px;">
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+            <span style="display:inline-block; padding:2px 8px; border-radius:10px; background:rgba(57,255,20,0.12); color:#39ff14; font-size:0.72rem; font-weight:700;">7.6.5</span>
+            <span style="font-weight:700; color:var(--primary);">Suggested Release — FMC 7.6.5 &#11088;</span>
+          </div>
+          <p style="margin:0; font-size:0.88rem; line-height:1.55;">
+            Cisco-recommended FMC release pairing with FTD 7.6.4. Bug fixes and stability hardening on top of the 7.6 security feature set above. See <a href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/roadmap/management-center-new-features-by-release.html" target="_blank" rel="noopener">New Features by Release</a> for the full bug list.
+          </p>
+        </div>
+
       </div>
 
     </section>
@@ -1640,444 +1415,6 @@
         <div id="optResults"></div>
       </div>
 
-      <!-- ── Snort 3 Local Rule Writing Guide ──────────────────────────── -->
-      <div id="snort3GuidePanel" class="panel" style="margin-top:0; display:none;">
-        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-          <div>
-            <h3 style="margin:0 0 4px;">&#128218; Snort 3 Local Rule Writing Guide</h3>
-            <p class="muted" style="margin:0; font-size:0.84rem;">Essential guidelines and best practices for writing Snort 3 local rules</p>
-          </div>
-        </div>
-
-        <!-- 1. Rule Structure -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#9881;</span>
-            <span>1. Rule Structure</span>
-            <span class="guide-tag important">IMPORTANT</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>A Snort 3 rule consists of a <b>header</b> and <b>options</b>. Compared to Snort 2, some keyword positions and syntax have changed.</p>
-            <pre class="guide-code">action proto src_ip src_port direction dst_ip dst_port (options;)
-
-# Example
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (
-    msg:"My Custom Rule";
-    flow:to_server,established;
-    content:"/attack", depth 20, fast_pattern;
-    service:http;
-    sid:1000001; rev:1;
-)</pre>
-            <ul>
-              <li><b>action</b>: <code>alert</code>, <code>drop</code>, <code>block</code>, <code>pass</code>, <code>log</code>, <code>rewrite</code></li>
-              <li><b>proto</b>: <code>tcp</code>, <code>udp</code>, <code>icmp</code>, <code>ip</code>, <code>http</code>, <code>dns</code>, <code>smb</code>, etc.</li>
-              <li><b>direction</b>: <code>-&gt;</code> (unidirectional) or <code>&lt;&gt;</code> (bidirectional)</li>
-              <li>Options must be wrapped in parentheses <code>( )</code> and each item separated by <code>;</code></li>
-              <li><code>gid</code>, <code>sid</code>, <code>rev</code> must always appear at the <b>end</b> of the options block</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/headers" target="_blank" rel="noopener">&#8599; Rule Headers — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/rules/intro" target="_blank" rel="noopener">&#8599; Rule Introduction — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 2. SID Range -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#128273;</span>
-            <span>2. SID Range for Local Rules</span>
-            <span class="guide-tag critical">CRITICAL</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>Local rule SIDs must be <b>1,000,000 or higher</b>. Conflicting with the Talos-managed SID range can cause rules to be overwritten.</p>
-            <ul>
-              <li><b>1 – 999,999</b>: Reserved for official Snort/Talos rules — do not use</li>
-              <li><b>1,000,000 – 1,999,999</b>: Recommended range for local/custom rules</li>
-              <li><b>2,000,000+</b>: Third-party rulesets or additional local rules</li>
-              <li>If duplicate SIDs exist in FMC, the last loaded rule takes effect</li>
-              <li><code>rev:</code> is optional, but always increment by 1 when modifying a rule</li>
-            </ul>
-            <pre class="guide-code">sid:1000001; rev:1;   # ✓ correct — local rule range
-sid:1001;             # ✗ dangerous — reserved by Talos</pre>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/sid" target="_blank" rel="noopener">&#8599; sid option — docs.snort.org</a>
-              <a class="guide-link" href="https://www.snort.org/faq/why-are-rules-different-between-snort-2-and-snort-3" target="_blank" rel="noopener">&#8599; Snort FAQ</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 3. flow keyword -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#9889;</span>
-            <span>3. flow keyword — Required for Performance</span>
-            <span class="guide-tag critical">CRITICAL</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>Rules without <code>flow</code> are evaluated against <b>every packet</b>, causing severe performance impact. Nearly every rule should specify <code>flow</code>.</p>
-            <pre class="guide-code"># TCP traffic to server (web attack detection, etc.)
-flow:to_server,established;
-
-# TCP traffic from server (response detection)
-flow:from_server,established;
-
-# Bidirectional without connection tracking
-flow:stateless;
-
-# UDP (no established state)
-flow:to_server;</pre>
-            <ul>
-              <li><code>to_server</code> / <code>from_server</code>: restrict traffic direction</li>
-              <li><code>established</code>: inspect only packets after TCP 3-way handshake — major performance gain</li>
-              <li><code>not_established</code>: detect initial connection packets (SYN scans, etc.)</li>
-              <li><code>no_stream</code>: inspect individual packets before reassembly</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/flow" target="_blank" rel="noopener">&#8599; flow option — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 4. content + fast_pattern -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#128269;</span>
-            <span>4. content Patterns and fast_pattern</span>
-            <span class="guide-tag important">IMPORTANT</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>In Snort 3, <code>content</code> modifiers are <b>inline</b> — they are not written as separate options like in Snort 2.</p>
-            <pre class="guide-code"># Snort 2 style (incorrect for Snort 3)
-content:"/admin"; depth:20; nocase; distance:0;
-
-# Snort 3 correct style — modifiers inline
-content:"/admin", depth 20, nocase, distance 0;
-
-# Hex pattern (binary protocol detection)
-content:"|0d 0a 0d 0a|";
-
-# fast_pattern — designate the most unique pattern among multiple contents
-content:"X-Trigger-Pattern", fast_pattern;
-content:"/other", distance 0;</pre>
-            <ul>
-              <li>Content patterns shorter than 4 characters increase false positives and hurt performance — use at least 4 characters</li>
-              <li>With multiple <code>content</code> options, assign <code>fast_pattern</code> to the <b>longest and most unique</b> pattern</li>
-              <li><code>nocase</code> enables case-insensitive matching — has a performance cost, use only when necessary</li>
-              <li>Limiting search range with <code>depth</code>/<code>offset</code> improves performance</li>
-              <li>Negated content: <code>content:!"unwanted"</code> — matches only when the pattern is absent</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/content" target="_blank" rel="noopener">&#8599; content option — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/fast_pattern" target="_blank" rel="noopener">&#8599; fast_pattern — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 5. Sticky Buffers & HTTP Inspection -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#127760;</span>
-            <span>5. Sticky Buffers &amp; HTTP Inspection</span>
-            <span class="guide-tag important">IMPORTANT</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>In Snort 3, HTTP inspection uses <b>sticky buffers</b>. Place the buffer keyword <b>before</b> the related <code>content</code> or <code>pcre</code>; it remains active until another sticky buffer changes the detection cursor.</p>
-            <pre class="guide-code"># URI-based detection
-http_uri; content:"/cgi-bin/.%2e/", fast_pattern;
-
-# HTTP header inspection
-http_header; content:"Host: malicious.com";
-
-# POST body inspection
-http_client_body; content:"payload=exploit";
-
-# HTTP method restriction
-http_method; content:"POST";
-
-# Status code detection (response detection)
-http_stat_code; content:"200";
-
-# traditional TCP header: add service scoping when not using a service rule
-service:http;
-
-# service rule header: no service option is needed
-alert http ( http_uri; content:"/admin",fast_pattern; sid:1000001; rev:1; )</pre>
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
-              <thead><tr style="border-bottom:1px solid var(--border);">
-                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Sticky Buffer</th>
-                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Inspects</th>
-                <th style="text-align:left;padding:4px 8px;color:var(--muted);">Snort 2 Equivalent</th>
-              </tr></thead>
-              <tbody>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_uri</td><td style="padding:4px 8px;">Normalized URI</td><td style="padding:4px 8px;color:var(--muted);">uricontent / pcre U flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_raw_uri</td><td style="padding:4px 8px;">Raw (non-normalized) URI</td><td style="padding:4px 8px;color:var(--muted);">pcre I flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_header</td><td style="padding:4px 8px;">Full request/response headers</td><td style="padding:4px 8px;color:var(--muted);">pcre H flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_client_body</td><td style="padding:4px 8px;">Request body (POST body)</td><td style="padding:4px 8px;color:var(--muted);">pcre P/D flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_method</td><td style="padding:4px 8px;">HTTP method</td><td style="padding:4px 8px;color:var(--muted);">pcre M flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_cookie</td><td style="padding:4px 8px;">Cookie value</td><td style="padding:4px 8px;color:var(--muted);">pcre C flag</td></tr>
-                <tr><td style="padding:4px 8px;font-family:monospace;color:#9beeff;">http_stat_code</td><td style="padding:4px 8px;">HTTP status code</td><td style="padding:4px 8px;color:var(--muted);">pcre S flag</td></tr>
-              </tbody>
-            </table>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_uri" target="_blank" rel="noopener">&#8599; http_uri — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_header" target="_blank" rel="noopener">&#8599; http_header — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/http_client_body" target="_blank" rel="noopener">&#8599; http_client_body — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 6. PCRE -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#128301;</span>
-            <span>6. PCRE Usage Guidelines</span>
-            <span class="guide-tag important">IMPORTANT</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>PCRE is powerful but has <b>very high CPU cost</b>. Always precede PCRE with a <code>content</code> anchor to reduce evaluation frequency.</p>
-            <pre class="guide-code"># ✗ Bad — PCRE alone with no content anchor (applied to every packet)
-pcre:"/union\s+select/i";
-
-# ✓ Good — pre-filter with content, then PCRE
-content:"union", fast_pattern, nocase;
-pcre:"/union\s+select\s+/i";
-
-# HTTP URI PCRE (Snort 3 sticky buffer style)
-http_uri; pcre:"/\/\.\.\/etc\/passwd/i";
-
-# Snort 2 HTTP flags → Snort 3 conversion
-# ✗ Snort 2: pcre:"/pattern/Ui"  (U = http_uri, i = case-insensitive)
-# ✓ Snort 3: http_uri; pcre:"/pattern/i"</pre>
-            <ul>
-              <li>Snort 2 uppercase HTTP flags (<code>U</code>, <code>I</code>, <code>H</code>, <code>D</code>, <code>P</code>, <code>C</code>, <code>M</code>, <code>S</code>, <code>Y</code>, <code>K</code>) → all replaced by sticky buffers in Snort 3</li>
-              <li>Lowercase flags (<code>i</code>, <code>s</code>, <code>m</code>, <code>x</code>) — standard PCRE flags, unchanged</li>
-              <li>Using <code>fast_pattern</code> alongside PCRE dramatically reduces the number of PCRE evaluations</li>
-              <li>Patterns with heavy backtracking (e.g. <code>.*</code>, <code>.+</code>) risk ReDoS</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/pcre" target="_blank" rel="noopener">&#8599; pcre option — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 7. xbits (state tracking) -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#128279;</span>
-            <span>7. xbits — State Tracking (replaces flowbits)</span>
-            <span class="guide-tag tip">TIP</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>Snort 3 still supports <code>flowbits</code> for transport-session state tracking. Use <code>xbits</code> when you intentionally need host/IP-based state with explicit tracking scope.</p>
-            <pre class="guide-code"># Snort 2 (flowbits)
-flowbits:set,malware.stage1;
-flowbits:isset,malware.stage1;
-
-# Snort 3 alternative (xbits) — track clause is required
-xbits:set,malware.stage1,track ip_src;
-xbits:isset,malware.stage1,track ip_src;
-xbits:unset,malware.stage1,track ip_src;
-
-# expire recommended — prevents memory leaks
-xbits:set,malware.stage1,track ip_src,expire 3600;
-
-# Rule 1: detect stage 1 and set bit
-alert tcp ... (content:"stage1"; xbits:set,attack.stage1,track ip_src,expire 60; sid:1000001;)
-
-# Rule 2: detect stage 2 only from IPs with bit set
-alert tcp ... (xbits:isset,attack.stage1,track ip_src; content:"stage2"; sid:1000002;)</pre>
-            <ul>
-              <li>Keep <code>flowbits</code> when session-scoped state is correct for the rule logic</li>
-              <li>Choose <code>xbits</code> tracking scope explicitly: <code>track ip_src</code>, <code>track ip_dst</code>, or another supported IP scope</li>
-              <li>Without <code>expire</code>, a default timeout applies — set it explicitly for predictable cleanup</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/xbits" target="_blank" rel="noopener">&#8599; xbits option — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 8. service keyword -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#127757;</span>
-            <span>8. service keyword — Application Protocol Declaration</span>
-            <span class="guide-tag important">IMPORTANT</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p><code>service</code> declares which application-layer protocol the rule targets. This ensures Snort 3's inspector is correctly invoked to parse HTTP, DNS, and other protocols.</p>
-            <pre class="guide-code">service:http;           # Traditional TCP rule scoping for HTTP traffic
-service:https;          # HTTPS (HTTP inspection after TLS decryption)
-service:dns;            # DNS inspector
-service:smtp;           # SMTP inspector
-service:ftp;            # FTP inspector
-service:ssh;            # SSH
-service:http,dns;       # Multiple services can be specified</pre>
-            <ul>
-              <li>For traditional <code>alert tcp ...</code> rules, use <code>service:http</code> to scope the rule to HTTP-classified traffic</li>
-              <li>For Snort 3 service rules such as <code>alert http (...)</code>, do <b>not</b> add a redundant <code>service:http</code> option</li>
-              <li>Snort 2's <code>metadata:service http</code> has no detection effect in Snort 3 — move service scoping to <code>service:http</code> or use an <code>alert http</code> service rule</li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/service" target="_blank" rel="noopener">&#8599; service option — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 9. detection_filter / rate control -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#9203;</span>
-            <span>9. detection_filter — Event Rate Control (replaces threshold)</span>
-            <span class="guide-tag tip">TIP</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>Snort 2's <code>threshold</code> has been removed in Snort 3. Use <code>detection_filter</code> for inline rate limiting.</p>
-            <pre class="guide-code"># Snort 2 (threshold — removed in Snort 3)
-threshold: type limit, track by_src, count 5, seconds 60;
-
-# Snort 3 (detection_filter — inline as a rule option)
-detection_filter:track by_src, count 5, seconds 60;
-
-# Example: alert if same source triggers 5+ times within 60 seconds
-alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
-    msg:"Brute Force Attempt";
-    flow:to_server,established;
-    content:"POST /login", fast_pattern;
-    service:http;
-    detection_filter:track by_src, count 5, seconds 60;
-    sid:1000010; rev:1;
-)</pre>
-            <ul>
-              <li><code>track by_src</code>: based on source IP; <code>track by_dst</code>: based on destination IP</li>
-              <li>Global event filters are configured via the <code>event_filter</code> module in <code>snort.lua</code></li>
-            </ul>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/nonpayload/detection_filter" target="_blank" rel="noopener">&#8599; detection_filter — docs.snort.org</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 10. Snort 2 → 3 제거/변경 키워드 -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#9888;</span>
-            <span>10. Snort 2 → 3 Removed / Changed Keywords</span>
-            <span class="guide-tag critical">CRITICAL</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>The following Snort 2 keywords have been <b>removed or changed</b> in Snort 3. Rules containing these keywords will fail to load or behave incorrectly.</p>
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin:10px 0;">
-              <thead><tr style="border-bottom:1px solid var(--border);">
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 2 Keyword</th>
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Status</th>
-                <th style="text-align:left;padding:5px 8px;color:var(--muted);">Snort 3 Replacement</th>
-              </tr></thead>
-              <tbody>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">uricontent</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">http_uri; content:"..."</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">rawbytes</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">raw_data; sticky buffer</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#9beeff;">flowbits</td><td style="padding:5px 8px;color:var(--success);">Supported</td><td style="padding:5px 8px;color:var(--muted);">Keep for session state; use xbits only for host/IP state</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">threshold</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">detection_filter (inline)</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">fast_pattern:only</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;font-family:monospace;color:var(--success);">fast_pattern (no argument)</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">resp</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Use reject active response where appropriate</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#9beeff;">react</td><td style="padding:5px 8px;color:var(--success);">Supported</td><td style="padding:5px 8px;color:var(--muted);">Snort 3 active response: send response and terminate session</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">tag</td><td style="padding:5px 8px;color:var(--warn);">Changed / limited</td><td style="padding:5px 8px;color:var(--muted);">Review support in target Snort 3 deployment</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">activates / activated_by</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Dynamic rules not supported</td></tr>
-                <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">logto / session</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">No equivalent</td></tr>
-                <tr><td style="padding:5px 8px;font-family:monospace;color:#ff9a9a;">stream_reassemble</td><td style="padding:5px 8px;color:var(--error);">Removed</td><td style="padding:5px 8px;color:var(--muted);">Moved to stream config in snort.lua</td></tr>
-              </tbody>
-            </table>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/snort3" target="_blank" rel="noopener">&#8599; Snort 3 Migration Guide</a>
-              <a class="guide-link" href="https://docs.snort.org/start/differences" target="_blank" rel="noopener">&#8599; Snort 2 vs 3 Differences</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 11. FMC / Cisco Secure Firewall 주의사항 -->
-        <details class="guide-section">
-          <summary>
-            <span class="guide-icon">&#128737;</span>
-            <span>11. Cisco FMC / Secure Firewall — Local Rule Upload Guidelines</span>
-            <span class="guide-tag critical">CRITICAL</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>Rules to follow when uploading local rule files to Cisco FMC (Firepower Management Center).</p>
-            <ul>
-              <li><b>File naming</b>: Must start with a letter or underscore (<code>_</code>); only letters, digits, <code>.</code>, <code>_</code>, <code>-</code>, <code>+</code> are allowed (no spaces, non-ASCII, or special characters)</li>
-              <li><b>File extension</b>: <code>.rules</code> or <code>.txt</code></li>
-              <li><b>No duplicate SIDs</b>: Conflicting SIDs across rulesets will cause errors — always use 1,000,000 or higher</li>
-              <li><b>GID</b>: Local rules use GID 1 (write <code>gid:1;</code> explicitly or omit it)</li>
-              <li><b>Policy deployment</b>: After uploading, enable the rules in the Intrusion Policy, then Deploy</li>
-              <li><b>Check Snort version</b>: FTD version determines whether Snort 2 or Snort 3 engine is used — verify in FMC &gt; Devices</li>
-              <li><b>Test environment</b>: Always validate rule behavior in a test environment before production deployment</li>
-            </ul>
-            <pre class="guide-code"># Valid filename examples
-snort3_local_rules_20260408.rules   ✓
-local_rules_v2.rules                ✓
-my rules.rules                      ✗ (spaces not allowed)
-한글룰.rules                        ✗ (non-ASCII not allowed)
-123rules.rules                      ✗ (cannot start with a digit)</pre>
-            <div class="guide-links">
-              <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/device-config/730/management-center-device-config-73/intrusion-rules.html" target="_blank" rel="noopener">&#8599; FMC Intrusion Rules — Cisco Docs</a>
-              <a class="guide-link" href="https://www.cisco.com/c/en/us/td/docs/security/secure-firewall/management-center/admin/730/management-center-admin-73/system-install.html" target="_blank" rel="noopener">&#8599; Cisco Secure Firewall Docs</a>
-            </div>
-          </div>
-        </details>
-
-        <!-- 12. Performance Best Practices -->
-        <details class="guide-section" style="margin-bottom:0;">
-          <summary>
-            <span class="guide-icon">&#128200;</span>
-            <span>12. Performance Best Practices</span>
-            <span class="guide-tag tip">TIP</span>
-            <span class="guide-chevron">&#9660;</span>
-          </summary>
-          <div class="guide-body">
-            <p>As the number of local rules grows, the performance impact increases. Following these guidelines ensures both detection accuracy and performance.</p>
-            <ul>
-              <li><b>Always use <code>flow</code></b>: Use <code>flow:to_server,established</code> to narrow the scope of packets evaluated</li>
-              <li><b>Avoid short content patterns</b>: Patterns of 3 characters or fewer increase false positives and hurt performance</li>
-              <li><b>Assign <code>fast_pattern</code></b>: Explicitly set it on the most unique pattern in multi-content rules</li>
-              <li><b>Always anchor PCRE with content</b>: Never use PCRE alone</li>
-              <li><b>Use <code>dsize</code></b>: Limit payload size to skip unnecessary inspections</li>
-              <li><b>Specify ports</b>: Use actual service ports (e.g. <code>$HTTP_PORTS</code>) instead of <code>any</code></li>
-              <li><b>Set <code>classtype</code></b>: Helps with alert priority management and classification filtering</li>
-            </ul>
-            <pre class="guide-code"># ✓ Optimized rule example
-alert tcp $EXTERNAL_NET any -> $HTTP_SERVERS $HTTP_PORTS (
-    msg:"ET WEB Possible SQL Injection";
-    flow:to_server,established;          # direction + state restriction
-    http_uri;                            # HTTP URI sticky buffer
-    content:"UNION", fast_pattern, nocase;  # most unique pattern + fast_pattern
-    content:"SELECT", distance 0, nocase;
-    pcre:"/union\s+select/i";            # PCRE after content pre-filter
-    dsize:>10;                           # payload size filter
-    service:http;
-    classtype:web-application-attack;
-    sid:1000020; rev:1;
-)</pre>
-            <div class="guide-links">
-              <a class="guide-link" href="https://docs.snort.org/rules/options/payload/dsize" target="_blank" rel="noopener">&#8599; dsize — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/rules/options/metadata/classtype" target="_blank" rel="noopener">&#8599; classtype — docs.snort.org</a>
-              <a class="guide-link" href="https://docs.snort.org/snort3" target="_blank" rel="noopener">&#8599; Snort 3 Documentation</a>
-            </div>
-          </div>
-        </details>
-
-      </div>
     </section>
 
 
@@ -3140,7 +2477,6 @@ if __name__ == "__main__":
           ? "Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"
           : "Paste Snort 3 local rules here, or drag & drop a .rules / .txt file…";
         el.optResults.innerHTML = "";
-        document.getElementById("snort3GuidePanel").style.display = v === 3 ? "" : "none";
       }
 
       init();
