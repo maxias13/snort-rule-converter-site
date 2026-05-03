@@ -284,7 +284,7 @@
       z-index: 99999;
       pointer-events: none;
     }
-    /* Invisible bridge spanning the gap from parent button (top-left) into dropdown (bottom-right offset) */
+    /* Invisible bridge so cursor can travel from parent button into dropdown without losing :hover */
     .tab-group > .tab-children::before {
       content: "";
       position: absolute;
@@ -302,11 +302,13 @@
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
-    /* Position diagonally below-right of parent button (살짝 우측 아래) */
+    /* Use position:fixed so the dropdown escapes the sidebar entirely and renders
+       above the main content area (no clipping from sidebar overflow / borders).
+       JS sets top/left dynamically on hover based on parent button rect. */
     .tab-group > .tab-children {
-      position: absolute;
-      top: calc(100% - 8px);
-      left: calc(100% - 24px);
+      position: fixed;
+      top: 0;
+      left: 0;
     }
     .tab-child {
       height: 34px;
@@ -2910,16 +2912,32 @@ if __name__ == "__main__":
             }
           });
 
+          // Position the fixed-positioned dropdown relative to the parent
+          // button's viewport rect. This lets the dropdown overlay the main
+          // content area, escaping the sidebar entirely (no clipping).
+          //  - left: parent's right edge + 6px gap (slightly into main area)
+          //  - top:  parent's top + small downward offset (살짝 우측 아래)
+          const positionDropdown = () => {
+            const r = parent.getBoundingClientRect();
+            dropdown.style.left = (r.right + 6) + "px";
+            dropdown.style.top = (r.top + 8) + "px";
+          };
+
           // Tap-to-toggle for touch devices (no hover).
           let hideTimer = null;
           const show = () => {
             clearTimeout(hideTimer);
+            positionDropdown();
             dropdown.classList.add("is-open");
           };
           const scheduleHide = () => {
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => dropdown.classList.remove("is-open"), 180);
           };
+          // Re-position on hover (covers CSS :hover path too — keeps coords fresh
+          // after sidebar scroll / window resize).
+          group.addEventListener("mouseenter", show);
+          group.addEventListener("mouseleave", scheduleHide);
           parent.addEventListener("touchstart", (e) => {
             e.preventDefault();
             if (dropdown.classList.contains("is-open")) {
@@ -2930,6 +2948,16 @@ if __name__ == "__main__":
           }, { passive: false });
           group.addEventListener("focusin", show);
           group.addEventListener("focusout", scheduleHide);
+          // Keep position correct on resize / sidebar scroll while open.
+          window.addEventListener("resize", () => {
+            if (dropdown.classList.contains("is-open") || group.matches(":hover")) positionDropdown();
+          });
+          const sidebar = group.closest(".sidebar");
+          if (sidebar) {
+            sidebar.addEventListener("scroll", () => {
+              if (dropdown.classList.contains("is-open") || group.matches(":hover")) positionDropdown();
+            });
+          }
         });
       }
 
