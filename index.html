@@ -113,10 +113,6 @@
       font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       min-height: 100%;
     }
-    /* Prevent horizontal page scroll: anything overflowing horizontally inside .app must scroll itself */
-    body { overflow-x: hidden; }
-    .app { min-width: 0; overflow-x: hidden; }
-    .view, .card, .card-body, .panel { min-width: 0; max-width: 100%; }
 
     /* ── App layout: fixed left sidebar + content area ─ */
     .app {
@@ -267,7 +263,6 @@
       transform: translateX(2px);
     }
     .tab-children {
-      width: max-content;
       min-width: 180px;
       display: flex;
       flex-direction: column;
@@ -279,36 +274,34 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-soft, rgba(167,139,250,0.12));
       opacity: 0;
       visibility: hidden;
-      transform: translate(-4px, -4px);
+      transform: translateX(-4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
       z-index: 99999;
       pointer-events: none;
     }
-    /* Invisible bridge so cursor can travel from parent button into dropdown without losing :hover */
+    /* Invisible bridge so cursor can travel from parent into dropdown without losing :hover */
     .tab-group > .tab-children::before {
       content: "";
       position: absolute;
-      top: -16px;
-      left: -24px;
-      width: calc(100% + 24px);
-      height: 20px;
+      top: 0;
+      left: -10px;
+      width: 10px;
+      height: 100%;
     }
     .tab-children.is-open,
     .tab-group:hover > .tab-children,
     .tab-group:focus-within > .tab-children {
       opacity: 1;
       visibility: visible;
-      transform: translate(0, 0);
+      transform: translateX(0);
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
-    /* Use position:fixed so the dropdown escapes the sidebar entirely and renders
-       above the main content area (no clipping from sidebar overflow / borders).
-       JS sets top/left dynamically on hover based on parent button rect. */
+    /* Position to the right of parent button, flush (no visible gap; bridge handles cursor travel) */
     .tab-group > .tab-children {
-      position: fixed;
+      position: absolute;
       top: 0;
-      left: 0;
+      left: calc(100% + 4px);
     }
     .tab-child {
       height: 34px;
@@ -2912,37 +2905,16 @@ if __name__ == "__main__":
             }
           });
 
-          // Position the fixed-positioned dropdown relative to the parent
-          // button's viewport rect. This lets the dropdown overlay the main
-          // content area, escaping the sidebar entirely (no clipping).
-          //  - left: parent's right edge + 6px gap (slightly into main area)
-          //  - top:  parent's top + small downward offset (살짝 우측 아래)
-          const positionDropdown = () => {
-            const r = parent.getBoundingClientRect();
-            dropdown.style.left = (r.right + 6) + "px";
-            dropdown.style.top = (r.top + 8) + "px";
-          };
-          // Initial positioning so CSS :hover (which can fire without
-          // mouseenter if cursor is already over the element on load) does
-          // not reveal the dropdown at viewport (0,0).
-          positionDropdown();
-
           // Tap-to-toggle for touch devices (no hover).
           let hideTimer = null;
           const show = () => {
             clearTimeout(hideTimer);
-            positionDropdown();
             dropdown.classList.add("is-open");
           };
           const scheduleHide = () => {
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => dropdown.classList.remove("is-open"), 180);
           };
-          // Re-position on every mouseover (covers case where cursor is
-          // already inside the group at page load — mouseenter wouldn't fire).
-          group.addEventListener("mouseenter", show);
-          group.addEventListener("mouseover", positionDropdown);
-          group.addEventListener("mouseleave", scheduleHide);
           parent.addEventListener("touchstart", (e) => {
             e.preventDefault();
             if (dropdown.classList.contains("is-open")) {
@@ -2953,12 +2925,6 @@ if __name__ == "__main__":
           }, { passive: false });
           group.addEventListener("focusin", show);
           group.addEventListener("focusout", scheduleHide);
-          // Keep position correct on resize / sidebar scroll while open.
-          window.addEventListener("resize", positionDropdown);
-          const sidebar = group.closest(".sidebar");
-          if (sidebar) {
-            sidebar.addEventListener("scroll", positionDropdown);
-          }
         });
       }
 
