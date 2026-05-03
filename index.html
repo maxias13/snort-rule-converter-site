@@ -246,9 +246,9 @@
       transform: translateX(2px);
     }
     .tab-children {
-      position: absolute;
+      position: fixed;
       top: 0;
-      left: calc(100% + 6px);
+      left: 0;
       min-width: 160px;
       display: flex;
       flex-direction: column;
@@ -263,6 +263,7 @@
       transform: translateX(-4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
       z-index: 1200;
+      pointer-events: none;
     }
     .tab-group:hover .tab-children,
     .tab-group:focus-within .tab-children,
@@ -270,6 +271,7 @@
       opacity: 1;
       visibility: visible;
       transform: translateX(0);
+      pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
     .tab-child {
@@ -3445,6 +3447,19 @@ if __name__ == "__main__":
 
         // Expose loadPosts so switchView can call it via a module-level ref
         window.__fbLoadPosts = loadPosts;
+
+        document.querySelectorAll(".tab-group").forEach((group) => {
+          const parent = group.querySelector(".tab-parent");
+          const dropdown = group.querySelector(".tab-children");
+          if (!parent || !dropdown) return;
+          const positionDropdown = () => {
+            const r = parent.getBoundingClientRect();
+            dropdown.style.top = r.top + "px";
+            dropdown.style.left = (r.right + 6) + "px";
+          };
+          group.addEventListener("mouseenter", positionDropdown);
+          group.addEventListener("focusin", positionDropdown);
+        });
       }
 
       function seedExample() {
