@@ -1181,14 +1181,13 @@
       </div>
 
       <div class="tab-group">
-        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">✅</span><span class="label">Rule Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
-          <button class="tab-btn tab-child" data-view="validatorView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
-          <button class="tab-btn tab-child" data-view="validatorView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
+          <button class="tab-btn tab-child" data-view="pythonValidatorView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child" data-view="pythonValidatorView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
         </div>
       </div>
 
-      <button class="tab-btn" data-view="pythonValidatorView"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span></button>
       <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort 2 SRU Updates</span></button>
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort 3 LSP Updates</span></button>
 
@@ -2175,8 +2174,8 @@ python3 trigger_rules.py --delay 1
           </p>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;">
-          <div class="result-card" style="padding:18px;">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;" id="pyvalCards">
+          <div class="result-card pyval-card" data-pyver="2" style="padding:18px;">
             <h4 style="margin:0 0 10px; color:var(--primary);">2️⃣ snort_2_validator</h4>
             <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
               Validates Snort 2 local rules against the official rule grammar. Detects syntax errors, deprecated options, duplicate SIDs, and Snort 3-only constructs.
@@ -2186,7 +2185,7 @@ python3 trigger_rules.py --delay 1
               <a class="btn secondary" href="https://github.com/maxias13/snort_2_validator/archive/refs/heads/main.zip">Download ZIP</a>
             </div>
           </div>
-          <div class="result-card" style="padding:18px;">
+          <div class="result-card pyval-card" data-pyver="3" style="padding:18px;">
             <h4 style="margin:0 0 10px; color:var(--primary);">3️⃣ snort_3_validator</h4>
             <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
               Validates Snort 3 built-in &amp; local rules using the docs.snort.org rule reference. Reports syntax issues, performance hints, and optimization suggestions.
@@ -4870,6 +4869,9 @@ if __name__ == "__main__":
         if (viewId === "validatorView" && ver) {
           if (typeof setValVersion === "function") setValVersion(parseInt(ver, 10));
         }
+        if (viewId === "pythonValidatorView" && ver) {
+          if (typeof setPyValVersion === "function") setPyValVersion(parseInt(ver, 10));
+        }
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
@@ -4925,16 +4927,36 @@ if __name__ == "__main__":
       }
 
       function getWeekDates() {
-        // Returns array of YYYY-MM-DD strings from this week's Sunday through today
+        // Returns 7-day array of YYYY-MM-DD strings for the most recent COMPLETE week (Sunday → Saturday, UTC).
+        // If today is Sunday, "this week" hasn't started, so we return last week's Sun–Sat.
         const today = new Date();
-        const dayOfWeek = today.getUTCDay(); // 0=Sun … 6=Sat
+        const dow = today.getUTCDay(); // 0=Sun … 6=Sat
+        // Days back to most recent Saturday (end of last completed week)
+        const daysToLastSat = dow === 6 ? 7 : dow + 1;
+        const lastSat = new Date(today);
+        lastSat.setUTCDate(today.getUTCDate() - daysToLastSat);
         const dates = [];
-        for (let i = dayOfWeek; i >= 0; i--) {
-          const d = new Date(today);
-          d.setUTCDate(today.getUTCDate() - i);
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(lastSat);
+          d.setUTCDate(lastSat.getUTCDate() - i);
           dates.push(fmtDate(d));
         }
-        return dates; // e.g. ["2026-03-29","2026-03-30",…,"2026-04-04"]
+        return dates; // 7 entries: Sun … Sat
+      }
+
+      // ── Python Validator card toggler (Snort 2 / Snort 3) ───────────────
+      function setPyValVersion(v) {
+        const cards = document.querySelectorAll("#pyvalCards .pyval-card");
+        cards.forEach((c) => {
+          c.style.display = String(c.dataset.pyver) === String(v) ? "" : "none";
+        });
+      }
+
+      // ── Validator deeplink stub (legacy ?v=validatorView&ver=N support) ──
+      function setValVersion(v) {
+        // validatorView is the original Python validator card view (single-version);
+        // map to pythonValidatorView card toggle for backward compatibility.
+        if (typeof setPyValVersion === "function") setPyValVersion(v);
       }
 
       function formatWeekRange(dates) {
