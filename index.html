@@ -243,13 +243,13 @@
     .tab-group:hover .tab-caret,
     .tab-group:focus-within .tab-caret {
       color: var(--primary);
-      transform: rotate(90deg);
+      transform: translateX(2px);
     }
     .tab-children {
       position: fixed;
       top: 0;
       left: 0;
-      min-width: 160px;
+      min-width: 180px;
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -260,17 +260,15 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 212, 255, 0.18);
       opacity: 0;
       visibility: hidden;
-      transform: translateY(-4px);
+      transform: translateX(-4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
-      z-index: 1200;
+      z-index: 99999;
       pointer-events: none;
     }
-    .tab-group:hover .tab-children,
-    .tab-group:focus-within .tab-children,
-    .tab-children:hover {
+    .tab-children.is-open {
       opacity: 1;
       visibility: visible;
-      transform: translateY(0);
+      transform: translateX(0);
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
@@ -3452,14 +3450,30 @@ if __name__ == "__main__":
           const parent = group.querySelector(".tab-parent");
           const dropdown = group.querySelector(".tab-children");
           if (!parent || !dropdown) return;
-          const positionDropdown = () => {
+
+          // Detach dropdown from sidebar -> body, so it escapes sidebar's
+          // overflow/stacking context entirely.
+          document.body.appendChild(dropdown);
+
+          let hideTimer = null;
+          const show = () => {
+            clearTimeout(hideTimer);
             const r = parent.getBoundingClientRect();
-            dropdown.style.top = (r.bottom + 4) + "px";
-            dropdown.style.left = r.left + "px";
-            dropdown.style.minWidth = r.width + "px";
+            dropdown.style.top = r.top + "px";
+            dropdown.style.left = (r.right + 6) + "px";
+            dropdown.classList.add("is-open");
           };
-          group.addEventListener("mouseenter", positionDropdown);
-          group.addEventListener("focusin", positionDropdown);
+          const scheduleHide = () => {
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(() => dropdown.classList.remove("is-open"), 180);
+          };
+
+          group.addEventListener("mouseenter", show);
+          group.addEventListener("mouseleave", scheduleHide);
+          group.addEventListener("focusin", show);
+          group.addEventListener("focusout", scheduleHide);
+          dropdown.addEventListener("mouseenter", show);
+          dropdown.addEventListener("mouseleave", scheduleHide);
         });
       }
 
