@@ -279,34 +279,34 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-soft, rgba(167,139,250,0.12));
       opacity: 0;
       visibility: hidden;
-      transform: translateX(-4px);
+      transform: translate(-4px, -4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
       z-index: 99999;
       pointer-events: none;
     }
-    /* Invisible bridge so cursor can travel from parent into dropdown without losing :hover */
+    /* Invisible bridge spanning the gap from parent button (top-left) into dropdown (bottom-right offset) */
     .tab-group > .tab-children::before {
       content: "";
       position: absolute;
-      top: 0;
-      left: -10px;
-      width: 10px;
-      height: 100%;
+      top: -16px;
+      left: -24px;
+      width: calc(100% + 24px);
+      height: 20px;
     }
     .tab-children.is-open,
     .tab-group:hover > .tab-children,
     .tab-group:focus-within > .tab-children {
       opacity: 1;
       visibility: visible;
-      transform: translateX(0);
+      transform: translate(0, 0);
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
-    /* Position to the right of parent button, flush (no visible gap; bridge handles cursor travel) */
+    /* Position diagonally below-right of parent button (살짝 우측 아래) */
     .tab-group > .tab-children {
       position: absolute;
-      top: 0;
-      left: calc(100% + 4px);
+      top: calc(100% - 8px);
+      left: calc(100% - 24px);
     }
     .tab-child {
       height: 34px;
