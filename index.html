@@ -262,16 +262,27 @@
       color: var(--primary);
       transform: translateX(2px);
     }
-    /* Inline sub-buttons rendered directly under parent (no popup, no positioning) */
+    /* Inline collapsible sub-buttons - hidden by default, expand on hover/focus */
     .tab-children {
       display: flex;
       flex-direction: column;
       gap: 2px;
-      margin: 2px 0 4px 0;
+      margin: 0;
       padding: 0;
       background: transparent;
       border: none;
       box-shadow: none;
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height 0.22s ease, opacity 0.18s ease, margin 0.18s ease;
+    }
+    .tab-group:hover > .tab-children,
+    .tab-group:focus-within > .tab-children,
+    .tab-children.is-open {
+      max-height: 200px;
+      opacity: 1;
+      margin: 2px 0 4px 0;
     }
     .tab-child {
       height: 28px;
