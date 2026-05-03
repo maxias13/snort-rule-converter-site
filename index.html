@@ -71,21 +71,31 @@
   </script>
   <style>
     :root {
-      --bg: #0a0e1a;
-      --panel: #0f1629;
-      --panel-2: #121c33;
-      --border: #1e3a5f;
-      --primary: #00d4ff;
-      --secondary: #0066cc;
-      --success: #00ff88;
-      --warn: #ffaa00;
-      --error: #ff4444;
-      --text: #e0e8f0;
-      --muted: #8ea3ba;
+      /* AI Templates inspired neutral-zinc dark theme */
+      --bg: #0a0a0a;
+      --bg-elev: #111114;
+      --bg-elev-2: #16161b;
+      --panel: #111114;
+      --panel-2: #16161b;
+      --border: #1f1f25;
+      --border-soft: #26262d;
+      --primary: #a78bfa;          /* soft violet — primary accent (links, active sidebar) */
+      --secondary: #8b5cf6;        /* deeper violet */
+      --accent-warm: #f59e0b;      /* amber — secondary highlight */
+      --accent-cool: #22d3ee;      /* cyan — info badges */
+      --success: #34d399;          /* mint — counts/success */
+      --warn: #f59e0b;
+      --error: #f87171;
+      --text: #fafafa;
+      --muted: #8a8a92;
+      --muted-2: #5a5a62;
       --glass: rgba(255, 255, 255, 0.03);
-      --removed: rgba(255, 68, 68, 0.25);
-      --added: rgba(0, 255, 136, 0.2);
-      --modified: rgba(255, 170, 0, 0.22);
+      --removed: rgba(248, 113, 113, 0.22);
+      --added: rgba(52, 211, 153, 0.18);
+      --modified: rgba(245, 158, 11, 0.20);
+      /* Snort version accents */
+      --ver-2: #ff4d4d;            /* Snort 2 — red (holy-word) */
+      --ver-3: #34d399;            /* Snort 3 — mint (toned-down from neon) */
     }
 
     * { box-sizing: border-box; }
@@ -98,7 +108,7 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: radial-gradient(circle at top right, #0d1730 0%, var(--bg) 55%);
+      background: radial-gradient(circle at top right, #15151b 0%, var(--bg) 55%);
       color: var(--text);
       font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       min-height: 100%;
@@ -122,6 +132,7 @@
       width: 240px;
       height: 100vh;
       overflow-y: auto;
+      overflow-x: visible;
       z-index: 100;
       display: flex;
       flex-direction: column;
@@ -252,9 +263,6 @@
       transform: translateX(2px);
     }
     .tab-children {
-      position: fixed;
-      top: 0;
-      left: 0;
       min-width: 180px;
       display: flex;
       flex-direction: column;
@@ -271,12 +279,24 @@
       z-index: 99999;
       pointer-events: none;
     }
-    .tab-children.is-open {
+    .tab-children.is-open,
+    .tab-group:hover > .tab-children,
+    .tab-group:focus-within > .tab-children {
       opacity: 1;
       visibility: visible;
       transform: translateX(0);
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
+    }
+    /* When dropdown still nested in sidebar (CSS-only fallback before JS reparent), position to the right of parent */
+    .tab-group > .tab-children {
+      position: absolute;
+      top: 0;
+      left: calc(100% + 6px);
+    }
+    /* Once JS reparents to body, override with fixed positioning (JS sets inline top/left) */
+    body > .tab-children {
+      position: fixed;
     }
     .tab-child {
       height: 34px;
@@ -1200,6 +1220,14 @@
       </div>
 
       <div class="tab-group">
+        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🔀</span><span class="label">Rules Migration</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <div class="tab-children" role="menu">
+          <button class="tab-btn tab-child ver-2" data-view="migrationView" data-ver="2" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child ver-3" data-view="migrationView" data-ver="3" role="menuitem"><span class="icon num" aria-hidden="true">3</span><span class="label">Snort 3</span></button>
+        </div>
+      </div>
+
+      <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
           <button class="tab-btn tab-child ver-2" data-view="pythonValidatorView" data-ver="2" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></button>
@@ -1665,9 +1693,47 @@ python validate_snort3.py path/to/local.rules</pre>
            <div class="fb-empty" id="fbLoadingMsg">
              <span class="spinner"></span>&nbsp; Loading feedback...
            </div>
-         </div>
-       </div>
-     </section>
+      </div>
+
+    </section>
+
+    <section id="migrationView" class="view">
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <span id="migrationTitle">🔀 Rules Migration</span>
+          </h2>
+          <p class="muted" id="migrationSubtitle">Convert Snort 2 rules to Snort 3 syntax (and vice-versa).</p>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div>
+              <label class="field-label" for="migInput">Input rules</label>
+              <textarea id="migInput" class="textarea" rows="14" placeholder="Paste Snort 2 rules here, one per line."></textarea>
+              <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+                <button class="btn primary" id="migConvertBtn">Convert →</button>
+                <button class="btn secondary" id="migClearBtn">Clear</button>
+                <label class="btn secondary" style="cursor:pointer;">
+                  Load File
+                  <input type="file" id="migFileInput" accept=".rules,.txt" style="display:none;">
+                </label>
+                <span class="badge" id="migCountBadge">0 rules</span>
+              </div>
+            </div>
+            <div>
+              <label class="field-label" for="migOutput">Output rules</label>
+              <textarea id="migOutput" class="textarea" rows="14" placeholder="Converted rules will appear here." readonly></textarea>
+              <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+                <button class="btn secondary" id="migCopyBtn">Copy</button>
+                <button class="btn secondary" id="migDownloadBtn">Download .rules</button>
+              </div>
+            </div>
+          </div>
+          <div id="migNotice" class="muted" style="margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elev);"></div>
+        </div>
+      </div>
+    </section>
+
 
     <!-- ── Download Files (inline view) ─────────────────────────── -->
     <section id="scriptDlView" class="view">
@@ -2483,13 +2549,16 @@ if __name__ == "__main__":
 
       function init() {
         // Always start fresh on load — no stale textarea content or SID map
-        el.input.value = "";
-        el.output.value = "";
-        el.valRulesInput.value = "";
-        el.optInput.value = "";
+        // Use optional chaining: some elements may be absent when their view is removed.
+        if (el.input) el.input.value = "";
+        if (el.output) el.output.value = "";
+        if (el.valRulesInput) el.valRulesInput.value = "";
+        if (el.optInput) el.optInput.value = "";
         localStorage.removeItem(SID_MAP_KEY);
 
         bindEvents();
+        if (typeof bindMigrationHandlers === "function") bindMigrationHandlers();
+        if (typeof setMigrationVersion === "function") setMigrationVersion(2);
         el.pyScriptDisplay.textContent = currentPyScript;
         removeWhiteBg(document.getElementById("snortLogo"), 230);
 
@@ -4230,6 +4299,9 @@ if __name__ == "__main__":
         if (viewId === "pythonValidatorView" && ver) {
           if (typeof setPyValVersion === "function") setPyValVersion(parseInt(ver, 10));
         }
+        if (viewId === "migrationView" && ver) {
+          if (typeof setMigrationVersion === "function") setMigrationVersion(parseInt(ver, 10));
+        }
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
@@ -4315,6 +4387,100 @@ if __name__ == "__main__":
         // validatorView is the original Python validator card view (single-version);
         // map to pythonValidatorView card toggle for backward compatibility.
         if (typeof setPyValVersion === "function") setPyValVersion(v);
+      }
+
+      // ── Rules Migration version toggle (Snort 2 ↔ Snort 3) ───────────────
+      let __migVersion = 2;
+      function setMigrationVersion(v) {
+        const n = (v === 3 || v === "3") ? 3 : 2;
+        __migVersion = n;
+        const title = document.getElementById("migrationTitle");
+        const sub = document.getElementById("migrationSubtitle");
+        const input = document.getElementById("migInput");
+        const output = document.getElementById("migOutput");
+        const notice = document.getElementById("migNotice");
+        if (title) title.textContent = n === 2 ? "🔀 Rules Migration — Snort 2 → Snort 3" : "🔀 Rules Migration — Snort 3 → Snort 2";
+        if (sub) sub.textContent = n === 2
+          ? "Convert legacy Snort 2 rules into Snort 3 syntax (recommended direction)."
+          : "Snort 3 → Snort 2 downgrade is not supported (Snort 3 introduces options without Snort 2 equivalents).";
+        if (input) input.placeholder = n === 2
+          ? "Paste Snort 2 rules here, one per line."
+          : "Paste Snort 3 rules here, one per line.";
+        if (output) output.value = "";
+        if (notice) {
+          notice.innerHTML = n === 2
+            ? "<strong>Direction:</strong> Snort 2 → Snort 3. SIDs are preserved when present; new buffers like <code>http_uri</code>/<code>http_header</code> replace deprecated <code>uricontent</code>/<code>http_*</code> modifiers automatically."
+            : "<strong>Downgrade not supported.</strong> Snort 3 introduces rule constructs (<code>service:</code>, <code>js_data</code>, <code>file_data</code>, sticky buffers, OT modules) without Snort 2 equivalents. Use Snort 2 → Snort 3 only.";
+        }
+      }
+
+      function runMigrationConvert() {
+        const input = document.getElementById("migInput");
+        const output = document.getElementById("migOutput");
+        const badge = document.getElementById("migCountBadge");
+        if (!input || !output) return;
+        if (__migVersion === 3) {
+          output.value = "# Snort 3 → Snort 2 downgrade is not supported.\n# Snort 3 introduces options (service:, js_data, sticky buffers) that have no Snort 2 equivalent.\n# Please migrate Snort 2 → Snort 3 instead.";
+          if (badge) badge.textContent = "0 rules";
+          return;
+        }
+        const text = String(input.value || "");
+        if (!text.trim()) { output.value = ""; if (badge) badge.textContent = "0 rules"; return; }
+        try {
+          const result = (typeof convertAll === "function") ? convertAll(text, 1000000) : null;
+          if (result && typeof result === "object") {
+            output.value = result.output || result.text || result.rules || String(result);
+            const n = (result.output || result.text || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+            if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
+          } else {
+            output.value = String(result || "");
+            const n = String(result || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+            if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
+          }
+        } catch (e) {
+          output.value = "# Conversion error: " + (e && e.message ? e.message : String(e));
+          if (badge) badge.textContent = "0 rules";
+        }
+      }
+
+      function bindMigrationHandlers() {
+        const convertBtn = document.getElementById("migConvertBtn");
+        const clearBtn = document.getElementById("migClearBtn");
+        const fileInput = document.getElementById("migFileInput");
+        const copyBtn = document.getElementById("migCopyBtn");
+        const downloadBtn = document.getElementById("migDownloadBtn");
+        const input = document.getElementById("migInput");
+        const output = document.getElementById("migOutput");
+        const badge = document.getElementById("migCountBadge");
+        if (!convertBtn || !input || !output) return;
+        convertBtn.addEventListener("click", runMigrationConvert);
+        if (clearBtn) clearBtn.addEventListener("click", () => {
+          input.value = ""; output.value = ""; if (badge) badge.textContent = "0 rules";
+        });
+        if (fileInput) fileInput.addEventListener("change", (ev) => {
+          const file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => { input.value = String(reader.result || ""); };
+          reader.readAsText(file);
+          ev.target.value = "";
+        });
+        if (copyBtn) copyBtn.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(output.value || ""); copyBtn.textContent = "Copied ✓"; setTimeout(() => copyBtn.textContent = "Copy", 1200); } catch (_) {}
+        });
+        if (downloadBtn) downloadBtn.addEventListener("click", () => {
+          const blob = new Blob([output.value || ""], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = (__migVersion === 2 ? "snort3_migrated.rules" : "snort2_downgrade.rules");
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        });
+        input.addEventListener("input", () => {
+          const n = String(input.value || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+          if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
+        });
       }
 
       function formatWeekRange(dates) {
