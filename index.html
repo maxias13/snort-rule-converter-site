@@ -139,12 +139,12 @@
       gap: 14px;
       padding: 18px 14px;
       border-right: 1px solid var(--border);
-      background: linear-gradient(180deg, rgba(16, 26, 45, 0.97), rgba(9, 15, 28, 0.97));
-      box-shadow: 1px 0 0 rgba(0, 212, 255, 0.12), 6px 0 24px rgba(0, 0, 0, 0.45);
+      background: linear-gradient(180deg, var(--bg-elev, #111114) 0%, var(--bg, #0a0a0a) 100%);
+      box-shadow: 1px 0 0 var(--border-soft, rgba(167,139,250,0.10)), 6px 0 24px rgba(0, 0, 0, 0.55);
       backdrop-filter: blur(4px);
     }
     .sidebar::-webkit-scrollbar { width: 6px; }
-    .sidebar::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--primary, #a78bfa); opacity: 0.4; border-radius: 3px; }
 
     /* ── Cisco Suggested Releases info box (bottom of sidebar) ─ */
     .version-info {
@@ -2883,9 +2883,9 @@ if __name__ == "__main__":
           const dropdown = group.querySelector(".tab-children");
           if (!parent || !dropdown) return;
 
-          // Detach dropdown from sidebar -> body, so it escapes sidebar's
-          // overflow/stacking context entirely.
-          document.body.appendChild(dropdown);
+          // Keep dropdown nested inside .tab-group so CSS :hover/:focus-within
+          // selectors and absolute positioning relative to the parent button work.
+          // Sidebar has overflow-x:visible so the dropdown can escape horizontally.
 
           // Parent buttons are display-only (hover trigger). Block any
           // click/activation so navigation only happens via Snort 2/3 children.
@@ -2900,25 +2900,26 @@ if __name__ == "__main__":
             }
           });
 
+          // Tap-to-toggle for touch devices (no hover).
           let hideTimer = null;
           const show = () => {
             clearTimeout(hideTimer);
-            const r = parent.getBoundingClientRect();
-            dropdown.style.top = r.top + "px";
-            dropdown.style.left = (r.right + 6) + "px";
             dropdown.classList.add("is-open");
           };
           const scheduleHide = () => {
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => dropdown.classList.remove("is-open"), 180);
           };
-
-          group.addEventListener("mouseenter", show);
-          group.addEventListener("mouseleave", scheduleHide);
+          parent.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            if (dropdown.classList.contains("is-open")) {
+              dropdown.classList.remove("is-open");
+            } else {
+              show();
+            }
+          }, { passive: false });
           group.addEventListener("focusin", show);
           group.addEventListener("focusout", scheduleHide);
-          dropdown.addEventListener("mouseenter", show);
-          dropdown.addEventListener("mouseleave", scheduleHide);
         });
       }
 
