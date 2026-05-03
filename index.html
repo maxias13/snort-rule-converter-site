@@ -116,8 +116,8 @@
 
     /* ── App layout: fixed left sidebar + content area ─ */
     .app {
+      margin-left: 240px;
       max-width: 1400px;
-      margin: 0 auto 0 240px;
       padding: 18px 24px;
       display: flex;
       flex-direction: column;
@@ -1230,13 +1230,7 @@
         </div>
       </div>
 
-      <div class="tab-group">
-        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🔀</span><span class="label">Rules Migration</span><span class="tab-caret" aria-hidden="true">▸</span></button>
-        <div class="tab-children" role="menu">
-          <button class="tab-btn tab-child ver-2" data-view="migrationView" data-ver="2" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></button>
-          <button class="tab-btn tab-child ver-3" data-view="migrationView" data-ver="3" role="menuitem"><span class="icon num" aria-hidden="true">3</span><span class="label">Snort 3</span></button>
-        </div>
-      </div>
+      <button class="tab-btn" data-view="migrationView"><span class="icon" aria-hidden="true">🔀</span><span class="label">Rules Migration</span></button>
 
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
@@ -4311,9 +4305,6 @@ if __name__ == "__main__":
         if (viewId === "pythonValidatorView" && ver) {
           if (typeof setPyValVersion === "function") setPyValVersion(parseInt(ver, 10));
         }
-        if (viewId === "migrationView" && ver) {
-          if (typeof setMigrationVersion === "function") setMigrationVersion(parseInt(ver, 10));
-        }
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
@@ -4401,28 +4392,19 @@ if __name__ == "__main__":
         if (typeof setPyValVersion === "function") setPyValVersion(v);
       }
 
-      // ── Rules Migration version toggle (Snort 2 ↔ Snort 3) ───────────────
+      // ── Rules Migration: locked to Snort 2 → Snort 3 (per spec, single button) ─
       let __migVersion = 2;
-      function setMigrationVersion(v) {
-        const n = (v === 3 || v === "3") ? 3 : 2;
-        __migVersion = n;
+      function setMigrationVersion(_v) {
+        __migVersion = 2;
         const title = document.getElementById("migrationTitle");
         const sub = document.getElementById("migrationSubtitle");
         const input = document.getElementById("migInput");
-        const output = document.getElementById("migOutput");
         const notice = document.getElementById("migNotice");
-        if (title) title.textContent = n === 2 ? "🔀 Rules Migration — Snort 2 → Snort 3" : "🔀 Rules Migration — Snort 3 → Snort 2";
-        if (sub) sub.textContent = n === 2
-          ? "Convert legacy Snort 2 rules into Snort 3 syntax (recommended direction)."
-          : "Snort 3 → Snort 2 downgrade is not supported (Snort 3 introduces options without Snort 2 equivalents).";
-        if (input) input.placeholder = n === 2
-          ? "Paste Snort 2 rules here, one per line."
-          : "Paste Snort 3 rules here, one per line.";
-        if (output) output.value = "";
+        if (title) title.textContent = "🔀 Rules Migration — Snort 2 → Snort 3";
+        if (sub) sub.textContent = "Convert legacy Snort 2 built-in/local rules into optimized Snort 3 syntax.";
+        if (input) input.placeholder = "Paste Snort 2 rules here, one per line.";
         if (notice) {
-          notice.innerHTML = n === 2
-            ? "<strong>Direction:</strong> Snort 2 → Snort 3. SIDs are preserved when present; new buffers like <code>http_uri</code>/<code>http_header</code> replace deprecated <code>uricontent</code>/<code>http_*</code> modifiers automatically."
-            : "<strong>Downgrade not supported.</strong> Snort 3 introduces rule constructs (<code>service:</code>, <code>js_data</code>, <code>file_data</code>, sticky buffers, OT modules) without Snort 2 equivalents. Use Snort 2 → Snort 3 only.";
+          notice.innerHTML = "<strong>Direction:</strong> Snort 2 → Snort 3. SIDs are preserved when present; new buffers like <code>http_uri</code>/<code>http_header</code> replace deprecated <code>uricontent</code>/<code>http_*</code> modifiers automatically. Migrated rules are also optimized (deduped, normalized).";
         }
       }
 
@@ -4431,11 +4413,6 @@ if __name__ == "__main__":
         const output = document.getElementById("migOutput");
         const badge = document.getElementById("migCountBadge");
         if (!input || !output) return;
-        if (__migVersion === 3) {
-          output.value = "# Snort 3 → Snort 2 downgrade is not supported.\n# Snort 3 introduces options (service:, js_data, sticky buffers) that have no Snort 2 equivalent.\n# Please migrate Snort 2 → Snort 3 instead.";
-          if (badge) badge.textContent = "0 rules";
-          return;
-        }
         const text = String(input.value || "");
         if (!text.trim()) { output.value = ""; if (badge) badge.textContent = "0 rules"; return; }
         try {
