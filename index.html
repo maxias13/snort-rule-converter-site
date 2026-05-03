@@ -2799,14 +2799,17 @@ if __name__ == "__main__":
 
         async function loadPosts() {
           fbLoadingMsg.style.display = "block";
+          fbPostList.innerHTML = "";
           try {
-            if (!window.__fbLoad) throw new Error("Firebase not configured");
+            if (!window.__fbLoad) throw new Error("Feedback backend not configured");
             const posts = await window.__fbLoad();
             renderPosts(posts);
           } catch (e) {
             fbPostList.innerHTML = `<div class="fb-empty" style="color:var(--error);">
               Failed to load feedback. Please try again later.<br>
               <small style="opacity:0.6;">${escapeHtml(e.message)}</small></div>`;
+          } finally {
+            fbLoadingMsg.style.display = "none";
           }
         }
 
