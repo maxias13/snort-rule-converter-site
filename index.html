@@ -2922,6 +2922,10 @@ if __name__ == "__main__":
             dropdown.style.left = (r.right + 6) + "px";
             dropdown.style.top = (r.top + 8) + "px";
           };
+          // Initial positioning so CSS :hover (which can fire without
+          // mouseenter if cursor is already over the element on load) does
+          // not reveal the dropdown at viewport (0,0).
+          positionDropdown();
 
           // Tap-to-toggle for touch devices (no hover).
           let hideTimer = null;
@@ -2934,9 +2938,10 @@ if __name__ == "__main__":
             clearTimeout(hideTimer);
             hideTimer = setTimeout(() => dropdown.classList.remove("is-open"), 180);
           };
-          // Re-position on hover (covers CSS :hover path too — keeps coords fresh
-          // after sidebar scroll / window resize).
+          // Re-position on every mouseover (covers case where cursor is
+          // already inside the group at page load — mouseenter wouldn't fire).
           group.addEventListener("mouseenter", show);
+          group.addEventListener("mouseover", positionDropdown);
           group.addEventListener("mouseleave", scheduleHide);
           parent.addEventListener("touchstart", (e) => {
             e.preventDefault();
@@ -2949,14 +2954,10 @@ if __name__ == "__main__":
           group.addEventListener("focusin", show);
           group.addEventListener("focusout", scheduleHide);
           // Keep position correct on resize / sidebar scroll while open.
-          window.addEventListener("resize", () => {
-            if (dropdown.classList.contains("is-open") || group.matches(":hover")) positionDropdown();
-          });
+          window.addEventListener("resize", positionDropdown);
           const sidebar = group.closest(".sidebar");
           if (sidebar) {
-            sidebar.addEventListener("scroll", () => {
-              if (dropdown.classList.contains("is-open") || group.matches(":hover")) positionDropdown();
-            });
+            sidebar.addEventListener("scroll", positionDropdown);
           }
         });
       }
