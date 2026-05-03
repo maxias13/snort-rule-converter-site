@@ -71,31 +71,32 @@
   </script>
   <style>
     :root {
-      /* AI Templates inspired neutral-zinc dark theme */
-      --bg: #0a0a0a;
-      --bg-elev: #111114;
-      --bg-elev-2: #16161b;
-      --panel: #111114;
-      --panel-2: #16161b;
-      --border: #1f1f25;
-      --border-soft: #26262d;
-      --primary: #a78bfa;          /* soft violet — primary accent (links, active sidebar) */
-      --secondary: #8b5cf6;        /* deeper violet */
-      --accent-warm: #f59e0b;      /* amber — secondary highlight */
-      --accent-cool: #22d3ee;      /* cyan — info badges */
-      --success: #34d399;          /* mint — counts/success */
-      --warn: #f59e0b;
-      --error: #f87171;
-      --text: #fafafa;
-      --muted: #8a8a92;
-      --muted-2: #5a5a62;
-      --glass: rgba(255, 255, 255, 0.03);
-      --removed: rgba(248, 113, 113, 0.22);
+      /* Cisco CXPM Roadmap palette — deep navy + Cisco cyan + orange/pink/blue gradient accents */
+      --bg: #061128;               /* deep Cisco navy */
+      --bg-elev: #0a1838;          /* card / panel base */
+      --bg-elev-2: #102347;        /* hover / elevated */
+      --panel: #0a1838;
+      --panel-2: #102347;
+      --border: #1a2d55;
+      --border-soft: #25406e;
+      --primary: #00bceb;          /* Cisco cyan — primary accent */
+      --secondary: #0f7dff;        /* Cisco blue */
+      --accent-warm: #ff7e3f;      /* gradient orange */
+      --accent-cool: #00bceb;      /* Cisco cyan */
+      --accent-pink: #ec4899;      /* gradient pink */
+      --success: #34d399;
+      --warn: #ff7e3f;
+      --error: #ec4899;
+      --text: #ffffff;
+      --muted: #8fa4c8;
+      --muted-2: #5a6f95;
+      --glass: rgba(0, 188, 235, 0.04);
+      --removed: rgba(236, 72, 153, 0.22);
       --added: rgba(52, 211, 153, 0.18);
-      --modified: rgba(245, 158, 11, 0.20);
-      /* Snort version accents */
-      --ver-2: #ff4d4d;            /* Snort 2 — red (holy-word) */
-      --ver-3: #34d399;            /* Snort 3 — mint (toned-down from neon) */
+      --modified: rgba(255, 126, 63, 0.20);
+
+      --ver-2: #ec4899;            /* Snort 2 — gradient pink */
+      --ver-3: #00bceb;            /* Snort 3 — Cisco cyan */
     }
 
     * { box-sizing: border-box; }
@@ -144,7 +145,7 @@
       backdrop-filter: blur(4px);
     }
     .sidebar::-webkit-scrollbar { width: 6px; }
-    .sidebar::-webkit-scrollbar-thumb { background: var(--primary, #a78bfa); opacity: 0.4; border-radius: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--primary, #00bceb); opacity: 0.4; border-radius: 3px; }
 
     /* ── Cisco Suggested Releases info box (bottom of sidebar) ─ */
     .version-info {
@@ -306,7 +307,7 @@
     }
     .tab-child.active {
       background: var(--bg-elev, #111114);
-      border-color: var(--primary, #a78bfa);
+      border-color: var(--primary, #00bceb);
       color: var(--text, #fafafa);
     }
     .tab-child .icon { font-size: 0.95rem; }
@@ -323,12 +324,12 @@
       border: 1px solid currentColor;
       background: transparent;
     }
-    .tab-child.ver-2 { color: #ff4dcc; }
-    .tab-child.ver-2 .icon.num { color: #ff4dcc; box-shadow: 0 0 6px rgba(255,77,204,0.55); }
-    .tab-child.ver-2 .label { color: #ff4dcc; font-weight: 600; }
-    .tab-child.ver-3 { color: #00d4ff; }
-    .tab-child.ver-3 .icon.num { color: #00d4ff; box-shadow: 0 0 6px rgba(0,212,255,0.6); }
-    .tab-child.ver-3 .label { color: #00d4ff; font-weight: 600; }
+    .tab-child.ver-2 { color: #ec4899; }
+    .tab-child.ver-2 .icon.num { color: #ec4899; box-shadow: 0 0 6px rgba(236,72,153,0.55); }
+    .tab-child.ver-2 .label { color: #ec4899; font-weight: 600; }
+    .tab-child.ver-3 { color: #00bceb; }
+    .tab-child.ver-3 .icon.num { color: #00bceb; box-shadow: 0 0 6px rgba(0,188,235,0.6); }
+    .tab-child.ver-3 .label { color: #00bceb; font-weight: 600; }
 
     .toolbar {
       display: flex;
