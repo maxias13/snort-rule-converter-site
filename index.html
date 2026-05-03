@@ -285,11 +285,24 @@
       background: rgba(15, 22, 41, 0.65);
     }
     .tab-child .icon { font-size: 0.95rem; }
+    .tab-child .icon.num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 800;
+      line-height: 1;
+      border: 1px solid currentColor;
+      background: transparent;
+    }
     .tab-child.ver-2 { color: #ff4d4d; }
-    .tab-child.ver-2 .icon { color: #ff4d4d; filter: drop-shadow(0 0 4px rgba(255,77,77,0.55)); }
+    .tab-child.ver-2 .icon.num { color: #ff4d4d; box-shadow: 0 0 6px rgba(255,77,77,0.55); }
     .tab-child.ver-2 .label { color: #ff4d4d; font-weight: 600; }
     .tab-child.ver-3 { color: #39ff14; }
-    .tab-child.ver-3 .icon { color: #39ff14; filter: drop-shadow(0 0 4px rgba(57,255,20,0.6)); }
+    .tab-child.ver-3 .icon.num { color: #39ff14; box-shadow: 0 0 6px rgba(57,255,20,0.6); }
     .tab-child.ver-3 .label { color: #39ff14; font-weight: 600; }
 
     .toolbar {
@@ -1181,16 +1194,16 @@
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
-          <button class="tab-btn tab-child ver-2" data-view="optimizerView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
-          <button class="tab-btn tab-child ver-3" data-view="optimizerView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
+          <button class="tab-btn tab-child ver-2" data-view="optimizerView" data-ver="2" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child ver-3" data-view="optimizerView" data-ver="3" role="menuitem"><span class="icon num" aria-hidden="true">3</span><span class="label">Snort 3</span></button>
         </div>
       </div>
 
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
-          <button class="tab-btn tab-child ver-2" data-view="pythonValidatorView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
-          <button class="tab-btn tab-child ver-3" data-view="pythonValidatorView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
+          <button class="tab-btn tab-child ver-2" data-view="pythonValidatorView" data-ver="2" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child ver-3" data-view="pythonValidatorView" data-ver="3" role="menuitem"><span class="icon num" aria-hidden="true">3</span><span class="label">Snort 3</span></button>
         </div>
       </div>
 
@@ -1200,8 +1213,8 @@
       <div class="tab-group">
         <span class="tab-btn tab-parent" role="button" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort Manual</span><span class="tab-caret" aria-hidden="true">▸</span></span>
         <div class="tab-children" role="menu">
-          <a class="tab-btn tab-child ver-2" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></a>
-          <a class="tab-btn tab-child ver-3" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></a>
+          <a class="tab-btn tab-child ver-2" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon num" aria-hidden="true">2</span><span class="label">Snort 2</span></a>
+          <a class="tab-btn tab-child ver-3" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon num" aria-hidden="true">3</span><span class="label">Snort 3</span></a>
         </div>
       </div>
 
@@ -3120,6 +3133,9 @@ if __name__ == "__main__":
         optVersion = v;
         el.optVersionSnort2.className = v === 2 ? "btn active-version" : "btn secondary";
         el.optVersionSnort3.className = v === 3 ? "btn active-version" : "btn secondary";
+        // Lock to the version chosen via the sub-tab: hide the other version button entirely.
+        el.optVersionSnort2.style.display = v === 2 ? "" : "none";
+        el.optVersionSnort3.style.display = v === 3 ? "" : "none";
         el.optInput.placeholder = v === 2
           ? "Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"
           : "Paste Snort 3 local rules here, or drag & drop a .rules / .txt file…";
