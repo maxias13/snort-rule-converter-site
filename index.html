@@ -2798,18 +2798,19 @@ if __name__ == "__main__":
         }
 
         async function loadPosts() {
+          console.log("[fb] loadPosts called");
           fbLoadingMsg.style.display = "block";
-          fbPostList.innerHTML = "";
+          fbPostList.innerHTML = '<div class="fb-empty"><span class="spinner"></span>&nbsp; Loading feedback...</div>';
           try {
             if (!window.__fbLoad) throw new Error("Feedback backend not configured");
             const posts = await window.__fbLoad();
+            console.log("[fb] fetched", posts.length, "posts");
             renderPosts(posts);
           } catch (e) {
+            console.error("[fb] load error:", e);
             fbPostList.innerHTML = `<div class="fb-empty" style="color:var(--error);">
               Failed to load feedback. Please try again later.<br>
               <small style="opacity:0.6;">${escapeHtml(e.message)}</small></div>`;
-          } finally {
-            fbLoadingMsg.style.display = "none";
           }
         }
 
@@ -2880,6 +2881,17 @@ if __name__ == "__main__":
 
         // Expose loadPosts so switchView can call it via a module-level ref
         window.__fbLoadPosts = loadPosts;
+
+        // Direct click handler on the Feedback sidebar button as a safety net
+        // (in case switchView dispatch races or the data-view hook doesn't fire)
+        const fbNavBtn = document.querySelector('.tab-btn.feedback-btn[data-view="feedbackView"]');
+        if (fbNavBtn) {
+          fbNavBtn.addEventListener("click", () => { loadPosts(); });
+        }
+        // If the page lands on Feedback view (e.g. ?v=feedbackView or default-active), fetch immediately
+        if (document.getElementById("feedbackView")?.classList.contains("active")) {
+          loadPosts();
+        }
 
         document.querySelectorAll(".tab-group").forEach((group) => {
           const parent = group.querySelector(".tab-parent");
