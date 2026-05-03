@@ -231,6 +231,55 @@
       color: #fff;
     }
 
+    .tab-group {
+      position: relative;
+    }
+    .tab-group .tab-caret {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--muted);
+      transition: transform 0.18s ease, color 0.18s ease;
+    }
+    .tab-group:hover .tab-caret,
+    .tab-group:focus-within .tab-caret {
+      color: var(--primary);
+      transform: translateX(2px);
+    }
+    .tab-children {
+      position: absolute;
+      top: 0;
+      left: calc(100% + 6px);
+      min-width: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px;
+      background: rgba(10, 16, 30, 0.98);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 212, 255, 0.18);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-4px);
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
+      z-index: 1200;
+    }
+    .tab-group:hover .tab-children,
+    .tab-group:focus-within .tab-children,
+    .tab-children:hover {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(0);
+      transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
+    }
+    .tab-child {
+      height: 34px;
+      font-size: 0.85rem;
+      padding: 0 10px;
+      background: rgba(15, 22, 41, 0.65);
+    }
+    .tab-child .icon { font-size: 0.95rem; }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -1116,13 +1165,36 @@
     </div>
     <div class="tabs">
       <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
-      <button class="tab-btn" data-view="optimizerView"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span></button>
-      <button class="tab-btn" data-view="validatorView"><span class="icon" aria-hidden="true">✅</span><span class="label">Rule Migration</span></button>
+
+      <div class="tab-group">
+        <button class="tab-btn tab-parent" data-view="optimizerView" data-ver="2"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <div class="tab-children" role="menu">
+          <button class="tab-btn tab-child" data-view="optimizerView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child" data-view="optimizerView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
+        </div>
+      </div>
+
+      <div class="tab-group">
+        <button class="tab-btn tab-parent" data-view="validatorView" data-ver="2"><span class="icon" aria-hidden="true">✅</span><span class="label">Rule Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <div class="tab-children" role="menu">
+          <button class="tab-btn tab-child" data-view="validatorView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
+          <button class="tab-btn tab-child" data-view="validatorView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
+        </div>
+      </div>
+
+      <button class="tab-btn" data-view="pythonValidatorView"><span class="icon" aria-hidden="true">🐍</span><span class="label">Python Validator</span></button>
       <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort 2 SRU Updates</span></button>
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort 3 LSP Updates</span></button>
-      <a class="tab-btn" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort 2 Manual</span></a>
-      <a class="tab-btn" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📘</span><span class="label">Snort 3 Manual</span></a>
-      <a class="tab-btn" href="https://www.snort.org/rule-docs-search" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">🔍</span><span class="label">Snort 2 Rules Search</span></a>
+
+      <div class="tab-group">
+        <a class="tab-btn tab-parent" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort Manual</span><span class="tab-caret" aria-hidden="true">▸</span></a>
+        <div class="tab-children" role="menu">
+          <a class="tab-btn tab-child" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></a>
+          <a class="tab-btn tab-child" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></a>
+        </div>
+      </div>
+
+      <a class="tab-btn" href="https://www.snort.org/rule-docs-search" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">🔍</span><span class="label">Snort 2 Rule Search</span></a>
       <button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button"><span class="icon" aria-hidden="true">📥</span><span class="label">Download Files</span></button>
       <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
     </div>
@@ -2087,6 +2159,57 @@ python3 trigger_rules.py --delay 1
     </section>
 
     <!-- ── Snort SRU Updates ───────────────────────────────────────────── -->
+    <!-- ── Python Validator (CLI tool downloads) ───────────────────────── -->
+    <section id="pythonValidatorView" class="view">
+      <div class="panel">
+        <div style="margin-bottom:18px;">
+          <h3 style="margin:0 0 6px;">🐍 Python Validator</h3>
+          <p class="muted" style="margin:0; font-size:0.9rem;">
+            Standalone Python CLI tools to validate and optimize Snort 2 / Snort 3 local rules — run offline, integrate into CI, batch-process large rulesets.
+          </p>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;">
+          <div class="result-card" style="padding:18px;">
+            <h4 style="margin:0 0 10px; color:var(--primary);">2️⃣ snort_2_validator</h4>
+            <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
+              Validates Snort 2 local rules against the official rule grammar. Detects syntax errors, deprecated options, duplicate SIDs, and Snort 3-only constructs.
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a class="btn" href="https://github.com/maxias13/snort_2_validator" target="_blank" rel="noopener noreferrer">GitHub Repo &#8599;</a>
+              <a class="btn secondary" href="https://github.com/maxias13/snort_2_validator/archive/refs/heads/main.zip">Download ZIP</a>
+            </div>
+          </div>
+          <div class="result-card" style="padding:18px;">
+            <h4 style="margin:0 0 10px; color:var(--primary);">3️⃣ snort_3_validator</h4>
+            <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
+              Validates Snort 3 built-in &amp; local rules using the docs.snort.org rule reference. Reports syntax issues, performance hints, and optimization suggestions.
+            </p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a class="btn" href="https://github.com/maxias13/snort_3_validator" target="_blank" rel="noopener noreferrer">GitHub Repo &#8599;</a>
+              <a class="btn secondary" href="https://github.com/maxias13/snort_3_validator/archive/refs/heads/main.zip">Download ZIP</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-card" style="padding:18px;">
+          <h4 style="margin:0 0 10px;">Quick Start</h4>
+          <pre style="background:#0b0f17; color:#cfe2ff; padding:12px; border-radius:6px; overflow:auto; font-size:0.82rem; line-height:1.45;"># Snort 2
+git clone https://github.com/maxias13/snort_2_validator.git
+cd snort_2_validator
+python validate_snort2.py path/to/local.rules
+
+# Snort 3
+git clone https://github.com/maxias13/snort_3_validator.git
+cd snort_3_validator
+python validate_snort3.py path/to/local.rules</pre>
+          <p class="muted" style="margin:10px 0 0; font-size:0.8rem;">
+            Requires Python 3.9+. See each repo's <code>README.md</code> for full options (JSON output, exit codes, CI integration).
+          </p>
+        </div>
+      </div>
+    </section>
+
     <section id="sruView" class="view">
       <div class="panel">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
@@ -3017,7 +3140,10 @@ if __name__ == "__main__":
         }
         if (pendingView) {
           const tabEl = el.tabs.find(t => t.dataset.view === pendingView);
-          if (tabEl) switchView(pendingView, tabEl, { noScroll: true });
+          if (tabEl) {
+            const ver = new URLSearchParams(location.search).get("ver") || tabEl.dataset.ver || "";
+            switchView(pendingView, tabEl, { noScroll: true, ver: ver || undefined });
+          }
         }
       }
 
@@ -3047,8 +3173,8 @@ if __name__ == "__main__":
 
       function bindEvents() {
         el.tabs.forEach((tab) => tab.addEventListener("click", () => {
-          if (!tab.dataset.view) return; // external link — let the browser handle it
-          switchView(tab.dataset.view, tab);
+          if (!tab.dataset.view) return;
+          switchView(tab.dataset.view, tab, { ver: tab.dataset.ver || undefined });
         }));
 
         document.getElementById("logoBtn").addEventListener("click", () => {
@@ -4678,10 +4804,23 @@ if __name__ == "__main__":
 
       function switchView(viewId, tabEl, opts = {}) {
         el.views.forEach((v) => v.classList.toggle("active", v.id === viewId));
-        el.tabs.forEach((t) => t.classList.remove("active"));
-        tabEl.classList.add("active");
-        history.replaceState(null, "", "?v=" + viewId);
+        const ver = opts.ver != null ? String(opts.ver) : (tabEl && tabEl.dataset && tabEl.dataset.ver) || "";
+        el.tabs.forEach((t) => {
+          const matchView = t.dataset.view === viewId;
+          const tVer = t.dataset.ver || "";
+          const matchVer = !ver || !tVer || tVer === ver;
+          t.classList.toggle("active", matchView && matchVer);
+        });
+        const qs = "?v=" + viewId + (ver ? "&ver=" + ver : "");
+        history.replaceState(null, "", qs);
         if (!opts.noScroll) window.scrollTo({ top: 0, behavior: "instant" });
+        if (viewId === "optimizerView" && ver) {
+          const n = parseInt(ver, 10);
+          if ((n === 2 || n === 3) && typeof setOptVersion === "function") setOptVersion(n);
+        }
+        if (viewId === "validatorView" && ver) {
+          if (typeof setValVersion === "function") setValVersion(parseInt(ver, 10));
+        }
         if (viewId === "homeView") clearMain();
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
