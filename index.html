@@ -243,7 +243,7 @@
     .tab-group:hover .tab-caret,
     .tab-group:focus-within .tab-caret {
       color: var(--primary);
-      transform: translateX(2px);
+      transform: rotate(90deg);
     }
     .tab-children {
       position: fixed;
@@ -260,7 +260,7 @@
       box-shadow: 0 12px 28px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 212, 255, 0.18);
       opacity: 0;
       visibility: hidden;
-      transform: translateX(-4px);
+      transform: translateY(-4px);
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
       z-index: 1200;
       pointer-events: none;
@@ -270,7 +270,7 @@
     .tab-children:hover {
       opacity: 1;
       visibility: visible;
-      transform: translateX(0);
+      transform: translateY(0);
       pointer-events: auto;
       transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0s;
     }
@@ -3454,8 +3454,9 @@ if __name__ == "__main__":
           if (!parent || !dropdown) return;
           const positionDropdown = () => {
             const r = parent.getBoundingClientRect();
-            dropdown.style.top = r.top + "px";
-            dropdown.style.left = (r.right + 6) + "px";
+            dropdown.style.top = (r.bottom + 4) + "px";
+            dropdown.style.left = r.left + "px";
+            dropdown.style.minWidth = r.width + "px";
           };
           group.addEventListener("mouseenter", positionDropdown);
           group.addEventListener("focusin", positionDropdown);
