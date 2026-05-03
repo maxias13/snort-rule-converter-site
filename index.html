@@ -234,6 +234,12 @@
     .tab-group {
       position: relative;
     }
+    .tab-btn.tab-parent[aria-disabled="true"] {
+      cursor: default;
+    }
+    .tab-btn.tab-parent[aria-disabled="true"]:active {
+      transform: none;
+    }
     .tab-group .tab-caret {
       margin-left: auto;
       font-size: 0.75rem;
@@ -1167,7 +1173,7 @@
       <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
 
       <div class="tab-group">
-        <button class="tab-btn tab-parent" data-view="optimizerView" data-ver="2"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rule Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
           <button class="tab-btn tab-child" data-view="optimizerView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
           <button class="tab-btn tab-child" data-view="optimizerView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
@@ -1175,7 +1181,7 @@
       </div>
 
       <div class="tab-group">
-        <button class="tab-btn tab-parent" data-view="validatorView" data-ver="2"><span class="icon" aria-hidden="true">✅</span><span class="label">Rule Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
+        <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">✅</span><span class="label">Rule Validator</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
           <button class="tab-btn tab-child" data-view="validatorView" data-ver="2" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></button>
           <button class="tab-btn tab-child" data-view="validatorView" data-ver="3" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></button>
@@ -1187,7 +1193,7 @@
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort 3 LSP Updates</span></button>
 
       <div class="tab-group">
-        <a class="tab-btn tab-parent" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort Manual</span><span class="tab-caret" aria-hidden="true">▸</span></a>
+        <span class="tab-btn tab-parent" role="button" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">📖</span><span class="label">Snort Manual</span><span class="tab-caret" aria-hidden="true">▸</span></span>
         <div class="tab-children" role="menu">
           <a class="tab-btn tab-child" href="http://manual-snort-org.s3-website-us-east-1.amazonaws.com/snort_manual.html" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">2️⃣</span><span class="label">Snort 2</span></a>
           <a class="tab-btn tab-child" href="https://docs.snort.org/welcome" target="_blank" rel="noopener noreferrer" role="menuitem"><span class="icon" aria-hidden="true">3️⃣</span><span class="label">Snort 3</span></a>
@@ -3454,6 +3460,19 @@ if __name__ == "__main__":
           // Detach dropdown from sidebar -> body, so it escapes sidebar's
           // overflow/stacking context entirely.
           document.body.appendChild(dropdown);
+
+          // Parent buttons are display-only (hover trigger). Block any
+          // click/activation so navigation only happens via Snort 2/3 children.
+          parent.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          });
+          parent.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          });
 
           let hideTimer = null;
           const show = () => {
