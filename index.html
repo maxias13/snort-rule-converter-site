@@ -148,6 +148,12 @@
 
       --ver-2: #ec4899;            /* Snort 2 — gradient pink */
       --ver-3: #00bceb;            /* Snort 3 — Cisco cyan */
+
+      /* Cyan tint scale (for headings, accents, code text) */
+      --cyan-soft: var(--cyan-soft);        /* mid-cyan for accents/borders text */
+      --cyan-light: var(--cyan-light);       /* light cyan for h-tags, highlights */
+      --cyan-pale: var(--cyan-pale);        /* pale cyan for emphasized text */
+      --code-text: var(--code-text);        /* pre/code default text */
     }
 
     * { box-sizing: border-box; }
@@ -393,9 +399,9 @@
     }
 
     .btn {
-      border: 1px solid #19558f;
+      border: 1px solid var(--border-soft);
       color: #ecf8ff;
-      background: linear-gradient(180deg, #0a68a8 0%, #054a7d 100%);
+      background: linear-gradient(180deg, var(--secondary) 0%, var(--border-soft) 100%);
       border-radius: 8px;
       padding: 9px 14px;
       font-weight: 600;
@@ -528,7 +534,7 @@
       background: rgba(0, 212, 255, 0.03);
     }
 
-    .rule-explain h4 { margin: 0 0 8px; color: #9beeff; font-size: 0.95rem; }
+    .rule-explain h4 { margin: 0 0 8px; color: var(--cyan-light); font-size: 0.95rem; }
     .rule-explain ul { margin: 6px 0 0 18px; }
 
     .diff-grid {
@@ -591,7 +597,7 @@
 
     th {
       background: rgba(0, 102, 204, 0.2);
-      color: #9ee8ff;
+      color: var(--cyan-light);
       position: sticky;
       top: 0;
     }
@@ -693,7 +699,7 @@
     }
     .opt-badge.perf  { color: #d98080; border-color: #5e2a2a; background: rgba(180,60,60,0.12); }
     .opt-badge.warn  { color: #c9913a; border-color: #5e3e10; background: rgba(180,120,40,0.12); }
-    .opt-badge.info  { color: #6aaac8; border-color: #1e4a6a; background: rgba(60,140,190,0.1); }
+    .opt-badge.info  { color: var(--cyan-soft); border-color: var(--border-soft); background: rgba(60,140,190,0.1); }
     .opt-badge.ok    { color: #50a878; border-color: #1a5038; background: rgba(50,140,90,0.1); }
     .opt-rule-ok {
       color: #50a878;
@@ -755,7 +761,7 @@
       padding: 1px 6px;
       font-family: Consolas, Monaco, Menlo, monospace;
       font-size: 0.83em;
-      color: #9beeff;
+      color: var(--cyan-light);
     }
     .guide-body pre.guide-code {
       background: #060c1a;
@@ -802,7 +808,7 @@
     }
     .guide-tag.critical { background: rgba(255,68,68,0.15); color: #ff9a9a; border: 1px solid #7a2929; }
     .guide-tag.important { background: rgba(255,170,0,0.15); color: #ffc84d; border: 1px solid #7a5200; }
-    .guide-tag.tip { background: rgba(0,212,255,0.1); color: #7fd4ff; border: 1px solid #1a4a7a; }
+    .guide-tag.tip { background: rgba(0,212,255,0.1); color: var(--cyan-light); border: 1px solid var(--border-soft); }
 
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
@@ -868,7 +874,7 @@
     /* ── Claude AI explanation output ── */
     .ai-explain { line-height: 1.6; font-size: 0.9rem; }
     .ai-explain h2 { color: var(--primary); font-size: 1rem; margin: 14px 0 6px; }
-    .ai-explain h3 { color: #9beeff; font-size: 0.92rem; margin: 10px 0 4px; }
+    .ai-explain h3 { color: var(--cyan-light); font-size: 0.92rem; margin: 10px 0 4px; }
     .ai-explain p  { margin: 6px 0; }
     .ai-explain ul, .ai-explain ol { margin: 6px 0 6px 20px; }
     .ai-explain li { margin-bottom: 3px; }
@@ -879,7 +885,7 @@
       padding: 1px 5px;
       font-family: Consolas, Monaco, Menlo, monospace;
       font-size: 0.85em;
-      color: #9beeff;
+      color: var(--cyan-light);
     }
     .ai-explain pre {
       background: #0a1122;
@@ -892,7 +898,7 @@
       margin: 8px 0;
     }
     .ai-explain pre code { background: none; border: none; padding: 0; color: var(--text); }
-    .ai-explain strong { color: #d0eeff; }
+    .ai-explain strong { color: var(--cyan-pale); }
     .ai-thinking { color: var(--muted); font-size:0.85rem; display:flex; align-items:center; gap:8px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .spinner {
@@ -987,7 +993,7 @@
       padding-top: 10px; margin-bottom: 8px;
     }
     .fb-post-content {
-      font-size: 0.88rem; color: #c8d8e8;
+      font-size: 0.88rem; color: var(--muted);
       white-space: pre-wrap; line-height: 1.6;
     }
     .fb-empty {
@@ -1025,7 +1031,7 @@
       font-size: 0.88rem;
     }
     .si-label { color: var(--muted); width: 220px; flex-shrink: 0; }
-    .si-value { color: #d0e8ff; }
+    .si-value { color: var(--cyan-pale); }
     .si-value a { color: var(--primary); text-decoration: none; }
     .si-value a:hover { text-decoration: underline; }
 
@@ -1634,7 +1640,7 @@ python3 trigger_rules.py --delay 1
 
         <div class="result-card" style="padding:18px;">
           <h4 style="margin:0 0 10px;">Quick Start</h4>
-          <pre style="background:#0b0f17; color:#cfe2ff; padding:12px; border-radius:6px; overflow:auto; font-size:0.82rem; line-height:1.45;"># Snort 2
+          <pre style="background:#0b0f17; color:var(--code-text); padding:12px; border-radius:6px; overflow:auto; font-size:0.82rem; line-height:1.45;"># Snort 2
 git clone https://github.com/maxias13/snort_2_validator.git
 cd snort_2_validator
 python validate_snort2.py path/to/local.rules
@@ -3231,7 +3237,7 @@ if __name__ == "__main__":
               <button data-copy-id="${allId}"
                 style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
             </div>
-            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
+            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:var(--code-text); border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
           </div>`;
         }
 
@@ -3261,9 +3267,9 @@ if __name__ == "__main__":
                 ? `<ul style="margin:0 0 8px 18px; padding:0; font-size:0.79rem; color:var(--muted);">${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
                 : ""}
               <div style="position:relative;">
-                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:#dbeafe; border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
+                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:var(--code-text); border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
                 <button data-copy-id="${ruleId}"
-                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:#9beeff;border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;">Copy</button>
+                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:var(--cyan-light);border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;">Copy</button>
               </div>
             </div>`;
           }
@@ -3285,7 +3291,7 @@ if __name__ == "__main__":
               html += `<div class="opt-item">
                 <span class="opt-badge ${s.level}">${s.level.toUpperCase()}</span>
                 <span>${escapeHtml(s.msg)}${s.fix
-                  ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; Suggested fix: <code style="color:#7eb8d4;">${escapeHtml(s.fix)}</code></span>`
+                  ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; Suggested fix: <code style="color:var(--cyan-soft);">${escapeHtml(s.fix)}</code></span>`
                   : ""}</span>
               </div>`;
             });
@@ -3300,7 +3306,7 @@ if __name__ == "__main__":
             explanation.forEach(e => {
               html += `<div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(30,58,95,0.4);">
                 <div style="min-width:130px; font-family:monospace; font-size:0.82rem;
-                            color:#7eb8d4; font-weight:600; flex-shrink:0;">${escapeHtml(e.keyword)}</div>
+                            color:var(--cyan-soft); font-weight:600; flex-shrink:0;">${escapeHtml(e.keyword)}</div>
                 <div style="font-size:0.84rem; color:var(--text);">
                   <span style="color:var(--muted); font-size:0.8rem;">[${escapeHtml(e.category)}]</span>
                   &nbsp;${escapeHtml(e.desc)}
