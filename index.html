@@ -67,6 +67,57 @@
           };
         });
       };
+
+      // Fallback __fbLoadPosts (module-level, set early). The full implementation
+      // inside init() will overwrite this; but if init() never reaches the
+      // Feedback block (e.g. an earlier null reference throws), this minimal
+      // version still renders posts so the board is never stuck on "Loading…".
+      window.__fbLoadPosts = async function () {
+        const list = document.getElementById("fbPostList");
+        if (!list) return;
+        list.innerHTML = '<div class="fb-empty"><span class="spinner"></span>&nbsp; Loading feedback...</div>';
+        try {
+          const posts = await window.__fbLoad();
+          if (!posts.length) {
+            list.innerHTML = '<div class="fb-empty">No feedback yet. Be the first to post!</div>';
+            return;
+          }
+          const esc = (s) => String(s).replace(/[&<>"']/g, c => ({
+            "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"
+          }[c]));
+          list.innerHTML = posts.map(p => `
+            <div class="fb-post">
+              <div class="fb-post-header">
+                <span class="fb-post-type">${esc(p.type)}</span>
+                <span class="fb-post-author">by ${esc(p.author)}</span>
+                <span class="fb-post-date">${new Date(p.createdAt).toLocaleString()}</span>
+              </div>
+              <div class="fb-post-title">${esc(p.title)}</div>
+              <div class="fb-post-content">${esc(p.content)}</div>
+            </div>
+          `).join("");
+        } catch (e) {
+          console.error("[fb] fallback load error:", e);
+          list.innerHTML = `<div class="fb-empty" style="color:var(--error);">Failed to load feedback: ${String(e.message || e)}</div>`;
+        }
+      };
+
+      // Auto-fetch if user lands directly on Feedback view (?v=feedbackView)
+      // or if Feedback panel is somehow already active before init().
+      document.addEventListener("DOMContentLoaded", () => {
+        const params = new URLSearchParams(location.search);
+        const onFeedback = params.get("v") === "feedbackView" ||
+          document.getElementById("feedbackView")?.classList.contains("active");
+        if (onFeedback && typeof window.__fbLoadPosts === "function") {
+          window.__fbLoadPosts();
+        }
+        // Also wire a direct click handler on the Feedback nav button as
+        // a safety net independent of bindEvents().
+        const navBtn = document.querySelector('.tab-btn.feedback-btn[data-view="feedbackView"]');
+        if (navBtn) navBtn.addEventListener("click", () => {
+          if (typeof window.__fbLoadPosts === "function") window.__fbLoadPosts();
+        });
+      });
     })();
   </script>
   <style>
@@ -2613,26 +2664,26 @@ if __name__ == "__main__":
           switchView(tab.dataset.view, tab, { ver: tab.dataset.ver || undefined });
         }));
 
-        document.getElementById("logoBtn").addEventListener("click", () => {
+        document.getElementById("logoBtn")?.addEventListener("click", () => {
           const homeTab = el.tabs.find(t => t.dataset.view === "homeView");
           if (homeTab) switchView("homeView", homeTab);
         });
-        el.loadFileBtn.addEventListener("click", () => el.fileInput.click());
-        el.fileInput.addEventListener("change", handleFileLoad);
-        el.convertBtn.addEventListener("click", runConversion);
-        el.clearBtn.addEventListener("click", clearMain);
-        el.copyOutputBtn.addEventListener("click", copyOutput);
-        el.downloadPyBtn.addEventListener("click", downloadPyScript);
-        el.copyPyBtn.addEventListener("click", copyPyScript);
-        el.downloadTriggerBtn.addEventListener("click", downloadTriggerScript);
-        el.copyTriggerBtn.addEventListener("click", copyTriggerScript);
-        el.commitIpBtn.addEventListener("click", commitIpToScript);
-        el.downloadRulesBtn.addEventListener("click", downloadRulesFile);
-        el.downloadCompareBtn.addEventListener("click", downloadComparison);
+        el.loadFileBtn?.addEventListener("click", () => el.fileInput.click());
+        el.fileInput?.addEventListener("change", handleFileLoad);
+        el.convertBtn?.addEventListener("click", runConversion);
+        el.clearBtn?.addEventListener("click", clearMain);
+        el.copyOutputBtn?.addEventListener("click", copyOutput);
+        el.downloadPyBtn?.addEventListener("click", downloadPyScript);
+        el.copyPyBtn?.addEventListener("click", copyPyScript);
+        el.downloadTriggerBtn?.addEventListener("click", downloadTriggerScript);
+        el.copyTriggerBtn?.addEventListener("click", copyTriggerScript);
+        el.commitIpBtn?.addEventListener("click", commitIpToScript);
+        el.downloadRulesBtn?.addEventListener("click", downloadRulesFile);
+        el.downloadCompareBtn?.addEventListener("click", downloadComparison);
 
         // ── Validator rules input ────────────────────────────────────────
-        el.valLoadFileBtn.addEventListener("click", () => el.valFileInput.click());
-        el.valFileInput.addEventListener("change", (ev) => {
+        el.valLoadFileBtn?.addEventListener("click", () => el.valFileInput.click());
+        el.valFileInput?.addEventListener("change", (ev) => {
           const file = ev.target.files && ev.target.files[0];
           if (!file) return;
           const reader = new FileReader();
@@ -2644,23 +2695,23 @@ if __name__ == "__main__":
           reader.readAsText(file);
           ev.target.value = "";
         });
-        el.valClearBtn.addEventListener("click", () => {
+        el.valClearBtn?.addEventListener("click", () => {
           el.valRulesInput.value = "";
           updateValRuleCount();
           updateRuleCount();
         });
-        el.valRulesInput.addEventListener("input", () => {
+        el.valRulesInput?.addEventListener("input", () => {
           updateValRuleCount();
           updateRuleCount();
         });
 
         // ── Optimizer version toggle ─────────────────────────────────────
-        el.optVersionSnort2.addEventListener("click", () => setOptVersion(2));
-        el.optVersionSnort3.addEventListener("click", () => setOptVersion(3));
+        el.optVersionSnort2?.addEventListener("click", () => setOptVersion(2));
+        el.optVersionSnort3?.addEventListener("click", () => setOptVersion(3));
 
         // ── Optimizer ────────────────────────────────────────────────────
-        el.optLoadFileBtn.addEventListener("click", () => el.optFileInput.click());
-        el.optFileInput.addEventListener("change", (ev) => {
+        el.optLoadFileBtn?.addEventListener("click", () => el.optFileInput.click());
+        el.optFileInput?.addEventListener("change", (ev) => {
           const file = ev.target.files && ev.target.files[0];
           if (!file) return;
           const reader = new FileReader();
@@ -2671,19 +2722,19 @@ if __name__ == "__main__":
           reader.readAsText(file);
           ev.target.value = "";
         });
-        el.optClearBtn.addEventListener("click", () => {
+        el.optClearBtn?.addEventListener("click", () => {
           el.optInput.value = "";
           el.optResults.innerHTML = "";
           el.optDownloadBtn.classList.add("hidden");
           el.optDownloadCleanBtn.classList.add("hidden");
           updateOptRuleCount();
         });
-        el.optimizeBtn.addEventListener("click", runOptimize);
-        el.optDownloadBtn.addEventListener("click", downloadAnnotatedRules);
-        el.optDownloadCleanBtn.addEventListener("click", downloadOptimizedRules);
+        el.optimizeBtn?.addEventListener("click", runOptimize);
+        el.optDownloadBtn?.addEventListener("click", downloadAnnotatedRules);
+        el.optDownloadCleanBtn?.addEventListener("click", downloadOptimizedRules);
 
         // ── Copy buttons inside optResults (event delegation) ────────────
-        el.optResults.addEventListener("click", function(e) {
+        el.optResults?.addEventListener("click", function(e) {
           const btn = e.target.closest("[data-copy-id]");
           if (!btn) return;
           const targetEl = document.getElementById(btn.dataset.copyId);
@@ -2705,55 +2756,59 @@ if __name__ == "__main__":
             setTimeout(() => { btn.textContent = orig; }, 1500);
           });
         });
-        el.optInput.addEventListener("input", updateOptRuleCount);
+        el.optInput?.addEventListener("input", updateOptRuleCount);
 
         // ── Drag & Drop on optimizer input ───────────────────────────────
         const optDropZone = document.getElementById("optDropZone");
         const optDropOverlay = document.getElementById("optDropOverlay");
-        ["dragenter","dragover"].forEach(evt => {
-          optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.add("drag-over"); });
-        });
-        ["dragleave","drop"].forEach(evt => {
-          optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.remove("drag-over"); });
-        });
-        optDropZone.addEventListener("drop", (e) => {
-          const file = e.dataTransfer.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => { el.optInput.value = String(reader.result || ""); updateOptRuleCount(); };
-          reader.readAsText(file);
-        });
+        if (optDropZone) {
+          ["dragenter","dragover"].forEach(evt => {
+            optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.add("drag-over"); });
+          });
+          ["dragleave","drop"].forEach(evt => {
+            optDropZone.addEventListener(evt, (e) => { e.preventDefault(); optDropZone.classList.remove("drag-over"); });
+          });
+          optDropZone.addEventListener("drop", (e) => {
+            const file = e.dataTransfer.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => { if (el.optInput) el.optInput.value = String(reader.result || ""); updateOptRuleCount(); };
+            reader.readAsText(file);
+          });
+        }
 
         // ── Drag & Drop on Snort 2 input panel ──────────────────────────
         const dropZone = document.getElementById("inputDropZone");
-        ["dragenter", "dragover"].forEach(evt => {
-          dropZone.addEventListener(evt, (e) => {
+        if (dropZone) {
+          ["dragenter", "dragover"].forEach(evt => {
+            dropZone.addEventListener(evt, (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              dropZone.classList.add("drag-over");
+            });
+          });
+          ["dragleave", "dragend"].forEach(evt => {
+            dropZone.addEventListener(evt, (e) => {
+              if (!dropZone.contains(e.relatedTarget)) {
+                dropZone.classList.remove("drag-over");
+              }
+            });
+          });
+          dropZone.addEventListener("drop", (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.add("drag-over");
+            dropZone.classList.remove("drag-over");
+            const file = e.dataTransfer.files && e.dataTransfer.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => { if (el.input) el.input.value = String(reader.result || ""); };
+            reader.readAsText(file);
           });
-        });
-        ["dragleave", "dragend"].forEach(evt => {
-          dropZone.addEventListener(evt, (e) => {
-            if (!dropZone.contains(e.relatedTarget)) {
-              dropZone.classList.remove("drag-over");
-            }
-          });
-        });
-        dropZone.addEventListener("drop", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          dropZone.classList.remove("drag-over");
-          const file = e.dataTransfer.files && e.dataTransfer.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = () => { el.input.value = String(reader.result || ""); };
-          reader.readAsText(file);
-        });
+        }
 
         // ── SRU / LSP news ───────────────────────────────────────────────
-        el.sruLoadBtn.addEventListener("click", () => loadSnortUpdates("sru"));
-        el.lspLoadBtn.addEventListener("click", () => loadSnortUpdates("lsp"));
+        el.sruLoadBtn?.addEventListener("click", () => loadSnortUpdates("sru"));
+        el.lspLoadBtn?.addEventListener("click", () => loadSnortUpdates("lsp"));
 
         // ── Feedback board ────────────────────────────────────────────────
         const fbFormPanel  = document.getElementById("fbFormPanel");
