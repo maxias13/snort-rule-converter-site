@@ -1287,6 +1287,19 @@
     .scriptdl-locked .scriptdl-lock-icon {
       font-size: 2rem; display: block; margin-bottom: 8px;
     }
+    /* Snort Validator output */
+    .snortval-summary { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; font-size:0.85rem; }
+    .sv-badge { padding:3px 9px; border-radius:10px; font-weight:600; display:inline-block; }
+    .sv-err  { background:#fee2e2; color:#991b1b; }
+    .sv-warn { background:#fef3c7; color:#92400e; }
+    .sv-info { background:#dbeafe; color:#1e40af; }
+    .snortval-empty { padding:14px; text-align:center; color:var(--muted); border:1px dashed var(--border); border-radius:6px; }
+    .snortval-tbl { width:100%; border-collapse:collapse; font-size:0.82rem; background:var(--card); }
+    .snortval-tbl th, .snortval-tbl td { padding:6px 9px; border-bottom:1px solid var(--border); text-align:left; vertical-align:top; }
+    .snortval-tbl thead th { background:rgba(0,188,235,0.08); font-weight:600; }
+    .snortval-tbl tr.sev-error td { background:rgba(239,68,68,0.06); }
+    .snortval-tbl tr.sev-warn  td { background:rgba(245,158,11,0.05); }
+    .sv-sug { font-size:0.78rem; color:var(--muted); margin-top:3px; font-style:italic; }
   </style>
 </head>
 <body>
@@ -1661,8 +1674,22 @@ python3 trigger_rules.py --delay 1
           </div>
         </div>
 
+        <div class="result-card" style="padding:18px; margin-bottom:18px;">
+          <h4 style="margin:0 0 10px;">⚡ In-Browser Validator <span class="muted" style="font-weight:normal; font-size:0.8rem;">— full Python logic ported to JavaScript</span></h4>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+            <label style="font-size:0.85rem;"><input type="radio" name="snortValVersion" value="2" checked> Snort 2</label>
+            <label style="font-size:0.85rem;"><input type="radio" name="snortValVersion" value="3"> Snort 3</label>
+            <button class="btn" id="snortValValidateBtn" type="button">Validate</button>
+            <button class="btn secondary" id="snortValOptimizeBtn" type="button">Optimize</button>
+            <button class="btn secondary" id="snortValBothBtn" type="button">Validate + Optimize</button>
+            <button class="btn secondary" id="snortValClearBtn" type="button">Clear</button>
+          </div>
+          <textarea id="snortValInput" rows="8" placeholder="Paste Snort 2 or Snort 3 rules here, one per line..." style="width:100%; box-sizing:border-box; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.82rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px; padding:10px;"></textarea>
+          <div id="snortValOut" style="margin-top:12px;"></div>
+        </div>
+
         <div class="result-card" style="padding:18px;">
-          <h4 style="margin:0 0 10px;">Quick Start</h4>
+          <h4 style="margin:0 0 10px;">Quick Start (Python CLI)</h4>
           <pre style="background:#0b0f17; color:var(--code-text); padding:12px; border-radius:6px; overflow:auto; font-size:0.82rem; line-height:1.45;"># Snort 2
 git clone https://github.com/maxias13/snort_2_validator.git
 cd snort_2_validator
@@ -6222,5 +6249,44 @@ if __name__ == "__main__":
   <footer style="text-align:center; padding:18px 0 14px; font-size:0.72rem; color:#ffaa00; opacity:0.7;">
     - All information provided on this site is not official information from Cisco Systems. Please use it with caution. -
   </footer>
+
+  <script src="assets/js/snort_validator.js"></script>
+  <script>
+    (function () {
+      var inputEl = document.getElementById('snortValInput');
+      var outEl = document.getElementById('snortValOut');
+      if (!inputEl || !outEl || !window.SnortValidator) return;
+
+      function getVersion() {
+        var radios = document.getElementsByName('snortValVersion');
+        for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+        return '2';
+      }
+
+      function run(mode) {
+        var text = inputEl.value || '';
+        if (!text.trim()) { outEl.innerHTML = '<div class="muted" style="padding:10px;">Paste rules above first.</div>'; return; }
+        var ver = getVersion();
+        var parsed = window.SnortValidator.parse(text, ver, 'pasted.rules');
+        var findings = [];
+        if (mode === 'validate' || mode === 'both') {
+          findings = findings.concat(window.SnortValidator.validate(parsed, ver));
+        }
+        if (mode === 'optimize' || mode === 'both') {
+          findings = findings.concat(window.SnortValidator.optimize(parsed, ver));
+        }
+        window.SnortValidator.render(findings, outEl, { version: ver, ruleCount: parsed.length });
+      }
+
+      var b1 = document.getElementById('snortValValidateBtn');
+      var b2 = document.getElementById('snortValOptimizeBtn');
+      var b3 = document.getElementById('snortValBothBtn');
+      var bc = document.getElementById('snortValClearBtn');
+      if (b1) b1.addEventListener('click', function () { run('validate'); });
+      if (b2) b2.addEventListener('click', function () { run('optimize'); });
+      if (b3) b3.addEventListener('click', function () { run('both'); });
+      if (bc) bc.addEventListener('click', function () { inputEl.value = ''; outEl.innerHTML = ''; });
+    })();
+  </script>
 </body>
 </html>
