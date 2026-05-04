@@ -2560,9 +2560,11 @@ if __name__ == "__main__":
         if (typeof bindMigrationHandlers === "function") {
           try { bindMigrationHandlers(); } catch (e) { console.error("[init] bindMigrationHandlers failed:", e); }
         }
-        if (typeof setMigrationVersion === "function") setMigrationVersion(2);
-        el.pyScriptDisplay.textContent = currentPyScript;
-        removeWhiteBg(document.getElementById("snortLogo"), 230);
+        if (typeof setMigrationVersion === "function") {
+          try { setMigrationVersion(2); } catch (e) { console.error("[init] setMigrationVersion failed:", e); }
+        }
+        try { if (el.pyScriptDisplay) el.pyScriptDisplay.textContent = currentPyScript; } catch (e) { console.error("[init] pyScriptDisplay failed:", e); }
+        try { const _logo = document.getElementById("snortLogo"); if (_logo) removeWhiteBg(_logo, 230); } catch (e) { console.error("[init] removeWhiteBg failed:", e); }
 
         // Restore tab from URL on load/refresh.
         // Use ?v= query param (no hash = no Firefox anchor-scroll on hidden elements).
