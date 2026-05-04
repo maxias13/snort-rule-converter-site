@@ -117,6 +117,29 @@
         if (navBtn) navBtn.addEventListener("click", () => {
           if (typeof window.__fbLoadPosts === "function") window.__fbLoadPosts();
         });
+
+        // Safety-net: SRU / LSP nav buttons → click their respective Load
+        // buttons. Independent of bindEvents() so it works even if init()
+        // breaks. The Load buttons themselves are also bound inside
+        // bindEvents() with optional chaining; this is a redundant fallback.
+        const safetyAutoClick = (navSel, loadId) => {
+          const nav = document.querySelector(navSel);
+          if (!nav) return;
+          nav.addEventListener("click", () => {
+            // Defer one frame so view-switch CSS has a chance to apply.
+            setTimeout(() => {
+              const btn = document.getElementById(loadId);
+              const results = document.getElementById(loadId === "sruLoadBtn" ? "sruResults" : "lspResults");
+              // Only auto-click if results card is still in its initial idle state
+              // (avoid clobbering an already-loaded view).
+              if (btn && results && /Click <b>Load Latest<\/b>/i.test(results.innerHTML)) {
+                btn.click();
+              }
+            }, 30);
+          });
+        };
+        safetyAutoClick('.tab-btn[data-view="sruView"]', "sruLoadBtn");
+        safetyAutoClick('.tab-btn[data-view="lspView"]', "lspLoadBtn");
       });
     })();
   </script>
@@ -4414,13 +4437,31 @@ if __name__ == "__main__":
         try {
           const resp = await fetch(url, { mode: "cors" });
           if (resp.ok) return resp.text();
-        } catch (_) { /* CORS blocked — fall through to proxy */ }
+        } catch (_) { /* CORS blocked — fall through to proxies */ }
 
-        // Fallback: public CORS proxy
-        const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(url);
-        const resp = await fetch(proxyUrl);
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " from proxy");
-        return resp.text();
+        // Fallback chain: try multiple public CORS proxies in order.
+        // codetabs requires the URL UNENCODED (encodeURIComponent breaks it
+        // because the proxy then double-decodes :// → 301). cors.eu.org takes
+        // the URL appended verbatim. allorigins/raw needs encoded.
+        const proxies = [
+          "https://api.codetabs.com/v1/proxy?quest=" + url,
+          "https://cors.eu.org/" + url,
+          "https://api.allorigins.win/raw?url=" + encodeURIComponent(url),
+        ];
+        let lastErr = null;
+        for (const p of proxies) {
+          try {
+            const r = await fetch(p, { mode: "cors" });
+            if (r.ok) {
+              const txt = await r.text();
+              if (txt && txt.length > 200) return txt;
+            }
+            lastErr = new Error("HTTP " + r.status + " from proxy");
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        throw lastErr || new Error("All proxies failed");
       }
 
       // ── SRU / LSP update fetcher ─────────────────────────────────────
