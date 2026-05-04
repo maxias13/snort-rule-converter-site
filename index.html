@@ -2556,8 +2556,10 @@ if __name__ == "__main__":
         if (el.optInput) el.optInput.value = "";
         localStorage.removeItem(SID_MAP_KEY);
 
-        bindEvents();
-        if (typeof bindMigrationHandlers === "function") bindMigrationHandlers();
+        try { bindEvents(); } catch (e) { console.error("[init] bindEvents failed:", e); }
+        if (typeof bindMigrationHandlers === "function") {
+          try { bindMigrationHandlers(); } catch (e) { console.error("[init] bindMigrationHandlers failed:", e); }
+        }
         if (typeof setMigrationVersion === "function") setMigrationVersion(2);
         el.pyScriptDisplay.textContent = currentPyScript;
         removeWhiteBg(document.getElementById("snortLogo"), 230);
