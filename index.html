@@ -2560,9 +2560,9 @@ if __name__ == "__main__":
         if (typeof bindMigrationHandlers === "function") {
           try { bindMigrationHandlers(); } catch (e) { console.error("[init] bindMigrationHandlers failed:", e); }
         }
-        if (typeof setMigrationVersion === "function") {
-          try { setMigrationVersion(2); } catch (e) { console.error("[init] setMigrationVersion failed:", e); }
-        }
+        // setMigrationVersion(2) intentionally not called here:
+        // __migVersion is declared `let = 2` later in the file; calling it pre-declaration
+        // throws TDZ ReferenceError. Default value already matches, so this is a no-op.
         try { if (el.pyScriptDisplay) el.pyScriptDisplay.textContent = currentPyScript; } catch (e) { console.error("[init] pyScriptDisplay failed:", e); }
         try { const _logo = document.getElementById("snortLogo"); if (_logo) removeWhiteBg(_logo, 230); } catch (e) { console.error("[init] removeWhiteBg failed:", e); }
 
