@@ -1805,13 +1805,9 @@ python3 trigger_rules.py --delay 1
 
         <div class="result-card" style="padding:18px; margin-bottom:18px;">
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
-            <button class="btn secondary" id="trigLoadFileBtn" type="button">📂 Load .rules file</button>
+            <button class="btn secondary" id="trigLoadFileBtn" type="button">📂 Load File</button>
             <input type="file" id="trigFileInput" accept=".rules,.txt" style="display:none;">
-            <label for="trigDest" style="font-size:0.9rem; margin-left:6px;">Destination:</label>
-            <input type="text" id="trigDest"
-              placeholder="e.g. 192.168.1.10"
-              style="flex:1; min-width:160px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
-            <label for="trigProto" style="font-size:0.9rem;">Protocol:</label>
+            <label for="trigProto" style="font-size:0.9rem; margin-left:6px;">Protocol:</label>
             <select id="trigProto"
               style="padding:6px 8px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
               <option value="">(default tcp)</option>
@@ -1820,7 +1816,16 @@ python3 trigger_rules.py --delay 1
               <option value="http">http</option>
               <option value="icmp">icmp</option>
             </select>
-            <label for="trigPort" style="font-size:0.9rem;">Port:</label>
+            <label for="trigSrcPort" style="font-size:0.9rem;">Source Port:</label>
+            <input type="text" id="trigSrcPort"
+              placeholder="any"
+              title="Optional. Bind outgoing socket to this source port (TCP/UDP only). Ignored for HTTP/ICMP."
+              style="width:80px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
+            <label for="trigDest" style="font-size:0.9rem;">Destination IP:</label>
+            <input type="text" id="trigDest"
+              placeholder="e.g. 192.168.1.10"
+              style="flex:1; min-width:160px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
+            <label for="trigPort" style="font-size:0.9rem;">Destination Port:</label>
             <input type="text" id="trigPort"
               placeholder="80"
               style="width:80px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
@@ -6875,6 +6880,7 @@ ${optRules.join("\n")}
       var destEl      = document.getElementById('trigDest');
       var protoEl     = document.getElementById('trigProto');
       var portEl      = document.getElementById('trigPort');
+      var srcPortEl   = document.getElementById('trigSrcPort');
       if (!inputEl || !outEl || !genBtn) return;
 
       // Auto-detect Snort 2 vs 3 from rule body. Returns '2' or '3'.
@@ -7086,11 +7092,12 @@ ${optRules.join("\n")}
       // Emit the per-rule body of `def trigger_<sid>(target_ip, target_port):`
       // The function name, signature line, and docstring are emitted by the caller.
       // This returns an array of indented body lines (already prefixed with 4 spaces).
-      function emitTriggerBody(info) {
+      function emitTriggerBody(info, srcPort) {
         var body = [];
         var b = function (s) { body.push('    ' + s); };
 
         if (isHttpRule(info)) {
+          if (srcPort) b('# Note: source-port binding (' + srcPort + ') is not enforced for HTTP rules (requests library uses ephemeral ports).');
           var req = buildHttpRequest(info);
           b('url = f"http://{target_ip}:{target_port}" + ' + pyStr(req.path));
           b('headers = {');
@@ -7140,6 +7147,12 @@ ${optRules.join("\n")}
           b('payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
           b('s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)');
           b('s.settimeout(TIMEOUT)');
+          if (srcPort) {
+            b('try:');
+            b('    s.bind(("0.0.0.0", ' + srcPort + '))');
+            b('except OSError as _e:');
+            b('    print(f"  [WARN] Could not bind UDP source port ' + srcPort + ': {_e}. Continuing with ephemeral port.")');
+          }
           b('try:');
           b('    s.sendto(payload, (target_ip, target_port))');
           b('    print(f"  [OK] Sent UDP datagram ({len(payload)} bytes) to {target_ip}:{target_port} (Snort should have inspected it)")');
@@ -7153,6 +7166,13 @@ ${optRules.join("\n")}
           b('payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
           b('s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)');
           b('s.settimeout(TIMEOUT)');
+          if (srcPort) {
+            b('try:');
+            b('    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)');
+            b('    s.bind(("0.0.0.0", ' + srcPort + '))');
+            b('except OSError as _e:');
+            b('    print(f"  [WARN] Could not bind TCP source port ' + srcPort + ': {_e}. Continuing with ephemeral port.")');
+          }
           b('sent = False');
           b('try:');
           b('    s.connect((target_ip, target_port))');
@@ -7267,7 +7287,7 @@ ${optRules.join("\n")}
         perRule.forEach(function (r) {
           py('def ' + r.funcName + '(target_ip=' + pyStr(r.dstIp) + ', target_port=' + r.dport + '):');
           py('    """SID ' + r.rawSid + ' — ' + (r.msg ? r.msg.replace(/"/g, "'") : '(no msg)') + '"""');
-          var bodyLines = emitTriggerBody(r.info);
+          var bodyLines = emitTriggerBody(r.info, destOverride && destOverride.srcPort);
           bodyLines.forEach(function (bl) { py(bl); });
           py('');
         });
@@ -7357,17 +7377,21 @@ ${optRules.join("\n")}
         var protoVal = (protoEl && protoEl.value || '').trim().toLowerCase();
         var portRaw = (portEl && portEl.value || '').trim();
         var portVal = /^\d+$/.test(portRaw) ? parseInt(portRaw, 10) : null;
+        var srcPortRaw = (srcPortEl && srcPortEl.value || '').trim();
+        var srcPortVal = /^\d+$/.test(srcPortRaw) ? parseInt(srcPortRaw, 10) : null;
         // Per-rule defaults: protocol=tcp, port=80 — applied ALWAYS so rule
         // inspection happens against a stable target/proto unless user picks udp/icmp/etc.
         var dest = {
           host: destParsed.host,
           proto: protoVal || 'tcp',
-          port: portVal || 80
+          port: portVal || 80,
+          srcPort: srcPortVal
         };
         var res = generateMultiScript(ruleEntries, ver, dest);
         var effectiveHostNote = 'host=' + (dest.host || '(per-rule parsed)')
                               + ' proto=' + dest.proto
-                              + ' port=' + dest.port;
+                              + ' port=' + dest.port
+                              + (dest.srcPort ? ' src_port=' + dest.srcPort : '');
         var summary = 'Generated triggers for ' + res.count + ' rule(s)'
                     + ' [SIDs: ' + res.sids.join(', ') + ']'
                     + ' — ' + effectiveHostNote
@@ -7381,6 +7405,7 @@ ${optRules.join("\n")}
         if (destEl)  destEl.value = '';
         if (protoEl) protoEl.value = '';
         if (portEl)  portEl.value = '';
+        if (srcPortEl) srcPortEl.value = '';
         outWrapEl.style.display = 'none';
         infoEl.textContent = '';
         outEl.textContent = '';
