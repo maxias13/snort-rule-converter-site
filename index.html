@@ -1962,11 +1962,20 @@ python3 trigger_rules.py --delay 1
           <div>
             <h3 style="margin:0;">📊 Performance Calculator</h3>
           </div>
+          <div style="display:flex; gap:8px;">
+            <a href="https://ngfwpe.cisco.com/dashboard" target="_blank" rel="noopener" class="btn-secondary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px;">↗ Open in New Tab</a>
+          </div>
         </div>
-        <div class="result-card muted" style="text-align:center; padding:48px 16px; min-height:200px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;">
-          <div style="font-size:3rem; line-height:1;">🚧</div>
-          <div style="font-size:1.1rem; color:var(--text);">Coming Soon</div>
-          <div style="font-size:0.9rem;">Performance impact calculator for Snort rules will be available here.</div>
+        <div style="font-size:0.85rem; color:var(--muted); margin-bottom:10px;">
+          Cisco internal tool — requires Cisco SSO login. If the embedded view shows a login prompt, click <strong>Open in New Tab</strong> above.
+        </div>
+        <div class="result-card" style="padding:0; overflow:hidden; height:calc(100vh - 220px); min-height:600px;">
+          <iframe
+            src="https://ngfwpe.cisco.com/dashboard"
+            style="width:100%; height:100%; border:0; display:block; background:#fff;"
+            title="Cisco NGFW Performance Estimator"
+            allow="fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
         </div>
       </div>
     </section>
