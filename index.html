@@ -3565,7 +3565,7 @@ if __name__ == "__main__":
             html += renderGroup("info", "Information", byLevel.info);
           }
 
-          // ── Section 5: Rule Option Details (collapsed by default) ────
+          // ── Section 5: Rule Option Details (always expanded) ─────────
           if (explanation.length) {
             const detailRows = explanation.map(e => `<div class="opt-detail-row">
               <div class="opt-detail-kw">${escapeHtml(e.keyword)}</div>
@@ -3574,12 +3574,11 @@ if __name__ == "__main__":
                 ${e.note ? `<span class="opt-detail-note">&#9888; ${escapeHtml(e.note)}</span>` : ""}
               </div>
             </div>`).join("");
-            html += `<div class="opt-section collapsed">
-              <div class="opt-section-title" data-toggle="opt-sec-${idx}-details">
-                <span class="opt-caret">&#9660;</span>
+            html += `<div class="opt-section">
+              <div class="opt-section-title" style="cursor:default;">
                 <span>Rule Option Details <span style="color:var(--cyan-soft);font-weight:400;">(${explanation.length})</span></span>
               </div>
-              <div class="opt-section-body" id="opt-sec-${idx}-details">${detailRows}</div>
+              <div class="opt-section-body" id="opt-sec-${idx}-details" style="display:block;">${detailRows}</div>
             </div>`;
           }
 
