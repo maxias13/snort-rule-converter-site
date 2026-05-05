@@ -806,7 +806,7 @@
           "rule missing `classtype`", "rules/options/general/classtype"));
       } else {
         var ctval = (ct.value || "").trim();
-        if (ctval && S3_DEFAULT_CLASSTYPES.indexOf(ctval) < 0) {
+        if (ctval && !S3_DEFAULT_CLASSTYPES[ctval]) {
           findings.push(makeFinding(r.file, r.line, r.sid(), "S016", "error",
             "unknown classtype `" + ctval + "`", "rules/options/general/classtype",
             "use a standard classtype or add `" + ctval + "` to classification.config"));
@@ -1045,7 +1045,7 @@
       if (v.indexOf("/") >= 0 && !v.endsWith("/")) {
         var tail = v.split("/").pop();
         for (var ti = 0; ti < tail.length; ti++) {
-          if (S3_INVALID_PCRE_FLAGS[tail[ti]]) { invalid_pcre_flag = true; break; }
+          if (S3_INVALID_PCRE_FLAGS.indexOf(tail[ti]) >= 0) { invalid_pcre_flag = true; break; }
         }
         if (invalid_pcre_flag) break;
       }
@@ -1184,7 +1184,7 @@
           var tail = v.split("/").pop();
           var bad = [];
           for (var ti = 0; ti < tail.length; ti++) {
-            if (S3_INVALID_PCRE_FLAGS[tail[ti]] && bad.indexOf(tail[ti]) < 0) bad.push(tail[ti]);
+            if (S3_INVALID_PCRE_FLAGS.indexOf(tail[ti]) >= 0 && bad.indexOf(tail[ti]) < 0) bad.push(tail[ti]);
           }
           if (bad.length) {
             bad.sort();
