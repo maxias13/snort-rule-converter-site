@@ -1495,6 +1495,7 @@
       </div>
 
       <a class="tab-btn" href="https://www.snort.org/rule-docs-search" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">🔍</span><span class="label">Snort 2 Rule Search</span></a>
+      <button class="tab-btn" data-view="duplicateRulesView"><span class="icon" aria-hidden="true">🧬</span><span class="label">Duplicate Rules</span></button>
       <button class="tab-btn scriptdl-btn" id="scriptDlBtn" data-view="scriptDlView" type="button"><span class="icon" aria-hidden="true">📥</span><span class="label">Download Files</span></button>
       <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
     </div>
@@ -1806,10 +1807,23 @@ python3 trigger_rules.py --delay 1
           <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
             <button class="btn secondary" id="trigLoadFileBtn" type="button">📂 Load .rules file</button>
             <input type="file" id="trigFileInput" accept=".rules,.txt" style="display:none;">
-            <label for="trigDest" style="font-size:0.9rem; margin-left:6px;">Victim/Test Destination:</label>
+            <label for="trigDest" style="font-size:0.9rem; margin-left:6px;">Destination:</label>
             <input type="text" id="trigDest"
-              placeholder="e.g. 192.168.1.10  or  victim.test:8080"
-              style="flex:1; min-width:220px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
+              placeholder="e.g. 192.168.1.10"
+              style="flex:1; min-width:160px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
+            <label for="trigProto" style="font-size:0.9rem;">Protocol:</label>
+            <select id="trigProto"
+              style="padding:6px 8px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
+              <option value="">(default tcp)</option>
+              <option value="tcp">tcp</option>
+              <option value="udp">udp</option>
+              <option value="http">http</option>
+              <option value="icmp">icmp</option>
+            </select>
+            <label for="trigPort" style="font-size:0.9rem;">Port:</label>
+            <input type="text" id="trigPort"
+              placeholder="80"
+              style="width:80px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
             <span style="flex:1;"></span>
             <button class="btn" id="trigGenerateBtn" type="button">Generate</button>
             <button class="btn secondary" id="trigClearBtn" type="button">Clear</button>
@@ -1876,6 +1890,51 @@ python3 trigger_rules.py --delay 1
         </div>
         <div id="lspResults" class="result-card muted" style="min-height:120px;">
           Click <b>Load Latest</b> to fetch this week's LSP release notes (Snort 3 rules: new / modified / deleted).
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Duplicate Rules Checker ─────────────────────────────────────── -->
+    <section id="duplicateRulesView" class="view">
+      <div class="panel">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0 0 4px;">🧬 Duplicate Rules Checker</h3>
+            <p class="muted" style="margin:0; font-size:0.85rem;">
+              Paste your local Snort 2/3 rules and click <b>Confirm</b> to automatically check them against the most recent 4 weeks of Cisco Talos built-in rules (SRU + LSP).
+            </p>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label for="dupRulesInput" style="display:block; font-size:0.85rem; color:var(--muted); margin-bottom:6px;">
+            Snort 2/3 Local Rules (one rule per line)
+          </label>
+          <textarea id="dupRulesInput" spellcheck="false"
+            style="width:100%; min-height:220px; font-family:monospace; font-size:0.85rem;
+                   padding:10px 12px; border:1px solid var(--border); border-radius:8px;
+                   background:var(--bg-soft, #0f1623); color:var(--fg); resize:vertical;"
+            placeholder="alert tcp any any -> any 80 (msg:&quot;Sample rule&quot;; content:&quot;evil&quot;; sid:1000001; rev:1;)"></textarea>
+        </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+          <button class="btn" id="dupRulesConfirmBtn">✓ Confirm</button>
+          <button class="btn secondary" id="dupRulesClearBtn">Clear</button>
+          <span id="dupRulesStatus" class="muted" style="font-size:0.82rem;"></span>
+        </div>
+
+        <div id="dupRulesResults" class="result-card muted" style="min-height:120px;">
+          Duplicate-check results for your input rules will be displayed here.
+        </div>
+
+        <div style="margin-top:10px; padding:10px 14px; background:rgba(0,212,255,0.04);
+                    border:1px solid rgba(0,212,255,0.2); border-radius:8px;
+                    font-size:0.78rem; color:var(--muted); line-height:1.55;">
+          <b style="color:var(--primary);">Classification Criteria</b><br>
+          • <b style="color:#f87171;">EXACT_SID</b>: SID conflict with built-in rules — uses Talos-managed range (1–999,999) or matches an existing SID<br>
+          • <b style="color:#fb923c;">EXACT_MSG</b>: msg string matches a built-in rule exactly<br>
+          • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: msg token Jaccard similarity ≥ 0.7 (possible false positive — review recommended)<br>
+          • <b style="color:#4ade80;">UNIQUE</b>: No duplicate found among built-in rules
         </div>
       </div>
     </section>
@@ -3007,6 +3066,19 @@ if __name__ == "__main__":
         // ── SRU / LSP news ───────────────────────────────────────────────
         el.sruLoadBtn?.addEventListener("click", () => loadSnortUpdates("sru"));
         el.lspLoadBtn?.addEventListener("click", () => loadSnortUpdates("lsp"));
+
+        // ── Duplicate Rules Checker ──────────────────────────────────────
+        const dupConfirmBtn = document.getElementById("dupRulesConfirmBtn");
+        const dupClearBtn   = document.getElementById("dupRulesClearBtn");
+        const dupInputEl    = document.getElementById("dupRulesInput");
+        const dupResultsEl  = document.getElementById("dupRulesResults");
+        const dupStatusEl   = document.getElementById("dupRulesStatus");
+        dupConfirmBtn?.addEventListener("click", runDuplicateRulesCheck);
+        dupClearBtn?.addEventListener("click", () => {
+          if (dupInputEl)   dupInputEl.value = "";
+          if (dupResultsEl) { dupResultsEl.className = "result-card muted"; dupResultsEl.innerHTML = "Duplicate-check results for your input rules will be displayed here."; }
+          if (dupStatusEl)  dupStatusEl.textContent = "";
+        });
 
         // ── Feedback board ────────────────────────────────────────────────
         const fbFormPanel  = document.getElementById("fbFormPanel");
@@ -5014,6 +5086,209 @@ ${optRules.join("\n")}
         resultsEl.innerHTML = renderWeeklyView(dayResults, type, weekLabel);
       }
 
+
+      // ── Duplicate Rules Checker (4-week SRU+LSP built-in index) ───────
+      const __dupBuiltinCache = { sids: null, msgs: null, rules: [], packs: [], builtAt: 0 };
+
+      function getRecentDates(weeks) {
+        const out = [];
+        const today = new Date();
+        const totalDays = weeks * 7;
+        for (let i = totalDays; i >= 1; i--) {
+          const d = new Date(today);
+          d.setUTCDate(today.getUTCDate() - i);
+          out.push(fmtDate(d));
+        }
+        return out;
+      }
+
+      async function buildBuiltinIndex(statusEl) {
+        if (__dupBuiltinCache.sids && (Date.now() - __dupBuiltinCache.builtAt) < 30 * 60 * 1000) {
+          return __dupBuiltinCache;
+        }
+        const dates = getRecentDates(4);
+        if (statusEl) statusEl.textContent = `Fetching Talos advisories for the last 4 weeks (${dates.length} days)…`;
+        const fetched = await Promise.all(dates.map(d => fetchAdvisoryHtml(d)));
+        const advisories = fetched.filter(f => f.html.trim().length > 500);
+        const sids = new Map();
+        const msgs = new Map();
+        const rules = [];
+        const packs = new Set();
+        for (const a of advisories) {
+          for (const type of ["sru", "lsp"]) {
+            const parsed = parseAdvisory(a.html, type, a.url, a.date);
+            if (!parsed.found) continue;
+            packs.add(`${type.toUpperCase()} ${parsed.packVer}`);
+            for (const r of [...parsed.newRules, ...parsed.modRules]) {
+              const sidNum = parseInt(String(r.sid).split(":").pop(), 10);
+              if (Number.isFinite(sidNum)) sids.set(sidNum, { msg: r.msg, type, date: a.date, packVer: parsed.packVer });
+              const msgKey = (r.msg || "").trim().toLowerCase();
+              if (msgKey) msgs.set(msgKey, { sid: sidNum, msg: r.msg, type, date: a.date, packVer: parsed.packVer });
+              rules.push({ sid: sidNum, msg: r.msg, type, date: a.date, packVer: parsed.packVer });
+            }
+          }
+        }
+        __dupBuiltinCache.sids = sids;
+        __dupBuiltinCache.msgs = msgs;
+        __dupBuiltinCache.rules = rules;
+        __dupBuiltinCache.packs = Array.from(packs);
+        __dupBuiltinCache.builtAt = Date.now();
+        return __dupBuiltinCache;
+      }
+
+      function tokenizeMsg(msg) {
+        return new Set(
+          String(msg || "").toLowerCase()
+            .replace(/[^a-z0-9\u00a1-\uffff\s]/g, " ")
+            .split(/\s+/).filter(t => t.length >= 2)
+        );
+      }
+
+      function jaccardSim(a, b) {
+        if (!a.size || !b.size) return 0;
+        let inter = 0;
+        for (const x of a) if (b.has(x)) inter++;
+        const union = a.size + b.size - inter;
+        return union > 0 ? inter / union : 0;
+      }
+
+      function parseUserRuleLine(line) {
+        const t = line.trim();
+        if (!t || t.startsWith("#")) return null;
+        const sidMatch = t.match(/\bsid\s*:\s*(\d+)/i);
+        const msgMatch = t.match(/\bmsg\s*:\s*"([^"]*)"/i);
+        if (!sidMatch) return null;
+        return { sid: parseInt(sidMatch[1], 10), msg: msgMatch ? msgMatch[1] : "", rule: t };
+      }
+
+      function classifyUserRule(userRule, builtin) {
+        const TALOS_MAX = 999999;
+        const sidInTalosRange = userRule.sid >= 1 && userRule.sid <= TALOS_MAX;
+        const sidHit = builtin.sids.get(userRule.sid);
+        if (sidHit) {
+          return { kind: "EXACT_SID", reason: `Same SID exists in ${sidHit.type.toUpperCase()} pack ${sidHit.packVer}`, match: sidHit };
+        }
+        if (sidInTalosRange) {
+          return { kind: "EXACT_SID", reason: `Uses Talos-managed SID range (1–999,999)`, match: null };
+        }
+        const msgKey = (userRule.msg || "").trim().toLowerCase();
+        if (msgKey) {
+          const msgHit = builtin.msgs.get(msgKey);
+          if (msgHit) {
+            return { kind: "EXACT_MSG", reason: `Identical msg`, match: msgHit };
+          }
+          const userTokens = tokenizeMsg(userRule.msg);
+          if (userTokens.size >= 2) {
+            let best = { sim: 0, rule: null };
+            for (const r of builtin.rules) {
+              const sim = jaccardSim(userTokens, tokenizeMsg(r.msg));
+              if (sim > best.sim) best = { sim, rule: r };
+              if (best.sim >= 0.95) break;
+            }
+            if (best.sim >= 0.7) {
+              return { kind: "NEAR_DUPLICATE", reason: `msg similarity ${(best.sim * 100).toFixed(0)}%`, match: best.rule };
+            }
+          }
+        }
+        return { kind: "UNIQUE", reason: "No duplicate among built-in rules", match: null };
+      }
+
+      function renderDupRulesResults(classified, builtin) {
+        const counts = { EXACT_SID: 0, EXACT_MSG: 0, NEAR_DUPLICATE: 0, UNIQUE: 0 };
+        for (const c of classified) counts[c.classification.kind]++;
+        const palette = {
+          EXACT_SID:      { color: "#f87171", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.3)",  label: "EXACT_SID" },
+          EXACT_MSG:      { color: "#fb923c", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.3)", label: "EXACT_MSG" },
+          NEAR_DUPLICATE: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "NEAR_DUP"  },
+          UNIQUE:         { color: "#4ade80", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "UNIQUE"    }
+        };
+        const summary = `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+            ${Object.entries(counts).map(([k, n]) => {
+              const p = palette[k];
+              return `<span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+                border-radius:6px; border:1px solid ${p.border}; background:${p.bg};
+                font-size:0.83rem; font-weight:600; color:${p.color};">
+                ${p.label}&nbsp;<b>${n}</b></span>`;
+            }).join("")}
+          </div>
+          <div style="margin-bottom:10px; padding:8px 12px; background:rgba(0,212,255,0.04);
+                      border:1px solid rgba(0,212,255,0.2); border-radius:8px;
+                      font-size:0.78rem; color:var(--muted);">
+            Comparison set: ${builtin.rules.length.toLocaleString()} built-in rules from the last 4 weeks (Pack: ${builtin.packs.join(", ") || "N/A"})
+          </div>`;
+
+        const rows = classified.map((c, i) => {
+          const p = palette[c.classification.kind];
+          const matchInfo = c.classification.match
+            ? `<div style="font-family:monospace; font-size:0.78rem; color:var(--muted);">↳ matched ${c.classification.match.type.toUpperCase()} SID ${c.classification.match.sid}: ${escapeHtml(c.classification.match.msg)}</div>`
+            : "";
+          return `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:8px 10px; font-size:0.78rem; color:var(--muted); white-space:nowrap;">#${i + 1}</td>
+              <td style="padding:8px 10px; white-space:nowrap;">
+                <span style="display:inline-block; padding:3px 9px; border-radius:5px;
+                  border:1px solid ${p.border}; background:${p.bg}; color:${p.color};
+                  font-size:0.74rem; font-weight:700;">${p.label}</span>
+              </td>
+              <td style="padding:8px 10px; font-family:monospace; font-size:0.82rem; color:var(--primary); white-space:nowrap;">SID ${c.rule.sid}</td>
+              <td style="padding:8px 10px; font-size:0.82rem; color:var(--fg);">
+                ${escapeHtml(c.rule.msg || "(no msg)")}
+                <div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">${escapeHtml(c.classification.reason)}</div>
+                ${matchInfo}
+              </td>
+            </tr>`;
+        }).join("");
+
+        return summary + `
+          <div style="overflow-x:auto; border:1px solid var(--border); border-radius:10px;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead>
+                <tr style="background:rgba(0,212,255,0.04);">
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">#</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">Class</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">SID</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">msg / Reason</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      }
+
+      async function runDuplicateRulesCheck() {
+        const inputEl   = document.getElementById("dupRulesInput");
+        const resultsEl = document.getElementById("dupRulesResults");
+        const statusEl  = document.getElementById("dupRulesStatus");
+        const btn       = document.getElementById("dupRulesConfirmBtn");
+        if (!inputEl || !resultsEl) return;
+        const text = inputEl.value || "";
+        const userRules = splitLines(text).map(parseUserRuleLine).filter(Boolean);
+        if (!userRules.length) {
+          resultsEl.className = "result-card";
+          resultsEl.innerHTML = `<div style="color:var(--warn); padding:10px;">⚠ Please enter at least one valid Snort rule that includes a SID.</div>`;
+          return;
+        }
+        btn.disabled = true;
+        resultsEl.className = "result-card";
+        resultsEl.innerHTML = `<span class="muted">⟳ Building built-in rule index…</span>`;
+        try {
+          const builtin = await buildBuiltinIndex(statusEl);
+          if (!builtin.rules.length) {
+            resultsEl.innerHTML = `<div style="color:var(--error); padding:10px;">⚠ Failed to fetch Talos advisories — check network/CORS proxy availability.</div>`;
+            return;
+          }
+          if (statusEl) statusEl.textContent = `Checking ${userRules.length} rule(s)…`;
+          const classified = userRules.map(r => ({ rule: r, classification: classifyUserRule(r, builtin) }));
+          resultsEl.innerHTML = renderDupRulesResults(classified, builtin);
+          if (statusEl) statusEl.textContent = `Check complete (${userRules.length} rule(s), ${builtin.rules.length} built-in)`;
+        } catch (err) {
+          resultsEl.innerHTML = `<div style="color:var(--error); padding:10px;">⚠ Error: ${escapeHtml(err.message || String(err))}</div>`;
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
       // ── Render weekly aggregated view ─────────────────────────────────
       function renderWeeklyView(dayResults, type, weekLabel) {
         const isSru = type === "sru";
@@ -6598,6 +6873,8 @@ ${optRules.join("\n")}
       var loadFileBtn = document.getElementById('trigLoadFileBtn');
       var fileInput   = document.getElementById('trigFileInput');
       var destEl      = document.getElementById('trigDest');
+      var protoEl     = document.getElementById('trigProto');
+      var portEl      = document.getElementById('trigPort');
       if (!inputEl || !outEl || !genBtn) return;
 
       // Auto-detect Snort 2 vs 3 from rule body. Returns '2' or '3'.
@@ -6620,24 +6897,16 @@ ${optRules.join("\n")}
         return '2';
       }
 
-      // Parse Victim/Test Destination input. Accepts:
-      //   "host"         → { host: "host", port: null }
-      //   "host:port"    → { host: "host", port: 1234 }
-      //   "[ipv6]:port"  → { host: "ipv6", port: 1234 }
-      // Returns { host: null, port: null } on empty/invalid.
+      // Parse Victim/Test Destination input. Host-only — port comes from
+      // the Port field; protocol from the Protocol dropdown.
+      // Accepts bare hostname/IPv4/IPv6 (with or without brackets).
       function parseDest(s) {
         s = String(s || '').trim();
-        if (!s) return { host: null, port: null };
-        // [ipv6]:port
-        var m6 = s.match(/^\[([^\]]+)\](?::(\d+))?$/);
-        if (m6) return { host: m6[1], port: m6[2] ? parseInt(m6[2], 10) : null };
-        // host:port (only if exactly one colon and right side is digits)
-        var parts = s.split(':');
-        if (parts.length === 2 && /^\d+$/.test(parts[1])) {
-          return { host: parts[0], port: parseInt(parts[1], 10) };
-        }
-        // bare host or IPv6 without brackets — treat whole string as host
-        return { host: s, port: null };
+        if (!s) return { host: null };
+        // strip surrounding [...] for bracketed IPv6
+        var m6 = s.match(/^\[([^\]]+)\]$/);
+        if (m6) return { host: m6[1] };
+        return { host: s };
       }
 
       function pyStr(s) {
@@ -6842,7 +7111,8 @@ ${optRules.join("\n")}
           b('    print(f"  [OK] Sent {r.request.method} {url} -> HTTP {r.status_code} (Snort should have inspected the request)")');
           b('    return True');
           b('except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:');
-          b('    print(f"  [OK] Sent {' + pyStr(req.method) + '} {url} -> no listener / refused / timeout. Packet was emitted; Snort should have seen it.")');
+          b('    _m = ' + pyStr(req.method));
+          b('    print(f"  [OK] Sent {_m} {url} -> no listener / refused / timeout. Packet was emitted; Snort should have seen it.")');
           b('    return True');
           b('except Exception as e:');
           b('    print(f"  [ERR] Unexpected failure before send: {type(e).__name__}: {e}", file=sys.stderr)');
@@ -6932,13 +7202,17 @@ ${optRules.join("\n")}
           }
           var dport = pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
           var dstIp = pickIp(info.dstIp, '127.0.0.1');
+          var effectiveInfo = info;
           if (destOverride) {
             if (destOverride.host) dstIp = destOverride.host;
             if (destOverride.port) dport = destOverride.port;
+            if (destOverride.proto) {
+              effectiveInfo = Object.assign({}, info, { proto: destOverride.proto });
+            }
           }
           var msg = (info.options && info.options.msg ? info.options.msg : '').replace(/^"|"$/g, '');
           return {
-            info: info, sid: sidKey, rawSid: rawSid || '(no sid)',
+            info: effectiveInfo, sid: sidKey, rawSid: rawSid || '(no sid)',
             msg: msg, dstIp: dstIp, dport: dport,
             funcName: 'trigger_' + sidKey
           };
@@ -7079,11 +7353,21 @@ ${optRules.join("\n")}
           return;
         }
         var ver = detectVersion(firstLineForVersion || '');
-        var dest = parseDest(destEl ? destEl.value : '');
+        var destParsed = parseDest(destEl ? destEl.value : '');
+        var protoVal = (protoEl && protoEl.value || '').trim().toLowerCase();
+        var portRaw = (portEl && portEl.value || '').trim();
+        var portVal = /^\d+$/.test(portRaw) ? parseInt(portRaw, 10) : null;
+        // Per-rule defaults: protocol=tcp, port=80 — applied ALWAYS so rule
+        // inspection happens against a stable target/proto unless user picks udp/icmp/etc.
+        var dest = {
+          host: destParsed.host,
+          proto: protoVal || 'tcp',
+          port: portVal || 80
+        };
         var res = generateMultiScript(ruleEntries, ver, dest);
-        var effectiveHostNote = dest.host || dest.port
-          ? 'override host=' + (dest.host || '(parsed)') + ' port=' + (dest.port || '(parsed)')
-          : 'using per-rule parsed dst';
+        var effectiveHostNote = 'host=' + (dest.host || '(per-rule parsed)')
+                              + ' proto=' + dest.proto
+                              + ' port=' + dest.port;
         var summary = 'Generated triggers for ' + res.count + ' rule(s)'
                     + ' [SIDs: ' + res.sids.join(', ') + ']'
                     + ' — ' + effectiveHostNote
@@ -7094,7 +7378,9 @@ ${optRules.join("\n")}
 
       clearBtn.addEventListener('click', function () {
         inputEl.value = '';
-        if (destEl) destEl.value = '';
+        if (destEl)  destEl.value = '';
+        if (protoEl) protoEl.value = '';
+        if (portEl)  portEl.value = '';
         outWrapEl.style.display = 'none';
         infoEl.textContent = '';
         outEl.textContent = '';
