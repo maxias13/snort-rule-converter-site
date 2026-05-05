@@ -1793,16 +1793,23 @@ python3 trigger_rules.py --delay 1
         <div style="margin-bottom:18px;">
           <h3 style="margin:0 0 6px;">🐍 Snort Rule → Trigger Script Generator</h3>
           <p class="muted" style="margin:0; font-size:0.9rem;">
-            Paste a single Snort 2 or Snort 3 rule, choose the version, and click <b>Generate</b>.
-            The page will produce a self-contained Python script (stdlib <code>socket</code> + <code>requests</code>)
-            that sends traffic designed to trigger the rule for lab/IDS testing.
+            Paste a single Snort 2 or Snort 3 rule (the version is auto-detected), or upload a
+            <code>.rules</code> / <code>.txt</code> file. Optionally specify a Victim/Test
+            Destination (host or <code>host:port</code>) — it will replace the <code>TARGET_IP</code>
+            in the generated script. Click <b>Generate</b> to produce a self-contained Python script
+            (stdlib <code>socket</code> + <code>requests</code>) that sends traffic designed to
+            trigger the rule for lab/IDS testing.
           </p>
         </div>
 
         <div class="result-card" style="padding:18px; margin-bottom:18px;">
-          <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
-            <label style="font-size:0.9rem;"><input type="radio" name="trigVersion" value="2" checked> Snort 2</label>
-            <label style="font-size:0.9rem;"><input type="radio" name="trigVersion" value="3"> Snort 3</label>
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+            <button class="btn secondary" id="trigLoadFileBtn" type="button">📂 Load .rules file</button>
+            <input type="file" id="trigFileInput" accept=".rules,.txt" style="display:none;">
+            <label for="trigDest" style="font-size:0.9rem; margin-left:6px;">Victim/Test Destination:</label>
+            <input type="text" id="trigDest"
+              placeholder="e.g. 192.168.1.10  or  victim.test:8080"
+              style="flex:1; min-width:220px; padding:6px 10px; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px;">
             <span style="flex:1;"></span>
             <button class="btn" id="trigGenerateBtn" type="button">Generate</button>
             <button class="btn secondary" id="trigClearBtn" type="button">Clear</button>
@@ -6588,12 +6595,49 @@ ${optRules.join("\n")}
       var clearBtn   = document.getElementById('trigClearBtn');
       var copyBtn    = document.getElementById('trigCopyBtn');
       var dlBtn      = document.getElementById('trigDownloadBtn');
+      var loadFileBtn = document.getElementById('trigLoadFileBtn');
+      var fileInput   = document.getElementById('trigFileInput');
+      var destEl      = document.getElementById('trigDest');
       if (!inputEl || !outEl || !genBtn) return;
 
-      function getVersion() {
-        var rs = document.getElementsByName('trigVersion');
-        for (var i = 0; i < rs.length; i++) if (rs[i].checked) return rs[i].value;
+      // Auto-detect Snort 2 vs 3 from rule body. Returns '2' or '3'.
+      // Heuristics (Snort 3 manual §3 + Snort 2 manual §3):
+      //   - Snort 3 ONLY: action 'rewrite'/'react'; option 'service:'; sticky
+      //     buffers used as bare option (e.g. `http_uri;` with NO modifier-style
+      //     positional `nocase` chained inline) — but those overlap with S2.
+      //   - Snort 2 ONLY: option 'uricontent'; action 'sdrop'; option 'metadata: ... policy ...';
+      //     legacy 'http_client_body' as modifier (S2 uses it as modifier; S3 as sticky — same token).
+      // Strong signals win. Default fallback: Snort 2 (more permissive parser).
+      function detectVersion(line) {
+        var l = ' ' + line.toLowerCase() + ' ';
+        // Snort 3 strong signals
+        if (/\bservice\s*:/.test(l)) return '3';
+        if (/^\s*(rewrite|react)\b/.test(line.toLowerCase())) return '3';
+        // Snort 2 strong signals
+        if (/\buricontent\s*:/.test(l)) return '2';
+        if (/^\s*sdrop\b/.test(line.toLowerCase())) return '2';
+        if (/\bmetadata\s*:[^;]*\bpolicy\s+/.test(l)) return '2';
         return '2';
+      }
+
+      // Parse Victim/Test Destination input. Accepts:
+      //   "host"         → { host: "host", port: null }
+      //   "host:port"    → { host: "host", port: 1234 }
+      //   "[ipv6]:port"  → { host: "ipv6", port: 1234 }
+      // Returns { host: null, port: null } on empty/invalid.
+      function parseDest(s) {
+        s = String(s || '').trim();
+        if (!s) return { host: null, port: null };
+        // [ipv6]:port
+        var m6 = s.match(/^\[([^\]]+)\](?::(\d+))?$/);
+        if (m6) return { host: m6[1], port: m6[2] ? parseInt(m6[2], 10) : null };
+        // host:port (only if exactly one colon and right side is digits)
+        var parts = s.split(':');
+        if (parts.length === 2 && /^\d+$/.test(parts[1])) {
+          return { host: parts[0], port: parseInt(parts[1], 10) };
+        }
+        // bare host or IPv6 without brackets — treat whole string as host
+        return { host: s, port: null };
       }
 
       function pyStr(s) {
@@ -6770,11 +6814,16 @@ ${optRules.join("\n")}
         return info.contents.map(function (c) { return c.text; }).join('');
       }
 
-      function generateScript(info, version) {
+      function generateScript(info, version, destOverride) {
         var sid  = info.options.sid || '0';
         var msg  = (info.options.msg || '').replace(/^"|"$/g, '');
         var dport = pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
         var dstIp = pickIp(info.dstIp, '127.0.0.1');
+        // Apply user-supplied Victim/Test Destination override (host and/or port).
+        if (destOverride) {
+          if (destOverride.host) dstIp = destOverride.host;
+          if (destOverride.port) dport = destOverride.port;
+        }
         var lines = [];
         var py = function (s) { lines.push(s); };
 
@@ -6901,22 +6950,44 @@ ${optRules.join("\n")}
         if (!firstLine) { setError('No rule found (only comments / blank lines).'); return; }
         var info = parseRule(firstLine);
         if (info.error) { setError('Parse error: ' + info.error); return; }
-        var ver = getVersion();
-        var res = generateScript(info, ver);
-        var summary = 'Parsed: proto=' + info.proto + ', dst=' + pickIp(info.dstIp,'127.0.0.1')
-                    + ':' + pickPort(info.dstPort, info.proto==='udp'?53:80)
+        var ver = detectVersion(firstLine);
+        var dest = parseDest(destEl ? destEl.value : '');
+        var res = generateScript(info, ver, dest);
+        var effectiveHost = dest.host || pickIp(info.dstIp, '127.0.0.1');
+        var effectivePort = dest.port || pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
+        var summary = 'Parsed: proto=' + info.proto
+                    + ', target=' + effectiveHost + ':' + effectivePort
+                    + (dest.host || dest.port ? ' (override)' : '')
                     + ', contents=' + info.contents.length
                     + (info.options.sid ? ', sid=' + info.options.sid : '')
-                    + ' (Snort ' + ver + ')';
+                    + ' — auto-detected Snort ' + ver;
         setOutput(res.script, res.sid, summary);
       });
 
       clearBtn.addEventListener('click', function () {
         inputEl.value = '';
+        if (destEl) destEl.value = '';
         outWrapEl.style.display = 'none';
         infoEl.textContent = '';
         outEl.textContent = '';
       });
+
+      // ── File upload: load .rules / .txt content into the textarea ────
+      if (loadFileBtn && fileInput) {
+        loadFileBtn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function (ev) {
+          var file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          var reader = new FileReader();
+          reader.onload = function () {
+            inputEl.value = String(reader.result || '');
+            infoEl.textContent = 'Loaded ' + file.name + ' (' + inputEl.value.length + ' chars). Click Generate.';
+          };
+          reader.onerror = function () { setError('Failed to read file: ' + file.name); };
+          reader.readAsText(file);
+          ev.target.value = '';
+        });
+      }
 
       copyBtn.addEventListener('click', function () {
         var t = outEl.textContent || '';
