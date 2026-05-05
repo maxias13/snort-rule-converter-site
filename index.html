@@ -429,14 +429,36 @@
     }
 
     .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      height: 36px;
       border: 1px solid var(--border-soft);
       color: #ecf8ff;
       background: linear-gradient(180deg, var(--secondary) 0%, var(--border-soft) 100%);
       border-radius: 8px;
-      padding: 9px 14px;
+      padding: 0 14px;
+      font-family: inherit;
+      font-size: 14px;
       font-weight: 600;
+      line-height: 1;
       cursor: pointer;
       transition: all 0.2s ease;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      height: 36px;
+      padding: 0 12px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      color: #ecf8ff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(15, 22, 41, 0.55);
     }
 
     .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(0, 102, 204, 0.34); }
