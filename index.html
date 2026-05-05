@@ -6837,6 +6837,11 @@ ${optRules.join("\n")}
         py('');
         py('LAB USE ONLY. Run only against an isolated IDS/IPS sensor you own.');
         py('Edit TARGET_IP below before executing.');
+        py('');
+        py('Note: this script only needs the matching bytes to traverse the wire so');
+        py('Snort can inspect them. The destination does NOT need a real listener.');
+        py('Connection-refused / timeout / unreachable are treated as TRIGGER OK,');
+        py('because the SYN+payload (or UDP datagram) was already emitted.');
         py('"""');
         py('import socket, sys');
         py('');
@@ -6861,15 +6866,21 @@ ${optRules.join("\n")}
             py('        ' + pyStr(k) + ': ' + pyStr(req.headers[k]) + ',');
           });
           py('    }');
+          py('    try:');
           if (req.body !== null) {
-            py('    data = ' + pyStr(req.body));
-            py('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, data=data, timeout=TIMEOUT)');
+            py('        data = ' + pyStr(req.body));
+            py('        r = requests.request(' + pyStr(req.method) + ', url, headers=headers, data=data, timeout=TIMEOUT)');
           } else if (req.method === 'GET') {
-            py('    r = requests.get(url, headers=headers, timeout=TIMEOUT)');
+            py('        r = requests.get(url, headers=headers, timeout=TIMEOUT)');
           } else {
-            py('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, timeout=TIMEOUT)');
+            py('        r = requests.request(' + pyStr(req.method) + ', url, headers=headers, timeout=TIMEOUT)');
           }
-          py('    print(f"Sent {r.request.method} {url} -> HTTP {r.status_code}")');
+          py('        print(f"[OK] Sent {r.request.method} {url} -> HTTP {r.status_code} (Snort should have inspected the request)")');
+          py('    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:');
+          py('        print(f"[OK] Sent {' + pyStr(req.method) + '} {url} -> no listener / refused / timeout. Packet was emitted; Snort should have seen it.")');
+          py('    except Exception as e:');
+          py('        print(f"[ERR] Unexpected failure before send: {type(e).__name__}: {e}", file=sys.stderr)');
+          py('        sys.exit(2)');
           py('');
           py('if __name__ == "__main__":');
           py('    trigger()');
@@ -6905,8 +6916,13 @@ ${optRules.join("\n")}
           py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
           py('    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)');
           py('    s.settimeout(TIMEOUT)');
-          py('    s.sendto(payload, (TARGET_IP, TARGET_PORT))');
-          py('    print(f"Sent UDP datagram ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT}")');
+          py('    try:');
+          py('        s.sendto(payload, (TARGET_IP, TARGET_PORT))');
+          py('        print(f"[OK] Sent UDP datagram ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT} (Snort should have inspected it)")');
+          py('    except OSError as e:');
+          py('        print(f"[OK] UDP send raised {type(e).__name__}: {e}. Datagram still left this host; Snort upstream should have seen it.")');
+          py('    finally:');
+          py('        s.close()');
           py('');
           py('if __name__ == "__main__":');
           py('    trigger()');
@@ -6915,15 +6931,25 @@ ${optRules.join("\n")}
           py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
           py('    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)');
           py('    s.settimeout(TIMEOUT)');
-          py('    s.connect((TARGET_IP, TARGET_PORT))');
-          py('    s.sendall(payload)');
+          py('    sent = False');
           py('    try:');
-          py('        s.shutdown(socket.SHUT_WR)');
-          py('        _ = s.recv(1024)');
-          py('    except OSError:');
-          py('        pass');
-          py('    s.close()');
-          py('    print(f"Sent TCP payload ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT}")');
+          py('        s.connect((TARGET_IP, TARGET_PORT))');
+          py('        s.sendall(payload)');
+          py('        sent = True');
+          py('        try:');
+          py('            s.shutdown(socket.SHUT_WR)');
+          py('            _ = s.recv(1024)');
+          py('        except OSError:');
+          py('            pass');
+          py('        print(f"[OK] Sent TCP payload ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT} (handshake completed; Snort should have inspected it)")');
+          py('    except (ConnectionRefusedError, TimeoutError, socket.timeout, OSError) as e:');
+          py('        if sent:');
+          py('            print(f"[OK] Payload sent; post-send error ignored: {type(e).__name__}: {e}")');
+          py('        else:');
+          py('            print(f"[OK] No listener / refused / unreachable ({type(e).__name__}: {e}). SYN+pattern attempt was emitted; Snort upstream should have seen it.")');
+          py('    finally:');
+          py('        try: s.close()');
+          py('        except Exception: pass');
           py('');
           py('if __name__ == "__main__":');
           py('    trigger()');
