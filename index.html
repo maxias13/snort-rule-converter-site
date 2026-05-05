@@ -1670,9 +1670,6 @@
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
           <div>
             <h3 style="margin:0 0 4px;"><span id="optimizerHeaderIcon">⚡</span> <span id="optimizerHeaderTitle">Rule Optimization — Snort 2</span></h3>
-            <p class="muted" style="margin:0; font-size:0.85rem;">
-              Select the rule version, paste local rules, and click Optimize to receive optimization suggestions covering performance, correctness, and best practices.
-            </p>
           </div>
         </div>
 
@@ -1811,14 +1808,6 @@ python3 trigger_rules.py --delay 1
       <div class="panel">
         <div style="margin-bottom:18px;">
           <h3 style="margin:0 0 6px;">🐍 Python Validator</h3>
-          <p class="muted" style="margin:0; font-size:0.9rem;">
-            Paste a single Snort 2 or Snort 3 rule (the version is auto-detected), or upload a
-            <code>.rules</code> / <code>.txt</code> file. Optionally specify a Victim/Test
-            Destination (host or <code>host:port</code>) — it will replace the <code>TARGET_IP</code>
-            in the generated script. Click <b>Generate</b> to produce a self-contained Python script
-            (stdlib <code>socket</code> + <code>requests</code>) that sends traffic designed to
-            trigger the rule for lab/IDS testing.
-          </p>
         </div>
 
         <div class="result-card" style="padding:18px; margin-bottom:18px;">
@@ -2024,7 +2013,6 @@ python3 trigger_rules.py --delay 1
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
           <div>
             <h3 style="margin:0 0 4px;"><span id="migrationTitle">🔀 Rules Migration</span></h3>
-            <p class="muted" id="migrationSubtitle" style="margin:0; font-size:0.85rem;">Convert Snort 2 rules to Snort 3 syntax (and vice-versa).</p>
           </div>
         </div>
         <div>
@@ -4972,15 +4960,11 @@ ${optRules.join("\n")}
       function setMigrationVersion(_v) {
         __migVersion = 2;
         const title = document.getElementById("migrationTitle");
-        const sub = document.getElementById("migrationSubtitle");
         const input = document.getElementById("migInput");
         const notice = document.getElementById("migNotice");
-        if (title) title.textContent = "🔀 Rules Migration — Snort 2 → Snort 3";
-        if (sub) sub.textContent = "Convert legacy Snort 2 built-in/local rules into optimized Snort 3 syntax.";
+        if (title) title.textContent = "🔀 Rules Migration";
         if (input) input.placeholder = "Paste Snort 2 rules here, one per line.";
-        if (notice) {
-          notice.innerHTML = "<strong>Direction:</strong> Snort 2 → Snort 3. SIDs are preserved when present; new buffers like <code>http_uri</code>/<code>http_header</code> replace deprecated <code>uricontent</code>/<code>http_*</code> modifiers automatically. Migrated rules are also optimized (deduped, normalized).";
-        }
+        if (notice) notice.innerHTML = "";
       }
 
       function runMigrationConvert() {
