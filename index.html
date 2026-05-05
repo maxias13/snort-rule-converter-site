@@ -6814,29 +6814,149 @@ ${optRules.join("\n")}
         return info.contents.map(function (c) { return c.text; }).join('');
       }
 
-      function generateScript(info, version, destOverride) {
-        var sid  = info.options.sid || '0';
-        var msg  = (info.options.msg || '').replace(/^"|"$/g, '');
-        var dport = pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
-        var dstIp = pickIp(info.dstIp, '127.0.0.1');
-        // Apply user-supplied Victim/Test Destination override (host and/or port).
-        if (destOverride) {
-          if (destOverride.host) dstIp = destOverride.host;
-          if (destOverride.port) dport = destOverride.port;
+      // Emit the per-rule body of `def trigger_<sid>(target_ip, target_port):`
+      // The function name, signature line, and docstring are emitted by the caller.
+      // This returns an array of indented body lines (already prefixed with 4 spaces).
+      function emitTriggerBody(info) {
+        var body = [];
+        var b = function (s) { body.push('    ' + s); };
+
+        if (isHttpRule(info)) {
+          var req = buildHttpRequest(info);
+          b('url = f"http://{target_ip}:{target_port}" + ' + pyStr(req.path));
+          b('headers = {');
+          b('    "User-Agent": ' + pyStr(req.ua) + ',');
+          Object.keys(req.headers).forEach(function (k) {
+            b('    ' + pyStr(k) + ': ' + pyStr(req.headers[k]) + ',');
+          });
+          b('}');
+          b('try:');
+          if (req.body !== null) {
+            b('    data = ' + pyStr(req.body));
+            b('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, data=data, timeout=TIMEOUT)');
+          } else if (req.method === 'GET') {
+            b('    r = requests.get(url, headers=headers, timeout=TIMEOUT)');
+          } else {
+            b('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, timeout=TIMEOUT)');
+          }
+          b('    print(f"  [OK] Sent {r.request.method} {url} -> HTTP {r.status_code} (Snort should have inspected the request)")');
+          b('    return True');
+          b('except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:');
+          b('    print(f"  [OK] Sent {' + pyStr(req.method) + '} {url} -> no listener / refused / timeout. Packet was emitted; Snort should have seen it.")');
+          b('    return True');
+          b('except Exception as e:');
+          b('    print(f"  [ERR] Unexpected failure before send: {type(e).__name__}: {e}", file=sys.stderr)');
+          b('    return False');
+        } else if (info.proto === 'icmp') {
+          b('if os.geteuid() != 0:');
+          b('    print("  [SKIP] ICMP trigger requires root (raw socket).", file=sys.stderr)');
+          b('    return False');
+          b('payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          b('header  = struct.pack("!BBHHH", 8, 0, 0, os.getpid() & 0xffff, 1)');
+          b('cksum   = _icmp_checksum(header + payload)');
+          b('pkt     = struct.pack("!BBHHH", 8, 0, cksum, os.getpid() & 0xffff, 1) + payload');
+          b('s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)');
+          b('s.settimeout(TIMEOUT)');
+          b('try:');
+          b('    s.sendto(pkt, (target_ip, 0))');
+          b('    print(f"  [OK] Sent ICMP echo ({len(pkt)} bytes) to {target_ip}")');
+          b('    return True');
+          b('except OSError as e:');
+          b('    print(f"  [OK] ICMP send raised {type(e).__name__}: {e}. Packet attempted; Snort upstream should have seen it.")');
+          b('    return True');
+          b('finally:');
+          b('    s.close()');
+        } else if (info.proto === 'udp') {
+          b('payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          b('s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)');
+          b('s.settimeout(TIMEOUT)');
+          b('try:');
+          b('    s.sendto(payload, (target_ip, target_port))');
+          b('    print(f"  [OK] Sent UDP datagram ({len(payload)} bytes) to {target_ip}:{target_port} (Snort should have inspected it)")');
+          b('    return True');
+          b('except OSError as e:');
+          b('    print(f"  [OK] UDP send raised {type(e).__name__}: {e}. Datagram still left this host; Snort upstream should have seen it.")');
+          b('    return True');
+          b('finally:');
+          b('    s.close()');
+        } else {
+          b('payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          b('s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)');
+          b('s.settimeout(TIMEOUT)');
+          b('sent = False');
+          b('try:');
+          b('    s.connect((target_ip, target_port))');
+          b('    s.sendall(payload)');
+          b('    sent = True');
+          b('    try:');
+          b('        s.shutdown(socket.SHUT_WR)');
+          b('        _ = s.recv(1024)');
+          b('    except OSError:');
+          b('        pass');
+          b('    print(f"  [OK] Sent TCP payload ({len(payload)} bytes) to {target_ip}:{target_port} (handshake completed; Snort should have inspected it)")');
+          b('    return True');
+          b('except (ConnectionRefusedError, TimeoutError, socket.timeout, OSError) as e:');
+          b('    if sent:');
+          b('        print(f"  [OK] Payload sent; post-send error ignored: {type(e).__name__}: {e}")');
+          b('    else:');
+          b('        print(f"  [OK] No listener / refused / unreachable ({type(e).__name__}: {e}). SYN+pattern attempt was emitted; Snort upstream should have seen it.")');
+          b('    return True');
+          b('finally:');
+          b('    try: s.close()');
+          b('    except Exception: pass');
         }
+        return body;
+      }
+
+      // Build a multi-rule trigger script.
+      // ruleEntries: array of { info, lineNo, raw }
+      // version: 'Snort 2'/'Snort 3' string
+      // destOverride: { host, port } or null
+      function generateMultiScript(ruleEntries, version, destOverride) {
         var lines = [];
         var py = function (s) { lines.push(s); };
 
+        // Per-rule effective target (override applied uniformly across ALL rules).
+        // SIDs are deduped by appending _<index> when collisions occur (and for SID=0).
+        var seenSids = {};
+        var perRule = ruleEntries.map(function (entry, idx) {
+          var info = entry.info;
+          var rawSid = (info.options && info.options.sid) ? String(info.options.sid) : '';
+          var baseSid = rawSid && /^\d+$/.test(rawSid) ? rawSid : ('rule' + (idx + 1));
+          var sidKey = baseSid;
+          if (seenSids[baseSid] != null) {
+            seenSids[baseSid] += 1;
+            sidKey = baseSid + '_' + seenSids[baseSid];
+          } else {
+            seenSids[baseSid] = 1;
+          }
+          var dport = pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
+          var dstIp = pickIp(info.dstIp, '127.0.0.1');
+          if (destOverride) {
+            if (destOverride.host) dstIp = destOverride.host;
+            if (destOverride.port) dport = destOverride.port;
+          }
+          var msg = (info.options && info.options.msg ? info.options.msg : '').replace(/^"|"$/g, '');
+          return {
+            info: info, sid: sidKey, rawSid: rawSid || '(no sid)',
+            msg: msg, dstIp: dstIp, dport: dport,
+            funcName: 'trigger_' + sidKey
+          };
+        });
+
+        var sidList = perRule.map(function (r) { return r.rawSid; }).join(', ');
+        var hasHttp = perRule.some(function (r) { return isHttpRule(r.info); });
+        var hasIcmp = perRule.some(function (r) { return r.info.proto === 'icmp'; });
+
         py('#!/usr/bin/env python3');
         py('"""');
-        py('Auto-generated trigger script for Snort ' + version + ' rule SID ' + sid + '.');
-        py('Rule: ' + msg);
-        py('');
-        py('Source rule:');
-        py('  ' + info.headerRaw + ' (...)');
+        py('Auto-generated multi-rule trigger script for Snort ' + version + '.');
+        py('Rules in this script (' + perRule.length + ' total): ' + sidList);
+        perRule.forEach(function (r) {
+          py('  - SID ' + r.rawSid + ': ' + (r.msg || '(no msg)'));
+        });
         py('');
         py('LAB USE ONLY. Run only against an isolated IDS/IPS sensor you own.');
-        py('Edit TARGET_IP below before executing.');
         py('');
         py('Note: this script only needs the matching bytes to traverse the wire so');
         py('Snort can inspect them. The destination does NOT need a real listener.');
@@ -6844,50 +6964,20 @@ ${optRules.join("\n")}
         py('because the SYN+payload (or UDP datagram) was already emitted.');
         py('"""');
         py('import socket, sys');
+        if (hasIcmp) py('import os, struct');
         py('');
-        py('TARGET_IP   = ' + pyStr(dstIp));
-        py('TARGET_PORT = ' + dport);
-        py('TIMEOUT     = 5');
+        py('TIMEOUT = 5');
         py('');
-
-        if (isHttpRule(info)) {
-          var req = buildHttpRequest(info);
+        if (hasHttp) {
           py('try:');
           py('    import requests');
           py('except ImportError:');
           py('    sys.stderr.write("This trigger needs the requests library: pip install requests\\n")');
           py('    sys.exit(1)');
           py('');
-          py('def trigger():');
-          py('    url = f"http://{TARGET_IP}:{TARGET_PORT}" + ' + pyStr(req.path));
-          py('    headers = {');
-          py('        "User-Agent": ' + pyStr(req.ua) + ',');
-          Object.keys(req.headers).forEach(function (k) {
-            py('        ' + pyStr(k) + ': ' + pyStr(req.headers[k]) + ',');
-          });
-          py('    }');
-          py('    try:');
-          if (req.body !== null) {
-            py('        data = ' + pyStr(req.body));
-            py('        r = requests.request(' + pyStr(req.method) + ', url, headers=headers, data=data, timeout=TIMEOUT)');
-          } else if (req.method === 'GET') {
-            py('        r = requests.get(url, headers=headers, timeout=TIMEOUT)');
-          } else {
-            py('        r = requests.request(' + pyStr(req.method) + ', url, headers=headers, timeout=TIMEOUT)');
-          }
-          py('        print(f"[OK] Sent {r.request.method} {url} -> HTTP {r.status_code} (Snort should have inspected the request)")');
-          py('    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:');
-          py('        print(f"[OK] Sent {' + pyStr(req.method) + '} {url} -> no listener / refused / timeout. Packet was emitted; Snort should have seen it.")');
-          py('    except Exception as e:');
-          py('        print(f"[ERR] Unexpected failure before send: {type(e).__name__}: {e}", file=sys.stderr)');
-          py('        sys.exit(2)');
-          py('');
-          py('if __name__ == "__main__":');
-          py('    trigger()');
-        } else if (info.proto === 'icmp') {
-          py('import os, struct');
-          py('');
-          py('def icmp_checksum(pkt):');
+        }
+        if (hasIcmp) {
+          py('def _icmp_checksum(pkt):');
           py('    s = 0');
           py('    for i in range(0, len(pkt) - 1, 2):');
           py('        s += (pkt[i] << 8) + pkt[i + 1]');
@@ -6897,70 +6987,67 @@ ${optRules.join("\n")}
           py('    s += s >> 16');
           py('    return (~s) & 0xffff');
           py('');
-          py('def trigger():');
-          py('    if os.geteuid() != 0:');
-          py('        sys.stderr.write("ICMP trigger requires root (raw socket).\\n"); sys.exit(1)');
-          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
-          py('    header  = struct.pack("!BBHHH", 8, 0, 0, os.getpid() & 0xffff, 1)');
-          py('    cksum   = icmp_checksum(header + payload)');
-          py('    pkt     = struct.pack("!BBHHH", 8, 0, cksum, os.getpid() & 0xffff, 1) + payload');
-          py('    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)');
-          py('    s.settimeout(TIMEOUT)');
-          py('    s.sendto(pkt, (TARGET_IP, 0))');
-          py('    print(f"Sent ICMP echo ({len(pkt)} bytes) to {TARGET_IP}")');
-          py('');
-          py('if __name__ == "__main__":');
-          py('    trigger()');
-        } else if (info.proto === 'udp') {
-          py('def trigger():');
-          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
-          py('    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)');
-          py('    s.settimeout(TIMEOUT)');
-          py('    try:');
-          py('        s.sendto(payload, (TARGET_IP, TARGET_PORT))');
-          py('        print(f"[OK] Sent UDP datagram ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT} (Snort should have inspected it)")');
-          py('    except OSError as e:');
-          py('        print(f"[OK] UDP send raised {type(e).__name__}: {e}. Datagram still left this host; Snort upstream should have seen it.")');
-          py('    finally:');
-          py('        s.close()');
-          py('');
-          py('if __name__ == "__main__":');
-          py('    trigger()');
-        } else {
-          py('def trigger():');
-          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
-          py('    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)');
-          py('    s.settimeout(TIMEOUT)');
-          py('    sent = False');
-          py('    try:');
-          py('        s.connect((TARGET_IP, TARGET_PORT))');
-          py('        s.sendall(payload)');
-          py('        sent = True');
-          py('        try:');
-          py('            s.shutdown(socket.SHUT_WR)');
-          py('            _ = s.recv(1024)');
-          py('        except OSError:');
-          py('            pass');
-          py('        print(f"[OK] Sent TCP payload ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT} (handshake completed; Snort should have inspected it)")');
-          py('    except (ConnectionRefusedError, TimeoutError, socket.timeout, OSError) as e:');
-          py('        if sent:');
-          py('            print(f"[OK] Payload sent; post-send error ignored: {type(e).__name__}: {e}")');
-          py('        else:');
-          py('            print(f"[OK] No listener / refused / unreachable ({type(e).__name__}: {e}). SYN+pattern attempt was emitted; Snort upstream should have seen it.")');
-          py('    finally:');
-          py('        try: s.close()');
-          py('        except Exception: pass');
-          py('');
-          py('if __name__ == "__main__":');
-          py('    trigger()');
         }
 
-        return { script: lines.join('\n') + '\n', sid: sid, msg: msg };
+        // Per-rule trigger functions.
+        perRule.forEach(function (r) {
+          py('def ' + r.funcName + '(target_ip=' + pyStr(r.dstIp) + ', target_port=' + r.dport + '):');
+          py('    """SID ' + r.rawSid + ' — ' + (r.msg ? r.msg.replace(/"/g, "'") : '(no msg)') + '"""');
+          var bodyLines = emitTriggerBody(r.info);
+          bodyLines.forEach(function (bl) { py(bl); });
+          py('');
+        });
+
+        // Registry + main loop.
+        py('TRIGGERS = [');
+        perRule.forEach(function (r) {
+          py('    (' + pyStr(r.rawSid) + ', ' + r.funcName + ', ' + pyStr(r.dstIp) + ', ' + r.dport + '),');
+        });
+        py(']');
+        py('');
+        py('def main(argv):');
+        py('    selected = None');
+        py('    if len(argv) > 1 and argv[1] not in ("--all", "-a"):');
+        py('        selected = set(a for a in argv[1:] if not a.startswith("-"))');
+        py('    ok = 0');
+        py('    fail = 0');
+        py('    skipped = 0');
+        py('    for sid, fn, ip, port in TRIGGERS:');
+        py('        if selected and sid not in selected:');
+        py('            skipped += 1');
+        py('            continue');
+        py('        print(f"--- SID {sid} -> {ip}:{port} ---")');
+        py('        try:');
+        py('            result = fn(ip, port)');
+        py('            if result:');
+        py('                ok += 1');
+        py('            else:');
+        py('                fail += 1');
+        py('        except Exception as e:');
+        py('            print(f"  [ERR] {type(e).__name__}: {e}", file=sys.stderr)');
+        py('            fail += 1');
+        py('    total = ok + fail');
+        py('    print(f"=== Summary: {ok}/{total} triggered OK, {fail} errors, {skipped} skipped ===")');
+        py('    return 0 if fail == 0 else 2');
+        py('');
+        py('if __name__ == "__main__":');
+        py('    sys.exit(main(sys.argv))');
+
+        return {
+          script: lines.join('\n') + '\n',
+          count: perRule.length,
+          sids: perRule.map(function (r) { return r.rawSid; }),
+          firstSid: perRule.length ? perRule[0].sid : '0'
+        };
       }
 
-      function setOutput(text, sid, summary) {
+      function setOutput(text, sid, summary, count) {
         outEl.textContent = text;
-        outNameEl.textContent = sid && sid !== '0' ? '— trigger_' + sid + '.py' : '';
+        if (count && count > 1) {
+          outNameEl.textContent = '— snort_triggers_' + count + 'rules.py';
+        } else {
+          outNameEl.textContent = sid && sid !== '0' ? '— trigger_' + sid + '.py' : '';
+        }
         outWrapEl.style.display = '';
         infoEl.textContent = summary || '';
       }
@@ -6972,22 +7059,37 @@ ${optRules.join("\n")}
       genBtn.addEventListener('click', function () {
         var text = (inputEl.value || '').trim();
         if (!text) { setError('Paste a Snort rule first.'); return; }
-        var firstLine = text.split(/\r?\n/).filter(function (l) { return l.trim() && l.trim().charAt(0) !== '#'; })[0];
-        if (!firstLine) { setError('No rule found (only comments / blank lines).'); return; }
-        var info = parseRule(firstLine);
-        if (info.error) { setError('Parse error: ' + info.error); return; }
-        var ver = detectVersion(firstLine);
+        var allLines = text.split(/\r?\n/);
+        var ruleEntries = [];
+        var parseErrors = [];
+        var firstLineForVersion = null;
+        allLines.forEach(function (line, idx) {
+          var t = line.trim();
+          if (!t || t.charAt(0) === '#') return;
+          if (firstLineForVersion === null) firstLineForVersion = t;
+          var info = parseRule(t);
+          if (info.error) {
+            parseErrors.push('Line ' + (idx + 1) + ': ' + info.error);
+            return;
+          }
+          ruleEntries.push({ info: info, lineNo: idx + 1, raw: t });
+        });
+        if (!ruleEntries.length) {
+          setError('No valid rules found. ' + (parseErrors.length ? parseErrors.join(' | ') : 'Only comments / blank lines.'));
+          return;
+        }
+        var ver = detectVersion(firstLineForVersion || '');
         var dest = parseDest(destEl ? destEl.value : '');
-        var res = generateScript(info, ver, dest);
-        var effectiveHost = dest.host || pickIp(info.dstIp, '127.0.0.1');
-        var effectivePort = dest.port || pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
-        var summary = 'Parsed: proto=' + info.proto
-                    + ', target=' + effectiveHost + ':' + effectivePort
-                    + (dest.host || dest.port ? ' (override)' : '')
-                    + ', contents=' + info.contents.length
-                    + (info.options.sid ? ', sid=' + info.options.sid : '')
-                    + ' — auto-detected Snort ' + ver;
-        setOutput(res.script, res.sid, summary);
+        var res = generateMultiScript(ruleEntries, ver, dest);
+        var effectiveHostNote = dest.host || dest.port
+          ? 'override host=' + (dest.host || '(parsed)') + ' port=' + (dest.port || '(parsed)')
+          : 'using per-rule parsed dst';
+        var summary = 'Generated triggers for ' + res.count + ' rule(s)'
+                    + ' [SIDs: ' + res.sids.join(', ') + ']'
+                    + ' — ' + effectiveHostNote
+                    + ' — auto-detected ' + ver
+                    + (parseErrors.length ? ' — skipped ' + parseErrors.length + ' invalid line(s)' : '');
+        setOutput(res.script, res.firstSid, summary, res.count);
       });
 
       clearBtn.addEventListener('click', function () {
