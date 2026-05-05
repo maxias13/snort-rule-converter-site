@@ -450,6 +450,14 @@
       background: linear-gradient(180deg, #946100 0%, #674500 100%);
     }
 
+    .btn.cyan {
+      border-color: #0a8fb3;
+      background: linear-gradient(180deg, #00bceb 0%, #0a8fb3 100%);
+      color: #0a1122;
+      font-weight: 700;
+    }
+    .btn.cyan:hover { box-shadow: 0 6px 14px rgba(0, 188, 235, 0.45); }
+
     .view { display: none; }
     .view.active {
       display: flex;
@@ -479,19 +487,20 @@
       gap: 12px;
     }
 
-    .textarea {
-      width: 100%;
-      min-height: 320px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #0a1122;
-      color: var(--text);
-      padding: 12px 14px;
-      resize: vertical;
-      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
-      font-size: 0.85rem;
-      line-height: 1.55;
-    }
+     .textarea {
+       width: 100%;
+       min-height: 320px;
+       box-sizing: border-box;
+       border: 1px solid var(--border);
+       border-radius: 10px;
+       background: #0a1122;
+       color: var(--text);
+       padding: 12px 14px;
+       resize: vertical;
+       font-family: "Courier New", Courier, monospace;
+       font-size: 0.85rem;
+       line-height: 1.55;
+     }
 
     .textarea:focus {
       outline: none;
@@ -746,20 +755,22 @@
     .opt-section.collapsed .opt-section-title .opt-caret { transform: rotate(-90deg); }
     .opt-section.collapsed .opt-section-body { display: none; }
 
-    .opt-code {
-      position: relative;
-      margin: 0;
-      padding: 12px 56px 12px 14px;
-      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
-      font-size: 0.85rem;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      word-break: break-all;
-      background: #0a1122;
-      color: var(--code-text);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-    }
+     .opt-code {
+       position: relative;
+       margin: 0;
+       padding: 12px 56px 12px 14px;
+       box-sizing: border-box;
+       width: 100%;
+       font-family: "Courier New", Courier, monospace;
+       font-size: 0.85rem;
+       line-height: 1.55;
+       white-space: pre-wrap;
+       word-break: break-all;
+       background: #0a1122;
+       color: var(--code-text);
+       border-radius: 10px;
+       border: 1px solid var(--border);
+     }
     .opt-code-original {
       color: #cdb160;
       background: #11161f;
@@ -1660,7 +1671,7 @@
           <span id="optRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
           <button class="btn success hidden" id="optDownloadBtn">&#8595; Download Annotated .Rules</button>
           <button class="btn warn hidden" id="optDownloadCleanBtn">&#8595; Download Optimized .Rules</button>
-          <button class="btn primary hidden" id="optDownloadHtmlBtn" style="background:var(--cyan-light); color:#0a1122;">&#8595; Download HTML Report</button>
+          <button class="btn cyan hidden" id="optDownloadHtmlBtn">&#8595; Download HTML Report</button>
         </div>
 
         <div class="drop-zone" id="optDropZone">
@@ -3476,7 +3487,7 @@ if __name__ == "__main__":
               <button data-copy-id="${allId}"
                 style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
             </div>
-            <pre id="${allId}" style="margin:0; padding:12px 14px; font-family:Consolas, Monaco, Menlo, 'Liberation Mono', monospace; font-size:0.85rem; line-height:1.55; white-space:pre-wrap; word-break:break-all; background:#0a1122; color:var(--code-text); border-radius:10px; border:1px solid var(--border);">${escapeHtml(allText)}</pre>
+            <pre id="${allId}" style="margin:0; padding:12px 14px; box-sizing:border-box; width:100%; font-family:'Courier New', Courier, monospace; font-size:0.85rem; line-height:1.55; white-space:pre-wrap; word-break:break-all; background:#0a1122; color:var(--code-text); border-radius:10px; border:1px solid var(--border);">${escapeHtml(allText)}</pre>
           </div>`;
         }
 
