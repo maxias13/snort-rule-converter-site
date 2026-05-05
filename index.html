@@ -508,6 +508,20 @@
       box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.45), 0 0 14px rgba(0, 212, 255, 0.2);
     }
 
+    /* Unified font for ALL user-input fields (textarea, text/number/search inputs, selects).
+       File inputs and password inputs are excluded since they don't show typed text. */
+    textarea,
+    input[type="text"],
+    input[type="number"],
+    input[type="search"],
+    input[type="email"],
+    input[type="url"],
+    input:not([type]),
+    select {
+      font-family: "Courier New", Courier, monospace !important;
+      font-size: 0.85rem !important;
+    }
+
     .drop-zone { position: relative; }
 
     .drop-zone.drag-over .textarea {
