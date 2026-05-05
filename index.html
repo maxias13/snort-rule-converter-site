@@ -486,11 +486,11 @@
       border-radius: 10px;
       background: #0a1122;
       color: var(--text);
-      padding: 12px;
+      padding: 12px 14px;
       resize: vertical;
       font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
-      font-size: 0.88rem;
-      line-height: 1.45;
+      font-size: 0.85rem;
+      line-height: 1.55;
     }
 
     .textarea:focus {
@@ -749,16 +749,16 @@
     .opt-code {
       position: relative;
       margin: 0;
-      padding: 10px 56px 10px 14px;
-      font-family: Consolas, Monaco, Menlo, monospace;
-      font-size: 0.8rem;
-      line-height: 1.5;
+      padding: 12px 56px 12px 14px;
+      font-family: Consolas, Monaco, Menlo, "Liberation Mono", monospace;
+      font-size: 0.85rem;
+      line-height: 1.55;
       white-space: pre-wrap;
       word-break: break-all;
-      background: #0b1220;
+      background: #0a1122;
       color: var(--code-text);
-      border-radius: 8px;
-      border: 1px solid #1e293b;
+      border-radius: 10px;
+      border: 1px solid var(--border);
     }
     .opt-code-original {
       color: #cdb160;
@@ -1660,6 +1660,7 @@
           <span id="optRuleCountBadge" class="muted" style="font-size:0.82rem;"></span>
           <button class="btn success hidden" id="optDownloadBtn">&#8595; Download Annotated .Rules</button>
           <button class="btn warn hidden" id="optDownloadCleanBtn">&#8595; Download Optimized .Rules</button>
+          <button class="btn primary hidden" id="optDownloadHtmlBtn" style="background:var(--cyan-light); color:#0a1122;">&#8595; Download HTML Report</button>
         </div>
 
         <div class="drop-zone" id="optDropZone">
@@ -2762,6 +2763,7 @@ if __name__ == "__main__":
         optRuleCountBadge: document.getElementById("optRuleCountBadge"),
         optDownloadBtn: document.getElementById("optDownloadBtn"),
         optDownloadCleanBtn: document.getElementById("optDownloadCleanBtn"),
+        optDownloadHtmlBtn: document.getElementById("optDownloadHtmlBtn"),
         optVersionSnort2: document.getElementById("optVersionSnort2"),
         optVersionSnort3: document.getElementById("optVersionSnort3"),
         sruLoadBtn: document.getElementById("sruLoadBtn"),
@@ -2918,11 +2920,13 @@ if __name__ == "__main__":
           el.optResults.innerHTML = "";
           el.optDownloadBtn.classList.add("hidden");
           el.optDownloadCleanBtn.classList.add("hidden");
+          el.optDownloadHtmlBtn?.classList.add("hidden");
           updateOptRuleCount();
         });
         el.optimizeBtn?.addEventListener("click", runOptimize);
         el.optDownloadBtn?.addEventListener("click", downloadAnnotatedRules);
         el.optDownloadCleanBtn?.addEventListener("click", downloadOptimizedRules);
+        el.optDownloadHtmlBtn?.addEventListener("click", downloadHtmlReport);
 
         // ── Section collapse toggle inside optResults ────────────────────
         el.optResults?.addEventListener("click", function(e) {
@@ -3472,7 +3476,7 @@ if __name__ == "__main__":
               <button data-copy-id="${allId}"
                 style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
             </div>
-            <pre id="${allId}" style="margin:0; padding:12px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:var(--code-text); border-radius:8px; border:1px solid #1e293b;">${escapeHtml(allText)}</pre>
+            <pre id="${allId}" style="margin:0; padding:12px 14px; font-family:Consolas, Monaco, Menlo, 'Liberation Mono', monospace; font-size:0.85rem; line-height:1.55; white-space:pre-wrap; word-break:break-all; background:#0a1122; color:var(--code-text); border-radius:10px; border:1px solid var(--border);">${escapeHtml(allText)}</pre>
           </div>`;
         }
 
@@ -3599,6 +3603,7 @@ if __name__ == "__main__":
         el.optResults.innerHTML = html;
         el.optDownloadBtn.classList.remove("hidden");
         el.optDownloadCleanBtn.classList.remove("hidden");
+        el.optDownloadHtmlBtn?.classList.remove("hidden");
       }
 
       function downloadAnnotatedRules() {
@@ -3959,6 +3964,80 @@ if __name__ == "__main__":
         a.href     = url;
         a.download = `optimized_rules_${ts}.rules`;
         a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function downloadHtmlReport() {
+        if (!el.optResults || !el.optResults.innerHTML.trim()) return;
+
+        const now = new Date();
+        const tsFile = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+        const tsHuman = now.toISOString().replace("T"," ").substring(0,19) + " UTC";
+        const version = (typeof optVersion !== "undefined") ? optVersion : 2;
+
+        // Extract relevant CSS from page <style> tags (all .opt-* rules + :root vars + base body styles)
+        let allCss = "";
+        document.querySelectorAll("style").forEach(s => { allCss += s.textContent + "\n"; });
+
+        // Pull :root variables block
+        const rootMatch = allCss.match(/:root\s*\{[^}]*\}/);
+        const rootBlock = rootMatch ? rootMatch[0] : ":root{--bg:#0a1122;--panel:#0f1830;--border:#27345f;--text:#e7ecf3;--text-dim:#9aa6c2;--cyan:#00bceb;--cyan-light:#5ed3f3;--green:#27ae60;--orange:#f39c12;--red:#e74c3c;--blue:#3498db;}";
+
+        // Extract all .opt-* rules and rules referencing copy-btn / hidden / chip / muted
+        const optRules = [];
+        const ruleRegex = /([^{}]+\{[^{}]*\})/g;
+        let m;
+        while ((m = ruleRegex.exec(allCss)) !== null) {
+          const rule = m[1].trim();
+          if (/(\.opt-|\.copy-btn|\.chip|\.muted|\.hidden|\.btn|kbd)/.test(rule.split("{")[0])) {
+            optRules.push(rule);
+          }
+        }
+
+        const ruleCount = el.optResults.querySelectorAll(".opt-rule-block").length;
+        const reportBody = el.optResults.innerHTML;
+
+        const html = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Snort ${version} Optimization Report - ${tsHuman}</title>
+<style>
+${rootBlock}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.55;}
+.report-header{padding:24px 32px;background:linear-gradient(135deg,#0a1122 0%,#0f1830 100%);border-bottom:2px solid var(--cyan);}
+.report-header h1{margin:0 0 8px;color:var(--cyan-light);font-size:1.6rem;font-weight:600;}
+.report-meta{display:flex;flex-wrap:wrap;gap:18px;color:var(--text-dim);font-size:0.85rem;}
+.report-meta strong{color:var(--text);}
+.report-body{padding:24px 32px;max-width:1400px;margin:0 auto;}
+.report-footer{padding:20px 32px;border-top:1px solid var(--border);color:var(--text-dim);font-size:0.78rem;text-align:center;}
+${optRules.join("\n")}
+</style>
+</head>
+<body>
+<div class="report-header">
+  <h1>Snort ${version} Rule Optimization Report</h1>
+  <div class="report-meta">
+    <span><strong>Generated:</strong> ${tsHuman}</span>
+    <span><strong>Snort Version:</strong> ${version}</span>
+    <span><strong>Rules Analyzed:</strong> ${ruleCount}</span>
+    <span><strong>Source:</strong> Cisco FMC Snort Rule Optimizer</span>
+  </div>
+</div>
+<main class="report-body">${reportBody}</main>
+<div class="report-footer">Generated by snort-rule-converter-site &middot; ${tsHuman}</div>
+</body>
+</html>`;
+
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `snort${version}_optimization_report_${tsFile}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
 
