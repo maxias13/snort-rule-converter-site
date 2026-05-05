@@ -2017,7 +2017,7 @@ python3 trigger_rules.py --delay 1
           </div>
         </div>
         <div>
-          <div class="grid-2">
+          <div class="grid-2" style="gap:32px;">
             <div>
               <label class="field-label" for="migInput">Input rules</label>
               <textarea id="migInput" class="textarea" rows="14" placeholder="Paste Snort 2 rules here, one per line."></textarea>
@@ -2031,7 +2031,7 @@ python3 trigger_rules.py --delay 1
                 <span class="badge" id="migCountBadge">0 rules</span>
               </div>
             </div>
-            <div>
+            <div style="padding-left:12px;">
               <label class="field-label" for="migOutput">Output rules</label>
               <textarea id="migOutput" class="textarea" rows="14" placeholder="Converted rules will appear here." readonly></textarea>
               <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
@@ -5552,9 +5552,10 @@ ${optRules.join("\n")}
         const warnings = [];
         const originalHasActivates = options.some((o) => optionKeyword(o) === "activates") || options.some((o) => optionKeyword(o) === "activated_by");
 
-        // ── PASS 0a: Header transformations (snort2-to-3-migration-tool skill) ──
+        // ── PASS 0a: Header transformations ──
         // - action mapping: drop/sdrop → block
-        // - destination negated variable: !$VAR → any (Snort 3 incompatible header)
+        // NOTE: Snort 3 supports negated IP variables in headers (per docs.snort.org/rules/headers/ips),
+        //       so !$VAR is preserved as-is.
         let header = parsed.header;
         const headerParts = header.split(/\s+/);
         if (headerParts.length === 7) {
@@ -5562,12 +5563,6 @@ ${optRules.join("\n")}
           if (actionLower === "drop" || actionLower === "sdrop") {
             warnings.push(`action '${headerParts[0]}' converted to 'block' (Snort 3 action model)`);
             headerParts[0] = "block";
-            changeCount += 1;
-          }
-          // headerParts[5] is dst IP (action proto src srcport -> dst dstport)
-          if (/^!\$[A-Z_][A-Z0-9_]*$/i.test(headerParts[5])) {
-            warnings.push(`destination negated variable '${headerParts[5]}' replaced with 'any' (Snort 3 header incompatibility)`);
-            headerParts[5] = "any";
             changeCount += 1;
           }
           header = headerParts.join(" ");
