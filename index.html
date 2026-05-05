@@ -678,56 +678,206 @@
     }
 
     /* ── Rule Optimization ── */
+    /* ─── Optimizer Result Cards (clean template v2) ───────────────── */
     .opt-rule-block {
       border: 1px solid var(--border);
       border-radius: 10px;
       margin-bottom: 14px;
       overflow: hidden;
+      background: rgba(8, 16, 28, 0.4);
     }
-    .opt-rule-header {
-      padding: 8px 12px;
-      background: rgba(0, 60, 100, 0.25);
+    .opt-rule-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, rgba(0,80,130,0.32) 0%, rgba(0,60,100,0.18) 100%);
       border-bottom: 1px solid var(--border);
-      font-family: Consolas, Monaco, Menlo, monospace;
-      font-size: 0.82rem;
-      color: #f5c842;
-      overflow: hidden;
-      cursor: default;
     }
-    .opt-rule-header span {
-      display: block;
+    .opt-rule-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: var(--primary);
+      letter-spacing: 0.02em;
+    }
+    .opt-rule-summary { display: flex; gap: 6px; flex-wrap: wrap; }
+    .opt-chip {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid;
+      line-height: 1.4;
+    }
+    .opt-chip.warn  { color: #e0a040; border-color: #6e4810; background: rgba(180,120,40,0.15); }
+    .opt-chip.perf  { color: #e08080; border-color: #6e2a2a; background: rgba(180,60,60,0.15); }
+    .opt-chip.info  { color: var(--cyan-soft); border-color: var(--border-soft); background: rgba(60,140,190,0.12); }
+    .opt-chip.ok    { color: #50d090; border-color: #1a5038; background: rgba(50,160,90,0.12); }
+    .opt-chip.fix   { color: #f5c842; border-color: #6a5010; background: rgba(245,200,66,0.12); }
+    .opt-chip.mismatch { color: #ff7070; border-color: #6e1e1e; background: rgba(220,70,70,0.18); }
+
+    .opt-section {
+      border-top: 1px solid var(--border-soft);
+      padding: 10px 14px;
+    }
+    .opt-section:first-child { border-top: none; }
+    .opt-section-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin: 0 0 8px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .opt-section-title .opt-caret {
+      display: inline-block;
+      transition: transform 0.15s ease;
+      font-size: 0.7rem;
+      color: var(--cyan-soft);
+    }
+    .opt-section.collapsed .opt-section-title .opt-caret { transform: rotate(-90deg); }
+    .opt-section.collapsed .opt-section-body { display: none; }
+
+    .opt-code {
+      position: relative;
+      margin: 0;
+      padding: 10px 56px 10px 14px;
+      font-family: Consolas, Monaco, Menlo, monospace;
+      font-size: 0.8rem;
+      line-height: 1.5;
       white-space: pre-wrap;
       word-break: break-all;
+      background: #0b1220;
+      color: var(--code-text);
+      border-radius: 8px;
+      border: 1px solid #1e293b;
     }
-    .opt-rule-body { padding: 10px 12px; }
-    .opt-item {
+    .opt-code-original {
+      color: #cdb160;
+      background: #11161f;
+      border-color: #2a2410;
+    }
+    .opt-copy-inline {
+      position: absolute;
+      top: 7px;
+      right: 8px;
+      background: rgba(255,255,255,0.08);
+      color: var(--cyan-light);
+      border: 1px solid rgba(155,238,255,0.2);
+      border-radius: 4px;
+      padding: 3px 9px;
+      font-size: 0.74rem;
+      cursor: pointer;
+    }
+    .opt-copy-inline:hover { background: rgba(255,255,255,0.16); }
+
+    .opt-fix-list {
+      margin: 0 0 10px 0;
+      padding: 8px 12px;
+      background: rgba(245,200,66,0.06);
+      border: 1px solid rgba(245,200,66,0.18);
+      border-radius: 6px;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .opt-fix-list ul { margin: 0; padding-left: 18px; }
+    .opt-fix-list li { padding: 1px 0; color: #d4c080; }
+
+    .opt-finding {
       display: flex;
       gap: 10px;
       align-items: flex-start;
-      padding: 7px 0;
-      border-bottom: 1px solid rgba(30, 58, 95, 0.5);
-      font-size: 0.875rem;
-      line-height: 1.45;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      background: rgba(255,255,255,0.015);
+      border: 1px solid var(--border-soft);
+      margin-bottom: 6px;
     }
-    .opt-item:last-child { border-bottom: none; }
-    .opt-badge {
+    .opt-finding:last-child { margin-bottom: 0; }
+    .opt-finding-icon {
       flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid;
+      font-weight: 800;
       margin-top: 1px;
     }
-    .opt-badge.perf  { color: #d98080; border-color: #5e2a2a; background: rgba(180,60,60,0.12); }
-    .opt-badge.warn  { color: #c9913a; border-color: #5e3e10; background: rgba(180,120,40,0.12); }
-    .opt-badge.info  { color: var(--cyan-soft); border-color: var(--border-soft); background: rgba(60,140,190,0.1); }
-    .opt-badge.ok    { color: #50a878; border-color: #1a5038; background: rgba(50,140,90,0.1); }
+    .opt-finding.warn .opt-finding-icon { background: rgba(180,120,40,0.25); color: #e0a040; }
+    .opt-finding.perf .opt-finding-icon { background: rgba(180,60,60,0.25);  color: #e08080; }
+    .opt-finding.info .opt-finding-icon { background: rgba(60,140,190,0.22); color: var(--cyan-soft); }
+    .opt-finding-msg { flex: 1; color: var(--text); }
+    .opt-finding-fix {
+      display: block;
+      margin-top: 4px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .opt-finding-fix code {
+      color: var(--cyan-soft);
+      background: rgba(0,212,255,0.08);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 0.78rem;
+    }
+
+    .opt-mismatch {
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--error);
+      background: rgba(255,68,68,0.1);
+      color: var(--error);
+      font-size: 0.86rem;
+      margin-bottom: 10px;
+    }
+
     .opt-rule-ok {
-      color: #50a878;
-      font-size: 0.875rem;
+      color: #50d090;
+      font-size: 0.86rem;
+      padding: 8px 12px;
+      background: rgba(50,160,90,0.08);
+      border: 1px solid rgba(50,160,90,0.25);
+      border-radius: 6px;
+    }
+
+    .opt-detail-row {
+      display: flex;
+      gap: 10px;
       padding: 6px 0;
+      border-bottom: 1px solid rgba(30,58,95,0.35);
+      font-size: 0.83rem;
+    }
+    .opt-detail-row:last-child { border-bottom: none; }
+    .opt-detail-kw {
+      min-width: 130px;
+      flex-shrink: 0;
+      font-family: Consolas, Monaco, Menlo, monospace;
+      color: var(--cyan-soft);
+      font-weight: 600;
+    }
+    .opt-detail-cat {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-right: 6px;
+    }
+    .opt-detail-note {
+      display: block;
+      margin-top: 3px;
+      color: var(--warn);
+      font-size: 0.78rem;
     }
 
     /* ── Snort 3 Writing Guide ── */
@@ -2774,6 +2924,15 @@ if __name__ == "__main__":
         el.optDownloadBtn?.addEventListener("click", downloadAnnotatedRules);
         el.optDownloadCleanBtn?.addEventListener("click", downloadOptimizedRules);
 
+        // ── Section collapse toggle inside optResults ────────────────────
+        el.optResults?.addEventListener("click", function(e) {
+          const title = e.target.closest(".opt-section-title");
+          if (title && !e.target.closest("[data-copy-id]")) {
+            const section = title.closest(".opt-section");
+            if (section) section.classList.toggle("collapsed");
+          }
+        });
+
         // ── Copy buttons inside optResults (event delegation) ────────────
         el.optResults?.addEventListener("click", function(e) {
           const btn = e.target.closest("[data-copy-id]");
@@ -3325,75 +3484,116 @@ if __name__ == "__main__":
         analyzed.forEach(({ trimmed, mismatch, suggestions, explanation, fixedRule, autoFixes }, idx) => {
           const label = `Rule ${idx + 1}`;
           const ruleId = `opt-rule-out-${idx}`;
+          const origId = `opt-rule-orig-${idx}`;
+
+          // Group findings by severity for cleaner display
+          const byLevel = { warn: [], perf: [], info: [] };
+          suggestions.forEach(s => { (byLevel[s.level] || byLevel.info).push(s); });
+          const counts = {
+            warn: byLevel.warn.length,
+            perf: byLevel.perf.length,
+            info: byLevel.info.length,
+            fix:  autoFixes.length,
+          };
+
+          // ── Title bar with summary chips ─────────────────────────────
+          const summaryChips = [
+            counts.fix  ? `<span class="opt-chip fix">${counts.fix} FIX</span>` : "",
+            counts.warn ? `<span class="opt-chip warn">${counts.warn} WARN</span>` : "",
+            counts.perf ? `<span class="opt-chip perf">${counts.perf} PERF</span>` : "",
+            counts.info ? `<span class="opt-chip info">${counts.info} INFO</span>` : "",
+            mismatch    ? `<span class="opt-chip mismatch">VERSION MISMATCH</span>` : "",
+            (!suggestions.length && !mismatch && !autoFixes.length)
+              ? `<span class="opt-chip ok">OPTIMAL</span>` : "",
+          ].filter(Boolean).join("");
 
           html += `<div class="opt-rule-block">
-            <div class="opt-rule-header">${escapeHtml(label)}: <span>${escapeHtml(trimmed)}</span></div>
-            <div class="opt-rule-body">`;
+            <div class="opt-rule-titlebar">
+              <div class="opt-rule-title">${escapeHtml(label)}</div>
+              <div class="opt-rule-summary">${summaryChips}</div>
+            </div>`;
 
-          // ── Optimized Rule — shown FIRST inside each block (Snort 2 & Snort 3) ──
-          {
-            html += `<div style="margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid var(--border);">
-              <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:6px; letter-spacing:0.04em; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                Optimized Rule
-                ${autoFixes.length
-                  ? `<span style="color:var(--warn); font-size:0.78rem; font-weight:400;">${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>`
-                  : `<span style="color:#22c55e; font-size:0.78rem; font-weight:400;">— already optimal</span>`}
-              </div>
-              ${autoFixes.length
-                ? `<ul style="margin:0 0 8px 18px; padding:0; font-size:0.79rem; color:var(--muted);">${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`
-                : ""}
+          // ── Section 1: Optimized Rule (always visible) ───────────────
+          html += `<div class="opt-section">
+            <div class="opt-section-title" data-toggle="opt-sec-${idx}-rule">
+              <span class="opt-caret">&#9660;</span>
+              <span>&#10003; Optimized Rule${autoFixes.length ? ` <span style="color:var(--warn);font-weight:400;text-transform:none;letter-spacing:0;">— ${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>` : ` <span style="color:#50d090;font-weight:400;text-transform:none;letter-spacing:0;">— already optimal</span>`}</span>
+            </div>
+            <div class="opt-section-body" id="opt-sec-${idx}-rule">`;
+          if (autoFixes.length) {
+            html += `<div class="opt-fix-list"><b style="color:#f5c842;font-size:0.78rem;">Auto-fixes applied:</b><ul>${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul></div>`;
+          }
+          html += `<div style="position:relative;">
+              <pre id="${ruleId}" class="opt-code">${escapeHtml(fixedRule)}</pre>
+              <button class="opt-copy-inline" data-copy-id="${ruleId}">Copy</button>
+            </div>
+          </div></div>`;
+
+          // ── Section 2: Original Rule (collapsed by default) ──────────
+          html += `<div class="opt-section collapsed">
+            <div class="opt-section-title" data-toggle="opt-sec-${idx}-orig">
+              <span class="opt-caret">&#9660;</span>
+              <span>Original Rule</span>
+            </div>
+            <div class="opt-section-body" id="opt-sec-${idx}-orig">
               <div style="position:relative;">
-                <pre id="${ruleId}" style="margin:0; padding:10px 52px 10px 14px; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; background:#0b1220; color:var(--code-text); border-radius:8px; border:1px solid #1e293b;">${escapeHtml(fixedRule)}</pre>
-                <button data-copy-id="${ruleId}"
-                  style="position:absolute;top:7px;right:8px;background:rgba(255,255,255,0.1);color:var(--cyan-light);border:1px solid rgba(155,238,255,0.2);border-radius:4px;padding:3px 9px;font-size:0.76rem;cursor:pointer;">Copy</button>
+                <pre id="${origId}" class="opt-code opt-code-original">${escapeHtml(trimmed)}</pre>
+                <button class="opt-copy-inline" data-copy-id="${origId}">Copy</button>
               </div>
-            </div>`;
-          }
+            </div>
+          </div>`;
 
-          // ── Version mismatch banner ─────────────────────────────────
+          // ── Section 3: Version mismatch (only if present) ────────────
           if (mismatch) {
-            html += `<div style="margin-bottom:10px; padding:8px 12px; border-radius:6px;
-                       border:1px solid var(--error); background:rgba(255,68,68,0.1);
-                       color:var(--error); font-size:0.88rem;">
-              &#9888; <b>Version mismatch:</b> ${escapeHtml(mismatch)}
+            html += `<div class="opt-section">
+              <div class="opt-mismatch">&#9888; <b>Version mismatch:</b> ${escapeHtml(mismatch)}</div>
             </div>`;
           }
 
-          // ── Optimization suggestions ────────────────────────────────
+          // ── Section 4: Findings grouped by severity ──────────────────
           if (!suggestions.length && !mismatch) {
-            html += `<div class="opt-rule-ok">&#10003; No issues — this rule is optimal for ${escapeHtml(versionLabel)}.</div>`;
-          } else {
-            suggestions.forEach(s => {
-              html += `<div class="opt-item">
-                <span class="opt-badge ${s.level}">${s.level.toUpperCase()}</span>
-                <span>${escapeHtml(s.msg)}${s.fix
-                  ? `<br><span class="muted" style="font-size:0.82rem;">&#10142; Suggested fix: <code style="color:var(--cyan-soft);">${escapeHtml(s.fix)}</code></span>`
-                  : ""}</span>
-              </div>`;
-            });
-          }
-
-          // ── Rule Option Details ─────────────────────────────────────
-          if (explanation.length) {
-            html += `<div style="margin-top:12px; border-top:1px solid var(--border); padding-top:10px;">
-              <div style="font-size:0.82rem; font-weight:700; color:var(--muted); margin-bottom:8px; letter-spacing:0.04em;">
-                Rule Option Details
-              </div>`;
-            explanation.forEach(e => {
-              html += `<div style="display:flex; gap:10px; padding:6px 0; border-bottom:1px solid rgba(30,58,95,0.4);">
-                <div style="min-width:130px; font-family:monospace; font-size:0.82rem;
-                            color:var(--cyan-soft); font-weight:600; flex-shrink:0;">${escapeHtml(e.keyword)}</div>
-                <div style="font-size:0.84rem; color:var(--text);">
-                  <span style="color:var(--muted); font-size:0.8rem;">[${escapeHtml(e.category)}]</span>
-                  &nbsp;${escapeHtml(e.desc)}
-                  ${e.note ? `<br><span style="color:var(--warn); font-size:0.8rem;">&#9888; ${escapeHtml(e.note)}</span>` : ""}
+            html += `<div class="opt-section">
+              <div class="opt-rule-ok">&#10003; No issues — this rule is optimal for ${escapeHtml(versionLabel)}.</div>
+            </div>`;
+          } else if (suggestions.length) {
+            const renderGroup = (level, label, items) => {
+              if (!items.length) return "";
+              const findings = items.map(s => `<div class="opt-finding ${level}">
+                <div class="opt-finding-icon">${level === "warn" ? "!" : level === "perf" ? "&#9889;" : "i"}</div>
+                <div class="opt-finding-msg">${escapeHtml(s.msg)}${s.fix ? `<span class="opt-finding-fix">&#10142; Suggested fix: <code>${escapeHtml(s.fix)}</code></span>` : ""}</div>
+              </div>`).join("");
+              return `<div class="opt-section">
+                <div class="opt-section-title" data-toggle="opt-sec-${idx}-${level}">
+                  <span class="opt-caret">&#9660;</span>
+                  <span>${label} <span style="color:var(--cyan-soft);font-weight:400;">(${items.length})</span></span>
                 </div>
+                <div class="opt-section-body" id="opt-sec-${idx}-${level}">${findings}</div>
               </div>`;
-            });
-            html += `</div>`;
+            };
+            html += renderGroup("warn", "Warnings", byLevel.warn);
+            html += renderGroup("perf", "Performance", byLevel.perf);
+            html += renderGroup("info", "Information", byLevel.info);
           }
 
-          html += `</div></div>`;
+          // ── Section 5: Rule Option Details (collapsed by default) ────
+          if (explanation.length) {
+            const detailRows = explanation.map(e => `<div class="opt-detail-row">
+              <div class="opt-detail-kw">${escapeHtml(e.keyword)}</div>
+              <div style="flex:1;">
+                <span class="opt-detail-cat">[${escapeHtml(e.category)}]</span>${escapeHtml(e.desc)}
+                ${e.note ? `<span class="opt-detail-note">&#9888; ${escapeHtml(e.note)}</span>` : ""}
+              </div>
+            </div>`).join("");
+            html += `<div class="opt-section collapsed">
+              <div class="opt-section-title" data-toggle="opt-sec-${idx}-details">
+                <span class="opt-caret">&#9660;</span>
+                <span>Rule Option Details <span style="color:var(--cyan-soft);font-weight:400;">(${explanation.length})</span></span>
+              </div>
+              <div class="opt-section-body" id="opt-sec-${idx}-details">${detailRows}</div>
+            </div>`;
+          }
+
+          html += `</div>`;
         });
 
         el.optResults.innerHTML = html;
