@@ -3196,6 +3196,21 @@ if __name__ == "__main__":
         return depth;
       }
 
+      // ── DEFAULT_CLASSTYPES (Snort 2 default classification.config) ──────
+      // Source: snort-2.9.x etc/classification.config — full standard set.
+      // Used by S016 to flag classtype values not declared in the default config.
+      const DEFAULT_CLASSTYPES = new Set([
+        "not-suspicious","unknown","bad-unknown","attempted-recon","successful-recon-limited",
+        "successful-recon-largescale","attempted-dos","successful-dos","attempted-user","unsuccessful-user",
+        "successful-user","attempted-admin","successful-admin","rpc-portmap-decode","shellcode-detect",
+        "string-detect","suspicious-filename-detect","suspicious-login","system-call-detect","tcp-connection",
+        "trojan-activity","unusual-client-port-connection","network-scan","denial-of-service","non-standard-protocol",
+        "protocol-command-decode","web-application-activity","web-application-attack","misc-activity","misc-attack",
+        "icmp-event","inappropriate-content","policy-violation","default-login-attempt","sdf",
+        "file-format","malware-cnc","client-side-exploit","exploit-kit","external-ip-check",
+        "domain-c2","pup-activity","targeted-activity","credential-theft","social-engineering"
+      ]);
+
       function joinMultilineRules(text) {
         // Join lines that belong to the same rule.
         // A Snort rule starts with an action keyword and ends when the
@@ -3259,6 +3274,32 @@ if __name__ == "__main__":
             : applySnort3Fixes(trimmed);
           return { trimmed, mismatch, suggestions, explanation, fixedRule, autoFixes };
         });
+
+        // ── S007: cross-rule duplicate SID detection (Manual §3.4.4) ──
+        // SID must be globally unique. We compare against the ORIGINAL sid
+        // (before auto-fix range conversion) so duplicates within the input
+        // batch are caught regardless of whether they were rewritten.
+        {
+          const sidRe = /\bsid\s*:\s*(\d+)\s*;/i;
+          const sidMap = new Map(); // sid -> [ruleIndex, ...]
+          analyzed.forEach((a, i) => {
+            const m = a.trimmed.match(sidRe);
+            if (!m) return;
+            const sid = m[1];
+            if (!sidMap.has(sid)) sidMap.set(sid, []);
+            sidMap.get(sid).push(i);
+          });
+          sidMap.forEach((indexes, sid) => {
+            if (indexes.length < 2) return;
+            const others = indexes.map(i => `Rule ${i + 1}`).join(", ");
+            indexes.forEach(i => {
+              analyzed[i].suggestions.push({
+                level: "warn",
+                msg: `Duplicate SID:${sid} found in input batch (Manual §3.4.4) — appears in ${others}. SIDs must be globally unique; the second occurrence will overwrite the first when loaded.`
+              });
+            });
+          });
+        }
 
         let html = "";
 
@@ -3461,26 +3502,51 @@ if __name__ == "__main__":
             }
             return false;
           };
-          let fpIdx = -1;
+          // Pick the LONGEST eligible non-negated content as fast_pattern candidate.
+          // Snort 2 §3.5.22 / §3.9.4: longer/more-unique content => fewer MPSE false-hits.
+          // Byte length: hex blocks |HH HH| count as bytes; ASCII chars count as bytes.
+          const contentByteLen = (s) => {
+            const m = s.match(/^"(.*)"$/s); if (!m) return 0;
+            let body = m[1], n = 0, i = 0;
+            while (i < body.length) {
+              if (body[i] === "|") {
+                const end = body.indexOf("|", i + 1); if (end === -1) break;
+                n += body.slice(i + 1, end).replace(/\s+/g, "").length / 2;
+                i = end + 1;
+              } else { n++; i++; }
+            }
+            return Math.floor(n);
+          };
+          let fpIdx = -1, fpBest = -1;
           for (let i = 0; i < opts.length; i++) {
             if (optionKeyword(opts[i]).toLowerCase() !== "content") continue;
-            if (opts[i].slice(opts[i].indexOf(":") + 1).trim().startsWith("!")) continue;
+            const val = opts[i].slice(opts[i].indexOf(":") + 1).trim();
+            if (val.startsWith("!")) continue;
             if (hasIncompatibleMod(i)) continue;
-            fpIdx = i;
-            break;
+            const blen = contentByteLen(val);
+            if (blen > fpBest) { fpBest = blen; fpIdx = i; }
           }
           if (fpIdx !== -1) {
             // Insert fast_pattern AFTER all existing modifiers of this content group,
             // not right after the content keyword. Buffer modifiers (http_uri, nocase, etc.)
             // must come before fast_pattern — FMC's Snort 2 parser requires this ordering.
+            // Stop at: next content/pcre/uricontent (new group) OR any non-content-modifier
+            // keyword (so we don't walk past meta options like classtype/sid into the tail).
+            const CONTENT_MODS = new Set([
+              "nocase","rawbytes","depth","offset","distance","within","isdataat",
+              "http_uri","http_raw_uri","http_header","http_raw_header",
+              "http_cookie","http_raw_cookie","http_method","http_stat_code",
+              "http_stat_msg","http_client_body","http_raw_request","http_raw_status",
+              "fast_pattern"
+            ]);
             let insertAt = fpIdx + 1;
             while (insertAt < opts.length) {
               const kw = optionKeyword(opts[insertAt]).toLowerCase();
-              if (kw === "content" || kw === "pcre" || kw === "uricontent") break;
+              if (!CONTENT_MODS.has(kw)) break;
               insertAt++;
             }
             opts.splice(insertAt, 0, "fast_pattern");
-            changes.push("fast_pattern added to first eligible content option (Manual §3.5.22)");
+            changes.push("fast_pattern added to longest eligible content option (Manual §3.5.22 / §3.9.4)");
           }
         }
 
@@ -3912,7 +3978,8 @@ if __name__ == "__main__":
           const deprecated2 = [
             ["uricontent",    "replaced by content + http_uri in Snort 3",       'content:"..."; http_uri;'],
             ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
-            ["threshold",     "replaced by detection_filter (per-rule) or event_filter (alert-suppression) in Snort 3 — auto-fix migrates type=threshold; type=limit/both must move to threshold.conf event_filter (Manual §3.8)"],
+            // 'threshold' handled separately below to differentiate type=threshold (auto-migrated)
+            // vs type=limit/both (must move to event_filter / threshold.conf — surfaced as S015 advisory).
             ["activates",     "dynamic rules removed in Snort 3"],
             ["activated_by",  "dynamic rules removed in Snort 3"],
             ["resp",          "removed in Snort 3"],
@@ -3926,13 +3993,63 @@ if __name__ == "__main__":
             if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}' cannot be migrated to Snort 3: ${msg}.`, fix });
           });
 
+          // ── S015: threshold migration advisory (Manual §3.8) ────────────
+          // Auto-fix in applySnort2Fixes already migrates type=threshold → detection_filter.
+          // type=limit / type=both have alert-suppression semantics that belong in
+          // event_filter / threshold.conf and CANNOT be expressed inline; surface a clear warning.
+          if (has("threshold")) {
+            const thrOpt = get("threshold") || "";
+            const m = thrOpt.match(/type\s+(\w+)/i);
+            const thrType = m ? m[1].toLowerCase() : "";
+            if (thrType === "threshold") {
+              suggestions.push({ level:"info", msg:"'threshold:type threshold' is deprecated in Snort 3 (Manual §3.8). Auto-fix migrates this to 'detection_filter' inline." });
+            } else if (thrType === "limit" || thrType === "both") {
+              suggestions.push({ level:"warn", msg:`'threshold:type ${thrType}' has no inline equivalent in Snort 3 (Manual §3.8). Move it to 'event_filter' in threshold.conf — alert-suppression semantics cannot be expressed as a per-rule option.`, fix:`event_filter gen_id 1, sig_id <SID>, type ${thrType}, track ${(thrOpt.match(/track\s+(\w+)/i)||[])[1]||'by_src'}, count ${(thrOpt.match(/count\s+(\d+)/i)||[])[1]||'<N>'}, seconds ${(thrOpt.match(/seconds\s+(\d+)/i)||[])[1]||'<N>'}` });
+            } else {
+              suggestions.push({ level:"warn", msg:"'threshold' option present but type is missing/invalid (Manual §3.8). Specify type=threshold|limit|both." });
+            }
+          }
+
+          // ── S004: missing msg (Manual §3.4.1) ───────────────────────────
+          if (!has("msg"))
+            suggestions.push({ level:"warn", msg:"Missing msg (Manual §3.4.1). Every rule should have a human-readable alert message that clearly describes the threat.", fix:'msg:"PROTOCOL-NAME Threat description";' });
+
           // ── S005: missing classtype (Manual §3.4.6) ─────────────────────
           if (!has("classtype"))
             suggestions.push({ level:"info", msg:"Missing classtype (Manual §3.4.6). Recommended for event categorization and priority.", fix:'classtype:attempted-recon;' });
 
+          // ── S016: unknown classtype (Manual §3.4.6) ─────────────────────
+          // Validate against the default Snort classification.config shipped set.
+          // Source: snort-2.9.x classification.config (DEFAULT_CLASSTYPES).
+          if (has("classtype")) {
+            const ctVal = (get("classtype") || "").trim().toLowerCase();
+            if (ctVal && !DEFAULT_CLASSTYPES.has(ctVal)) {
+              suggestions.push({ level:"warn", msg:`Unknown classtype '${ctVal}' (Manual §3.4.6). Not in the default classification.config — define it in classification.config or use a standard classtype (e.g. attempted-recon, web-application-attack, trojan-activity).` });
+            }
+          }
+
           // ── S008: rule has no detection payload (Manual §3.9.1) ─────────
           if (!has("content") && !has("uricontent") && !has("pcre"))
             suggestions.push({ level:"warn", msg:"No content/uricontent/pcre — rule will be evaluated against every packet (very expensive). Add a literal content match (Manual §3.9.1)." });
+
+          // ── S018: exploit-string heuristic (Manual §3.9.2) ──────────────
+          // Detects rules whose msg or content reference a CVE/exploit identifier
+          // without targeting the underlying vulnerable construct. This is a soft
+          // heuristic — false positives are acceptable; goal is to nudge the author.
+          {
+            const msgVal = (get("msg") || "").toLowerCase();
+            const exploitMarkers = /\b(cve-\d{4}-\d{3,7}|metasploit|exploit-?db|poc\b|0day|payload\b)/i;
+            const contents = opts.filter(o => optionKeyword(o).toLowerCase() === "content")
+                                 .map(o => o.slice(o.indexOf(":") + 1).trim().replace(/^"|"$/g, "").toLowerCase());
+            const looksLikeExploitString =
+              exploitMarkers.test(msgVal) ||
+              contents.some(c => /metasploit|msfconsole|meterpreter|/.test(c) || /^[a-z]{3,8}\d{2,}$/.test(c));
+            const hasVulnContext = has("byte_test") || has("byte_jump") || has("isdataat") ||
+                                   has("dsize") || has("pcre") || contents.some(c => c.length >= 8);
+            if (looksLikeExploitString && !hasVulnContext) {
+              suggestions.push({ level:"info", msg:"Rule appears to match a specific exploit string/identifier rather than the underlying vulnerability (Manual §3.9.2). Prefer matching the vulnerable protocol/parser construct so the rule catches future exploit variants." });
+            }
+          }
 
           // ── S010 / S011: fast_pattern hygiene (Manual §3.5.22 / §3.9.4) ─
           {
