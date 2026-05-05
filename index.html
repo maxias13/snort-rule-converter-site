@@ -3477,8 +3477,8 @@ if __name__ == "__main__":
         {
           const allId = "opt-all-rules-out";
           const allText = analyzed.map(a => a.fixedRule).join("\n\n");
-          html += `<div style="margin-bottom:16px; padding:16px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+          html += `<div style="margin-bottom:16px; box-sizing:border-box; width:100%;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; flex-wrap:wrap; gap:8px; padding:12px 14px; background:rgba(0,212,255,0.04); border:1px solid var(--border); border-radius:10px;">
               <div style="font-size:0.9rem; font-weight:700; color:var(--primary);">&#10003; All Optimized Rules (${analyzed.length})</div>
               <button data-copy-id="${allId}"
                 style="background:var(--primary);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:0.82rem;cursor:pointer;">&#128203; Copy All</button>
