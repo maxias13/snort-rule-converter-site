@@ -1787,66 +1787,46 @@ python3 trigger_rules.py --delay 1
     </section>
 
     <!-- ── Snort SRU Updates ───────────────────────────────────────────── -->
-    <!-- ── Python Validator (CLI tool downloads) ───────────────────────── -->
+    <!-- ── Python Validator → Trigger-Script Generator ─────────────────── -->
     <section id="pythonValidatorView" class="view">
       <div class="panel">
         <div style="margin-bottom:18px;">
-          <h3 style="margin:0 0 6px;">🐍 Python Validator</h3>
+          <h3 style="margin:0 0 6px;">🐍 Snort Rule → Trigger Script Generator</h3>
           <p class="muted" style="margin:0; font-size:0.9rem;">
-            Standalone Python CLI tools to validate and optimize Snort 2 / Snort 3 local rules — run offline, integrate into CI, batch-process large rulesets.
+            Paste a single Snort 2 or Snort 3 rule, choose the version, and click <b>Generate</b>.
+            The page will produce a self-contained Python script (stdlib <code>socket</code> + <code>requests</code>)
+            that sends traffic designed to trigger the rule for lab/IDS testing.
           </p>
         </div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px; margin-bottom:24px;" id="pyvalCards">
-          <div class="result-card pyval-card" data-pyver="2" style="padding:18px;">
-            <h4 style="margin:0 0 10px; color:var(--primary);">2️⃣ snort_2_validator</h4>
-            <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
-              Validates Snort 2 local rules against the official rule grammar. Detects syntax errors, deprecated options, duplicate SIDs, and Snort 3-only constructs.
-            </p>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <a class="btn" href="https://github.com/maxias13/snort_2_validator" target="_blank" rel="noopener noreferrer">GitHub Repo &#8599;</a>
-              <a class="btn secondary" href="https://github.com/maxias13/snort_2_validator/archive/refs/heads/main.zip">Download ZIP</a>
-            </div>
-          </div>
-          <div class="result-card pyval-card" data-pyver="3" style="padding:18px;">
-            <h4 style="margin:0 0 10px; color:var(--primary);">3️⃣ snort_3_validator</h4>
-            <p class="muted" style="margin:0 0 12px; font-size:0.85rem;">
-              Validates Snort 3 built-in &amp; local rules using the docs.snort.org rule reference. Reports syntax issues, performance hints, and optimization suggestions.
-            </p>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <a class="btn" href="https://github.com/maxias13/snort_3_validator" target="_blank" rel="noopener noreferrer">GitHub Repo &#8599;</a>
-              <a class="btn secondary" href="https://github.com/maxias13/snort_3_validator/archive/refs/heads/main.zip">Download ZIP</a>
-            </div>
-          </div>
-        </div>
-
         <div class="result-card" style="padding:18px; margin-bottom:18px;">
-          <h4 style="margin:0 0 10px;">⚡ In-Browser Validator <span class="muted" style="font-weight:normal; font-size:0.8rem;">— full Python logic ported to JavaScript</span></h4>
-          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
-            <label style="font-size:0.85rem;"><input type="radio" name="snortValVersion" value="2" checked> Snort 2</label>
-            <label style="font-size:0.85rem;"><input type="radio" name="snortValVersion" value="3"> Snort 3</label>
-            <button class="btn" id="snortValValidateBtn" type="button">Validate</button>
-            <button class="btn secondary" id="snortValOptimizeBtn" type="button">Optimize</button>
-            <button class="btn secondary" id="snortValBothBtn" type="button">Validate + Optimize</button>
-            <button class="btn secondary" id="snortValClearBtn" type="button">Clear</button>
+          <div style="display:flex; gap:14px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+            <label style="font-size:0.9rem;"><input type="radio" name="trigVersion" value="2" checked> Snort 2</label>
+            <label style="font-size:0.9rem;"><input type="radio" name="trigVersion" value="3"> Snort 3</label>
+            <span style="flex:1;"></span>
+            <button class="btn" id="trigGenerateBtn" type="button">Generate</button>
+            <button class="btn secondary" id="trigClearBtn" type="button">Clear</button>
           </div>
-          <textarea id="snortValInput" rows="8" placeholder="Paste Snort 2 or Snort 3 rules here, one per line..." style="width:100%; box-sizing:border-box; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.82rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px; padding:10px;"></textarea>
-          <div id="snortValOut" style="margin-top:12px;"></div>
+          <textarea id="trigInput" rows="6"
+            placeholder='Paste ONE Snort rule, e.g.:&#10;alert tcp any any -> any 80 (msg:"TEST"; content:"/admin/secret"; http_uri; sid:1000001; rev:1;)'
+            style="width:100%; box-sizing:border-box; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; font-size:0.85rem; background:#0b0f17; color:var(--code-text); border:1px solid var(--border); border-radius:6px; padding:10px;"></textarea>
+          <div id="trigParseInfo" class="muted" style="margin-top:8px; font-size:0.82rem;"></div>
         </div>
 
-        <div class="result-card" style="padding:18px;">
-          <h4 style="margin:0 0 10px;">Quick Start (Python CLI)</h4>
-          <pre style="background:#0b0f17; color:var(--code-text); padding:12px; border-radius:6px; overflow:auto; font-size:0.82rem; line-height:1.45;"># Snort 2
-git clone https://github.com/maxias13/snort_2_validator.git
-cd snort_2_validator
-python validate_snort2.py path/to/local.rules
-
-# Snort 3
-git clone https://github.com/maxias13/snort_3_validator.git
-cd snort_3_validator
-python validate_snort3.py path/to/local.rules</pre>
-          <p class="muted" style="margin:10px 0 0; font-size:0.8rem;">
-            Requires Python 3.9+. See each repo's <code>README.md</code> for full options (JSON output, exit codes, CI integration).
+        <div id="trigOutWrap" class="result-card" style="padding:18px; display:none;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+            <h4 style="margin:0;">📜 Generated Python Trigger Script <span id="trigOutName" class="muted" style="font-weight:normal; font-size:0.8rem;"></span></h4>
+            <div style="display:flex; gap:8px;">
+              <button class="btn secondary" id="trigCopyBtn" type="button">📋 Copy</button>
+              <button class="btn" id="trigDownloadBtn" type="button">⬇ Download .py</button>
+            </div>
+          </div>
+          <pre id="trigOutput"
+            style="background:#0b0f17; color:var(--code-text); padding:12px; border-radius:6px; overflow:auto; font-size:0.8rem; line-height:1.45; font-family:'Courier New',ui-monospace,SFMono-Regular,Consolas,monospace; max-height:520px; box-sizing:border-box; width:100%;"></pre>
+          <p class="muted" style="margin:10px 0 0; font-size:0.78rem;">
+            ⚠️ Lab use only. Run against an isolated IDS/IPS sensor you own. Edit the
+            <code>TARGET_IP</code> constant before executing. Requires Python 3.9+
+            (and <code>pip install requests</code> for HTTP rules).
           </p>
         </div>
       </div>
@@ -3524,7 +3504,20 @@ if __name__ == "__main__":
               <div class="opt-rule-summary">${summaryChips}</div>
             </div>`;
 
-          // ── Section 1: Optimized Rule (always visible) ───────────────
+          // ── Section 1: Original Rule (always visible, no collapse) ───
+          html += `<div class="opt-section">
+            <div class="opt-section-title" style="cursor:default;">
+              <span>Original Rule</span>
+            </div>
+            <div class="opt-section-body" style="display:block;">
+              <div style="position:relative;">
+                <pre id="${origId}" class="opt-code opt-code-original">${escapeHtml(trimmed)}</pre>
+                <button class="opt-copy-inline" data-copy-id="${origId}">Copy</button>
+              </div>
+            </div>
+          </div>`;
+
+          // ── Section 2: Optimized Rule (always visible) ───────────────
           html += `<div class="opt-section">
             <div class="opt-section-title" data-toggle="opt-sec-${idx}-rule">
               <span class="opt-caret">&#9660;</span>
@@ -3539,20 +3532,6 @@ if __name__ == "__main__":
               <button class="opt-copy-inline" data-copy-id="${ruleId}">Copy</button>
             </div>
           </div></div>`;
-
-          // ── Section 2: Original Rule (collapsed by default) ──────────
-          html += `<div class="opt-section collapsed">
-            <div class="opt-section-title" data-toggle="opt-sec-${idx}-orig">
-              <span class="opt-caret">&#9660;</span>
-              <span>Original Rule</span>
-            </div>
-            <div class="opt-section-body" id="opt-sec-${idx}-orig">
-              <div style="position:relative;">
-                <pre id="${origId}" class="opt-code opt-code-original">${escapeHtml(trimmed)}</pre>
-                <button class="opt-copy-inline" data-copy-id="${origId}">Copy</button>
-              </div>
-            </div>
-          </div>`;
 
           // ── Section 3: Version mismatch (only if present) ────────────
           if (mismatch) {
@@ -3761,29 +3740,9 @@ if __name__ == "__main__":
         });
         if (pcreEscaped) changes.push("PCRE special characters (\" ;) escaped to \\x22 \\x3b");
 
-        // 5b. Migrate deprecated threshold: → detection_filter: (Manual §3.8)
-        // threshold:type <limit|threshold|both>, track <by_src|by_dst>, count N, seconds N;
-        //   • type=threshold  → 1:1 map to detection_filter (per-rule rate limit)
-        //   • type=limit/both → cannot map to detection_filter (alert-suppression semantics
-        //                       belong in event_filter / threshold.conf); leave with warning
-        opts = opts.flatMap(o => {
-          if (optionKeyword(o).toLowerCase() !== "threshold") return [o];
-          const body = o.slice(o.indexOf(":") + 1).trim();
-          // parse comma-separated kv pairs
-          const kv = {};
-          body.split(",").map(s => s.trim()).forEach(seg => {
-            const m = seg.match(/^(\w+)\s+(.+)$/);
-            if (m) kv[m[1].toLowerCase()] = m[2].trim();
-          });
-          const type = (kv.type || "").toLowerCase();
-          if (type === "threshold" && kv.track && kv.count && kv.seconds) {
-            changes.push(`threshold migrated to detection_filter (Manual §3.8): track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`);
-            return [`detection_filter:track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`];
-          }
-          // limit/both → keep as-is (Snort 2 still parses it; advise event_filter)
-          changes.push(`threshold (type=${type || "?"}) left in place — move to event_filter in threshold.conf for Snort 3 (Manual §3.8)`);
-          return [o];
-        });
+        // 5b. (Removed) threshold → detection_filter rewrite was a Snort 3 migration step
+        //     and is intentionally disabled for the Snort 2 native optimizer.
+        //     `threshold:type threshold|limit|both` is fully valid in Snort 2.
 
         // 6. Increment rev if any changes were made
         if (changes.length > 0) {
@@ -4221,37 +4180,13 @@ ${optRules.join("\n")}
 
         // ══ SNORT 2 specific ══════════════════════════════════════════════
         if (isSnort2) {
-          const deprecated2 = [
-            ["uricontent",    "replaced by content + http_uri in Snort 3",       'content:"..."; http_uri;'],
-            ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
-            // 'threshold' handled separately below to differentiate type=threshold (auto-migrated)
-            // vs type=limit/both (must move to event_filter / threshold.conf — surfaced as S015 advisory).
-            ["activates",     "dynamic rules removed in Snort 3"],
-            ["activated_by",  "dynamic rules removed in Snort 3"],
-            ["resp",          "removed in Snort 3"],
-            ["logto",         "removed in Snort 3"],
-            ["session",       "removed in Snort 3"],
-            ["tag",           "limited support in Snort 3"],
-            ["stream_reassemble","removed in Snort 3 — configure in snort.lua"],
-            ["replace",       "requires the rewrite action in Snort 3"],
-          ];
-          deprecated2.forEach(([kw, msg, fix]) => {
-            if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}' cannot be migrated to Snort 3: ${msg}.`, fix });
-          });
-
-          // ── S015: threshold migration advisory (Manual §3.8) ────────────
-          // Auto-fix in applySnort2Fixes already migrates type=threshold → detection_filter.
-          // type=limit / type=both have alert-suppression semantics that belong in
-          // event_filter / threshold.conf and CANNOT be expressed inline; surface a clear warning.
+          // ── threshold sanity check (Manual §3.8) ────────────────────────
+          // Snort 2 supports threshold:type threshold|limit|both; only flag missing/invalid type.
           if (has("threshold")) {
             const thrOpt = get("threshold") || "";
             const m = thrOpt.match(/type\s+(\w+)/i);
             const thrType = m ? m[1].toLowerCase() : "";
-            if (thrType === "threshold") {
-              suggestions.push({ level:"info", msg:"'threshold:type threshold' is deprecated in Snort 3 (Manual §3.8). Auto-fix migrates this to 'detection_filter' inline." });
-            } else if (thrType === "limit" || thrType === "both") {
-              suggestions.push({ level:"warn", msg:`'threshold:type ${thrType}' has no inline equivalent in Snort 3 (Manual §3.8). Move it to 'event_filter' in threshold.conf — alert-suppression semantics cannot be expressed as a per-rule option.`, fix:`event_filter gen_id 1, sig_id <SID>, type ${thrType}, track ${(thrOpt.match(/track\s+(\w+)/i)||[])[1]||'by_src'}, count ${(thrOpt.match(/count\s+(\d+)/i)||[])[1]||'<N>'}, seconds ${(thrOpt.match(/seconds\s+(\d+)/i)||[])[1]||'<N>'}` });
-            } else {
+            if (!["threshold","limit","both"].includes(thrType)) {
               suggestions.push({ level:"warn", msg:"'threshold' option present but type is missing/invalid (Manual §3.8). Specify type=threshold|limit|both." });
             }
           }
@@ -4355,22 +4290,7 @@ ${optRules.join("\n")}
             }
           }
 
-          opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() === "flowbits") {
-              const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
-              if (val.startsWith("reset"))
-                suggestions.push({ level:"warn", msg:"flowbits:reset is not documented in the Snort 3 flowbits operations. Verify manually before migrating this rule." });
-              else if (val.startsWith("noalert"))
-                suggestions.push({ level:"info", msg:"flowbits:noalert is supported in Snort 3 flowbits syntax; no migration is required." });
-              else
-                suggestions.push({ level:"info", msg:"flowbits is fully supported in Snort 3 with the same syntax — no change required.", fix:"flowbits:set,<name>; / flowbits:isset,<name>;" });
-            }
-          });
-
-          opts.forEach(o => {
-            if (/fast_pattern\s*:\s*only/i.test(o))
-              suggestions.push({ level:"warn", msg:"'fast_pattern:only' has been removed in Snort 3.", fix:"Use plain fast_pattern;" });
-          });
+          // (Snort 3 migration advisories removed — this analyzer is Snort 2 native.)
 
           // Detect fast_pattern on content with distance/within — invalid in Snort 2
           {
@@ -4390,34 +4310,8 @@ ${optRules.join("\n")}
             }
           }
 
-          opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() !== "pcre") return;
-            const val = o.slice(o.indexOf(":") + 1).trim();
-            if (/\/[^\/]*[UIHDSPMCYK][^\/]*\/[^\/]*$/.test(val))
-              suggestions.push({ level:"warn", msg:"PCRE contains Snort 2 HTTP flags (U,I,H,D,P,C,M,S,Y,K). Must be converted to sticky buffers in Snort 3.", fix:"Use http_uri; http_header; etc. before pcre" });
-          });
-
-          opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() === "metadata") {
-              if ((o.slice(o.indexOf(":") + 1) || "").toLowerCase().includes("service"))
-                suggestions.push({ level:"info", msg:"In Snort 3, metadata has no detection impact. Move service scoping to standalone service: or a service rule header.", fix:"service:http,dns; or alert http (...)" });
-            }
-          });
-
-          opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() === "file_data" && /:\s*mime/i.test(o))
-              suggestions.push({ level:"warn", msg:"file_data:mime is not supported in Snort 3 — use plain file_data." });
-          });
-
-          opts.forEach(o => {
-            const kw = optionKeyword(o).toLowerCase();
-            if (kw !== "byte_test" && kw !== "byte_jump") return;
-            const val = o.slice(o.indexOf(":") + 1).trim();
-            if (/(^|,)\s*string\s*(,|$)/i.test(val))
-              suggestions.push({ level:"info", msg:`${kw}: Verify the position of dec/hex/oct sub-options when migrating to Snort 3.` });
-            if (kw === "byte_jump" && /(from_beginning|from_end|post_offset)/i.test(val))
-              suggestions.push({ level:"info", msg:"byte_jump: Review compatibility of from_beginning/from_end/post_offset parameters in Snort 3." });
-          });
+          // (PCRE Snort-2 HTTP flags / metadata service / file_data:mime / byte_test/jump
+          //  Snort 3 migration advisories removed — Snort 2 native analyzer.)
 
           // ── PCRE escape sequence checks (Snort 2 — content/pcre quoting) ──
           opts.forEach(o => {
@@ -4960,10 +4854,8 @@ ${optRules.join("\n")}
 
       // ── Python Validator card toggler (Snort 2 / Snort 3) ───────────────
       function setPyValVersion(v) {
-        const cards = document.querySelectorAll("#pyvalCards .pyval-card");
-        cards.forEach((c) => {
-          c.style.display = String(c.dataset.pyver) === String(v) ? "" : "none";
-        });
+        const r = document.querySelector('input[name="trigVersion"][value="' + String(v) + '"]');
+        if (r) r.checked = true;
       }
 
       // ── Validator deeplink stub (legacy ?v=validatorView&ver=N support) ──
@@ -6688,42 +6580,375 @@ ${optRules.join("\n")}
     - All information provided on this site is not official information from Cisco Systems. Please use it with caution. -
   </footer>
 
-  <script src="assets/js/snort_validator.js"></script>
   <script>
     (function () {
-      var inputEl = document.getElementById('snortValInput');
-      var outEl = document.getElementById('snortValOut');
-      if (!inputEl || !outEl || !window.SnortValidator) return;
+      var inputEl    = document.getElementById('trigInput');
+      var outWrapEl  = document.getElementById('trigOutWrap');
+      var outEl      = document.getElementById('trigOutput');
+      var outNameEl  = document.getElementById('trigOutName');
+      var infoEl     = document.getElementById('trigParseInfo');
+      var genBtn     = document.getElementById('trigGenerateBtn');
+      var clearBtn   = document.getElementById('trigClearBtn');
+      var copyBtn    = document.getElementById('trigCopyBtn');
+      var dlBtn      = document.getElementById('trigDownloadBtn');
+      if (!inputEl || !outEl || !genBtn) return;
 
       function getVersion() {
-        var radios = document.getElementsByName('snortValVersion');
-        for (var i = 0; i < radios.length; i++) if (radios[i].checked) return radios[i].value;
+        var rs = document.getElementsByName('trigVersion');
+        for (var i = 0; i < rs.length; i++) if (rs[i].checked) return rs[i].value;
         return '2';
       }
 
-      function run(mode) {
-        var text = inputEl.value || '';
-        if (!text.trim()) { outEl.innerHTML = '<div class="muted" style="padding:10px;">Paste rules above first.</div>'; return; }
-        var ver = getVersion();
-        var parsed = window.SnortValidator.parse(text, ver, 'pasted.rules');
-        var findings = [];
-        if (mode === 'validate' || mode === 'both') {
-          findings = findings.concat(window.SnortValidator.validate(parsed, ver));
+      function pyStr(s) {
+        return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
+      }
+      function pyBytes(s) {
+        var out = '';
+        for (var i = 0; i < s.length; i++) {
+          var c = s.charCodeAt(i);
+          if (c >= 0x20 && c < 0x7f && c !== 0x22 && c !== 0x5c) out += s.charAt(i);
+          else out += '\\x' + (c < 16 ? '0' : '') + c.toString(16);
         }
-        if (mode === 'optimize' || mode === 'both') {
-          findings = findings.concat(window.SnortValidator.optimize(parsed, ver));
-        }
-        window.SnortValidator.render(findings, outEl, { version: ver, ruleCount: parsed.length });
+        return 'b"' + out + '"';
       }
 
-      var b1 = document.getElementById('snortValValidateBtn');
-      var b2 = document.getElementById('snortValOptimizeBtn');
-      var b3 = document.getElementById('snortValBothBtn');
-      var bc = document.getElementById('snortValClearBtn');
-      if (b1) b1.addEventListener('click', function () { run('validate'); });
-      if (b2) b2.addEventListener('click', function () { run('optimize'); });
-      if (b3) b3.addEventListener('click', function () { run('both'); });
-      if (bc) bc.addEventListener('click', function () { inputEl.value = ''; outEl.innerHTML = ''; });
+      function decodeContent(raw) {
+        var s = raw.trim();
+        var negated = false;
+        if (s.charAt(0) === '!') { negated = true; s = s.slice(1).trim(); }
+        if (s.charAt(0) === '"') s = s.slice(1);
+        if (s.charAt(s.length - 1) === '"') s = s.slice(0, -1);
+        var out = '';
+        var inHex = false;
+        for (var i = 0; i < s.length; i++) {
+          var ch = s.charAt(i);
+          if (ch === '|') { inHex = !inHex; continue; }
+          if (inHex) {
+            if (ch === ' ' || ch === '\t') continue;
+            var hex = s.substr(i, 2);
+            if (/^[0-9a-fA-F]{2}$/.test(hex)) { out += String.fromCharCode(parseInt(hex, 16)); i += 1; }
+          } else {
+            out += ch;
+          }
+        }
+        return { text: out, negated: negated };
+      }
+
+      function parseRule(line) {
+        var trimmed = line.trim();
+        if (!trimmed || trimmed.charAt(0) === '#') return { error: 'Empty rule or comment.' };
+        var parenIdx = trimmed.indexOf('(');
+        if (parenIdx < 0) return { error: 'Rule has no option block ( ... ).' };
+        var header = trimmed.slice(0, parenIdx).trim();
+        var body = trimmed.slice(parenIdx + 1).replace(/\)\s*;?\s*$/, '');
+        var hdrParts = header.split(/\s+/);
+        if (hdrParts.length < 7) return { error: 'Rule header missing fields. Expected: action proto src sport -> dst dport' };
+        var info = {
+          action: hdrParts[0].toLowerCase(),
+          proto:  hdrParts[1].toLowerCase(),
+          srcIp:  hdrParts[2],
+          srcPort: hdrParts[3],
+          dir:    hdrParts[4],
+          dstIp:  hdrParts[5],
+          dstPort: hdrParts[6],
+          options: {}, contents: [], pcres: [], headerRaw: header
+        };
+
+        var opts = [];
+        var depth = 0, inStr = false, esc = false, buf = '';
+        for (var i = 0; i < body.length; i++) {
+          var c = body.charAt(i);
+          if (esc) { buf += c; esc = false; continue; }
+          if (c === '\\') { buf += c; esc = true; continue; }
+          if (c === '"') inStr = !inStr;
+          if (!inStr) {
+            if (c === '(') depth++;
+            else if (c === ')') depth--;
+            if (c === ';' && depth === 0) { opts.push(buf.trim()); buf = ''; continue; }
+          }
+          buf += c;
+        }
+        if (buf.trim()) opts.push(buf.trim());
+
+        var HTTP_BUFS = ['http_uri','http_raw_uri','http_header','http_raw_header','http_method','http_client_body','http_raw_body','http_cookie','http_raw_cookie','http_user_agent','http_stat_code','http_stat_msg'];
+        var STICKY_BUFS = HTTP_BUFS.concat(['file_data','pkt_data','raw_data','js_data','vba_data']);
+        var currentSticky = '';
+        var lastContentIdx = -1;
+        opts.forEach(function (o) {
+          var ci = o.indexOf(':');
+          var k = (ci < 0 ? o : o.slice(0, ci)).trim().toLowerCase();
+          var v = ci < 0 ? '' : o.slice(ci + 1).trim();
+          if (k === 'content') {
+            var dc = decodeContent(v);
+            dc.buffer = currentSticky || '';
+            info.contents.push(dc);
+            lastContentIdx = info.contents.length - 1;
+          } else if (k === 'uricontent') {
+            var du = decodeContent(v);
+            du.buffer = 'http_uri';
+            info.contents.push(du);
+            lastContentIdx = info.contents.length - 1;
+          } else if (k === 'pcre') {
+            info.pcres.push(v.replace(/^"|"$/g, ''));
+          } else if (STICKY_BUFS.indexOf(k) >= 0) {
+            if (lastContentIdx >= 0) {
+              info.contents[lastContentIdx].buffer = k;
+            }
+            currentSticky = k;
+            info.options[k] = v;
+          } else {
+            info.options[k] = v;
+          }
+        });
+        return info;
+      }
+
+      function pickPort(portField, fallback) {
+        var s = String(portField || '').trim();
+        if (!s || s === 'any') return fallback;
+        var first = s.replace(/^[\[!]+/, '').split(/[,:]/)[0].replace(/\]+$/, '');
+        var n = parseInt(first, 10);
+        return isNaN(n) ? fallback : n;
+      }
+
+      function pickIp(ipField, fallback) {
+        var s = String(ipField || '').trim();
+        if (!s || s === 'any') return fallback;
+        var first = s.replace(/^[\[!]+/, '').split(',')[0].replace(/\]+$/, '');
+        if (first.charAt(0) === '$') return fallback;
+        if (first.indexOf('/') >= 0) first = first.split('/')[0];
+        return first;
+      }
+
+      function isHttpRule(info) {
+        if (info.proto === 'http') return true;
+        var dport = pickPort(info.dstPort, 0);
+        if ([80, 8080, 8000].indexOf(dport) >= 0) return true;
+        var httpKeys = ['http_uri','http_header','http_method','http_client_body','http_cookie','http_raw_uri','http_raw_header','http_stat_code','http_user_agent'];
+        for (var i = 0; i < httpKeys.length; i++) if (info.options[httpKeys[i]] !== undefined) return true;
+        return false;
+      }
+
+      function getStickyBuffer(info) {
+        var keys = ['http_uri','http_raw_uri','http_header','http_raw_header','http_method','http_client_body','http_cookie','http_user_agent','http_stat_code'];
+        for (var i = 0; i < keys.length; i++) if (info.options[keys[i]] !== undefined) return keys[i];
+        return null;
+      }
+
+      function buildHttpRequest(info) {
+        var method = 'GET';
+        var path = '/';
+        var headers = {};
+        var body = null;
+        var ua = 'snort-trigger/1.0';
+        var fallbackPath = null;
+        info.contents.forEach(function (c) {
+          var t = c.text;
+          var buf = c.buffer || '';
+          if (buf === 'http_uri' || buf === 'http_raw_uri') {
+            path = t.charAt(0) === '/' ? t : '/' + t;
+          } else if (buf === 'http_method') {
+            method = t.toUpperCase();
+          } else if (buf === 'http_user_agent') {
+            ua = t;
+          } else if (buf === 'http_cookie' || buf === 'http_raw_cookie') {
+            headers['Cookie'] = t;
+          } else if (buf === 'http_header' || buf === 'http_raw_header') {
+            var ci = t.indexOf(':');
+            if (ci > 0) headers[t.slice(0, ci).trim()] = t.slice(ci + 1).trim();
+            else headers['X-Snort-Trigger'] = t;
+          } else if (buf === 'http_client_body' || buf === 'http_raw_body') {
+            body = t;
+            if (method === 'GET') method = 'POST';
+          } else {
+            if (fallbackPath === null) fallbackPath = '/?q=' + encodeURIComponent(t);
+          }
+        });
+        if (path === '/' && fallbackPath) path = fallbackPath;
+        return { method: method, path: path, headers: headers, body: body, ua: ua };
+      }
+
+      function buildPayload(info) {
+        if (!info.contents.length) return '';
+        return info.contents.map(function (c) { return c.text; }).join('');
+      }
+
+      function generateScript(info, version) {
+        var sid  = info.options.sid || '0';
+        var msg  = (info.options.msg || '').replace(/^"|"$/g, '');
+        var dport = pickPort(info.dstPort, info.proto === 'udp' ? 53 : 80);
+        var dstIp = pickIp(info.dstIp, '127.0.0.1');
+        var lines = [];
+        var py = function (s) { lines.push(s); };
+
+        py('#!/usr/bin/env python3');
+        py('"""');
+        py('Auto-generated trigger script for Snort ' + version + ' rule SID ' + sid + '.');
+        py('Rule: ' + msg);
+        py('');
+        py('Source rule:');
+        py('  ' + info.headerRaw + ' (...)');
+        py('');
+        py('LAB USE ONLY. Run only against an isolated IDS/IPS sensor you own.');
+        py('Edit TARGET_IP below before executing.');
+        py('"""');
+        py('import socket, sys');
+        py('');
+        py('TARGET_IP   = ' + pyStr(dstIp));
+        py('TARGET_PORT = ' + dport);
+        py('TIMEOUT     = 5');
+        py('');
+
+        if (isHttpRule(info)) {
+          var req = buildHttpRequest(info);
+          py('try:');
+          py('    import requests');
+          py('except ImportError:');
+          py('    sys.stderr.write("This trigger needs the requests library: pip install requests\\n")');
+          py('    sys.exit(1)');
+          py('');
+          py('def trigger():');
+          py('    url = f"http://{TARGET_IP}:{TARGET_PORT}" + ' + pyStr(req.path));
+          py('    headers = {');
+          py('        "User-Agent": ' + pyStr(req.ua) + ',');
+          Object.keys(req.headers).forEach(function (k) {
+            py('        ' + pyStr(k) + ': ' + pyStr(req.headers[k]) + ',');
+          });
+          py('    }');
+          if (req.body !== null) {
+            py('    data = ' + pyStr(req.body));
+            py('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, data=data, timeout=TIMEOUT)');
+          } else if (req.method === 'GET') {
+            py('    r = requests.get(url, headers=headers, timeout=TIMEOUT)');
+          } else {
+            py('    r = requests.request(' + pyStr(req.method) + ', url, headers=headers, timeout=TIMEOUT)');
+          }
+          py('    print(f"Sent {r.request.method} {url} -> HTTP {r.status_code}")');
+          py('');
+          py('if __name__ == "__main__":');
+          py('    trigger()');
+        } else if (info.proto === 'icmp') {
+          py('import os, struct');
+          py('');
+          py('def icmp_checksum(pkt):');
+          py('    s = 0');
+          py('    for i in range(0, len(pkt) - 1, 2):');
+          py('        s += (pkt[i] << 8) + pkt[i + 1]');
+          py('    if len(pkt) % 2:');
+          py('        s += pkt[-1] << 8');
+          py('    s = (s >> 16) + (s & 0xffff)');
+          py('    s += s >> 16');
+          py('    return (~s) & 0xffff');
+          py('');
+          py('def trigger():');
+          py('    if os.geteuid() != 0:');
+          py('        sys.stderr.write("ICMP trigger requires root (raw socket).\\n"); sys.exit(1)');
+          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          py('    header  = struct.pack("!BBHHH", 8, 0, 0, os.getpid() & 0xffff, 1)');
+          py('    cksum   = icmp_checksum(header + payload)');
+          py('    pkt     = struct.pack("!BBHHH", 8, 0, cksum, os.getpid() & 0xffff, 1) + payload');
+          py('    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)');
+          py('    s.settimeout(TIMEOUT)');
+          py('    s.sendto(pkt, (TARGET_IP, 0))');
+          py('    print(f"Sent ICMP echo ({len(pkt)} bytes) to {TARGET_IP}")');
+          py('');
+          py('if __name__ == "__main__":');
+          py('    trigger()');
+        } else if (info.proto === 'udp') {
+          py('def trigger():');
+          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          py('    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)');
+          py('    s.settimeout(TIMEOUT)');
+          py('    s.sendto(payload, (TARGET_IP, TARGET_PORT))');
+          py('    print(f"Sent UDP datagram ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT}")');
+          py('');
+          py('if __name__ == "__main__":');
+          py('    trigger()');
+        } else {
+          py('def trigger():');
+          py('    payload = ' + pyBytes(buildPayload(info) || 'snort-trigger'));
+          py('    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)');
+          py('    s.settimeout(TIMEOUT)');
+          py('    s.connect((TARGET_IP, TARGET_PORT))');
+          py('    s.sendall(payload)');
+          py('    try:');
+          py('        s.shutdown(socket.SHUT_WR)');
+          py('        _ = s.recv(1024)');
+          py('    except OSError:');
+          py('        pass');
+          py('    s.close()');
+          py('    print(f"Sent TCP payload ({len(payload)} bytes) to {TARGET_IP}:{TARGET_PORT}")');
+          py('');
+          py('if __name__ == "__main__":');
+          py('    trigger()');
+        }
+
+        return { script: lines.join('\n') + '\n', sid: sid, msg: msg };
+      }
+
+      function setOutput(text, sid, summary) {
+        outEl.textContent = text;
+        outNameEl.textContent = sid && sid !== '0' ? '— trigger_' + sid + '.py' : '';
+        outWrapEl.style.display = '';
+        infoEl.textContent = summary || '';
+      }
+      function setError(msg) {
+        outWrapEl.style.display = 'none';
+        infoEl.innerHTML = '<span style="color:#ff8484;">' + msg.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
+      }
+
+      genBtn.addEventListener('click', function () {
+        var text = (inputEl.value || '').trim();
+        if (!text) { setError('Paste a Snort rule first.'); return; }
+        var firstLine = text.split(/\r?\n/).filter(function (l) { return l.trim() && l.trim().charAt(0) !== '#'; })[0];
+        if (!firstLine) { setError('No rule found (only comments / blank lines).'); return; }
+        var info = parseRule(firstLine);
+        if (info.error) { setError('Parse error: ' + info.error); return; }
+        var ver = getVersion();
+        var res = generateScript(info, ver);
+        var summary = 'Parsed: proto=' + info.proto + ', dst=' + pickIp(info.dstIp,'127.0.0.1')
+                    + ':' + pickPort(info.dstPort, info.proto==='udp'?53:80)
+                    + ', contents=' + info.contents.length
+                    + (info.options.sid ? ', sid=' + info.options.sid : '')
+                    + ' (Snort ' + ver + ')';
+        setOutput(res.script, res.sid, summary);
+      });
+
+      clearBtn.addEventListener('click', function () {
+        inputEl.value = '';
+        outWrapEl.style.display = 'none';
+        infoEl.textContent = '';
+        outEl.textContent = '';
+      });
+
+      copyBtn.addEventListener('click', function () {
+        var t = outEl.textContent || '';
+        if (!t) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(t).then(function () {
+            var orig = copyBtn.textContent;
+            copyBtn.textContent = '✓ Copied';
+            setTimeout(function () { copyBtn.textContent = orig; }, 1500);
+          });
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = t; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+
+      dlBtn.addEventListener('click', function () {
+        var t = outEl.textContent || '';
+        if (!t) return;
+        var name = (outNameEl.textContent || '').replace(/^—\s*/, '') || 'snort_trigger.py';
+        var blob = new Blob([t], { type: 'text/x-python' });
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      });
     })();
   </script>
 </body>
