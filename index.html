@@ -3523,6 +3523,30 @@ if __name__ == "__main__":
         });
         if (pcreEscaped) changes.push("PCRE special characters (\" ;) escaped to \\x22 \\x3b");
 
+        // 5b. Migrate deprecated threshold: → detection_filter: (Manual §3.8)
+        // threshold:type <limit|threshold|both>, track <by_src|by_dst>, count N, seconds N;
+        //   • type=threshold  → 1:1 map to detection_filter (per-rule rate limit)
+        //   • type=limit/both → cannot map to detection_filter (alert-suppression semantics
+        //                       belong in event_filter / threshold.conf); leave with warning
+        opts = opts.flatMap(o => {
+          if (optionKeyword(o).toLowerCase() !== "threshold") return [o];
+          const body = o.slice(o.indexOf(":") + 1).trim();
+          // parse comma-separated kv pairs
+          const kv = {};
+          body.split(",").map(s => s.trim()).forEach(seg => {
+            const m = seg.match(/^(\w+)\s+(.+)$/);
+            if (m) kv[m[1].toLowerCase()] = m[2].trim();
+          });
+          const type = (kv.type || "").toLowerCase();
+          if (type === "threshold" && kv.track && kv.count && kv.seconds) {
+            changes.push(`threshold migrated to detection_filter (Manual §3.8): track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`);
+            return [`detection_filter:track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`];
+          }
+          // limit/both → keep as-is (Snort 2 still parses it; advise event_filter)
+          changes.push(`threshold (type=${type || "?"}) left in place — move to event_filter in threshold.conf for Snort 3 (Manual §3.8)`);
+          return [o];
+        });
+
         // 6. Increment rev if any changes were made
         if (changes.length > 0) {
           const revIdx = opts.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
@@ -3888,7 +3912,7 @@ if __name__ == "__main__":
           const deprecated2 = [
             ["uricontent",    "replaced by content + http_uri in Snort 3",       'content:"..."; http_uri;'],
             ["rawbytes",      "removed in Snort 3 — use raw_data; sticky buffer"],
-            ["threshold",     "replaced by detection_filter in Snort 3"],
+            ["threshold",     "replaced by detection_filter (per-rule) or event_filter (alert-suppression) in Snort 3 — auto-fix migrates type=threshold; type=limit/both must move to threshold.conf event_filter (Manual §3.8)"],
             ["activates",     "dynamic rules removed in Snort 3"],
             ["activated_by",  "dynamic rules removed in Snort 3"],
             ["resp",          "removed in Snort 3"],
@@ -3901,6 +3925,72 @@ if __name__ == "__main__":
           deprecated2.forEach(([kw, msg, fix]) => {
             if (has(kw)) suggestions.push({ level:"warn", msg:`'${kw}' cannot be migrated to Snort 3: ${msg}.`, fix });
           });
+
+          // ── S005: missing classtype (Manual §3.4.6) ─────────────────────
+          if (!has("classtype"))
+            suggestions.push({ level:"info", msg:"Missing classtype (Manual §3.4.6). Recommended for event categorization and priority.", fix:'classtype:attempted-recon;' });
+
+          // ── S008: rule has no detection payload (Manual §3.9.1) ─────────
+          if (!has("content") && !has("uricontent") && !has("pcre"))
+            suggestions.push({ level:"warn", msg:"No content/uricontent/pcre — rule will be evaluated against every packet (very expensive). Add a literal content match (Manual §3.9.1)." });
+
+          // ── S010 / S011: fast_pattern hygiene (Manual §3.5.22 / §3.9.4) ─
+          {
+            const contents = [];
+            opts.forEach((o, i) => {
+              const kw = optionKeyword(o).toLowerCase();
+              if (kw === "content") {
+                const val = o.slice(o.indexOf(":") + 1).trim();
+                // strip leading ! (negated), surrounding quotes
+                const stripped = val.replace(/^!\s*/, "").replace(/^"(.*)"$/, "$1");
+                contents.push({ idx: i, raw: val, body: stripped, negated: val.trim().startsWith("!") });
+              }
+            });
+            const fpIdx = opts.findIndex(o => /fast_pattern/i.test(o));
+            if (contents.length >= 2 && fpIdx === -1) {
+              const positives = contents.filter(c => !c.negated);
+              if (positives.length) {
+                const longest = positives.reduce((a, b) => b.body.length > a.body.length ? b : a);
+                suggestions.push({ level:"warn", msg:`Multiple content options but none marked fast_pattern (Manual §3.9.4). Snort will pick the shortest/most-common — explicitly mark the longest unique content as fast_pattern.`, fix:`Add 'fast_pattern;' after content:"${longest.body}"` });
+              }
+            }
+            // S011 — weak fast_pattern (<4 bytes)
+            opts.forEach((o, i) => {
+              if (!/fast_pattern/i.test(o)) return;
+              // find the most recent preceding content
+              for (let j = i; j >= 0; j--) {
+                const kw = optionKeyword(opts[j]).toLowerCase();
+                if (kw === "content") {
+                  const val = opts[j].slice(opts[j].indexOf(":") + 1).trim().replace(/^!\s*/, "").replace(/^"(.*)"$/, "$1");
+                  // count bytes (binary |XX| sequences = 1 byte each)
+                  let len = 0;
+                  let s = val;
+                  s = s.replace(/\|([^|]+)\|/g, (_, h) => {
+                    const bytes = h.replace(/\s+/g, "").length / 2;
+                    len += Math.max(1, Math.floor(bytes));
+                    return "";
+                  });
+                  len += s.length;
+                  if (len > 0 && len < 4)
+                    suggestions.push({ level:"warn", msg:`fast_pattern content "${val}" is ${len} byte(s) — weak fast pattern, defeats the purpose (Manual §3.5.22 / §3.9.4). Use ≥4 bytes or pick a longer content.` });
+                  break;
+                }
+              }
+            });
+          }
+
+          // ── S017: TCP rule without flow direction (Manual §3.6.10) ──────
+          {
+            const headerLower = line.slice(0, parenStart).toLowerCase();
+            const isTcp = /\balert\s+(tcp|http)\b/.test(headerLower);
+            if (isTcp) {
+              const flowVal = (get("flow") || "").toLowerCase();
+              if (!has("flow"))
+                suggestions.push({ level:"warn", msg:"TCP rule without flow option (Manual §3.6.10). Add flow:established and a direction (to_server / to_client) to scope detection.", fix:"flow:established,to_server;" });
+              else if (!/to_server|to_client|from_server|from_client/.test(flowVal))
+                suggestions.push({ level:"warn", msg:"TCP rule has flow but no direction (to_server / to_client). Detection runs on both sides of the conversation (Manual §3.6.10).", fix:"flow:established,to_server;" });
+            }
+          }
 
           opts.forEach(o => {
             if (optionKeyword(o).toLowerCase() === "flowbits") {
