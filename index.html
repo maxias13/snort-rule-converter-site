@@ -1667,10 +1667,14 @@
 
     <section id="optimizerView" class="view">
       <div class="panel">
-        <h3>Rule Optimization</h3>
-        <p class="muted" style="margin:0 0 14px;">
-          Select the rule version, paste local rules, and click Optimize to receive optimization suggestions covering performance, correctness, and best practices.
-        </p>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0 0 4px;"><span id="optimizerHeaderIcon">⚡</span> <span id="optimizerHeaderTitle">Rule Optimization — Snort 2</span></h3>
+            <p class="muted" style="margin:0; font-size:0.85rem;">
+              Select the rule version, paste local rules, and click Optimize to receive optimization suggestions covering performance, correctness, and best practices.
+            </p>
+          </div>
+        </div>
 
         <div style="display:flex; gap:8px; margin-bottom:14px; align-items:center; flex-wrap:wrap;">
           <span style="font-size:0.88rem; color:var(--muted); margin-right:2px;">Rule Version:</span>
@@ -1806,7 +1810,7 @@ python3 trigger_rules.py --delay 1
     <section id="pythonValidatorView" class="view">
       <div class="panel">
         <div style="margin-bottom:18px;">
-          <h3 style="margin:0 0 6px;">🐍 Snort Rule → Trigger Script Generator</h3>
+          <h3 style="margin:0 0 6px;">🐍 Python Validator</h3>
           <p class="muted" style="margin:0; font-size:0.9rem;">
             Paste a single Snort 2 or Snort 3 rule (the version is auto-detected), or upload a
             <code>.rules</code> / <code>.txt</code> file. Optionally specify a Victim/Test
@@ -2861,6 +2865,9 @@ if __name__ == "__main__":
           ? "Paste Snort 2 local rules here, or drag & drop a .rules / .txt file…"
           : "Paste Snort 3 local rules here, or drag & drop a .rules / .txt file…";
         el.optResults.innerHTML = "";
+        // Sync header title with active version (mirrors sidebar sub-tab)
+        var hdrTitle = document.getElementById("optimizerHeaderTitle");
+        if (hdrTitle) hdrTitle.textContent = "Rule Optimization — Snort " + v;
       }
 
       init();
