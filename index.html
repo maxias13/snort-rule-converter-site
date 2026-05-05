@@ -5946,7 +5946,15 @@ ${optRules.join("\n")}
           // In Snort 3 they must precede the content keyword.
           // We splice out exactly ONE buffer — the one belonging to THIS content — and
           // leave any remaining ones in place for subsequent content/pcre keywords.
-          const httpBufIdx = trailing.findIndex((t) => HTTP_BUFFERS.has(optionKeyword(t)));
+          //
+          // GUARD: If this content is already preceded by a sticky buffer (e.g. emitted by
+          // uricontent → http_uri + content), do NOT steal a sticky from the trailing
+          // modifiers — that sticky belongs to the NEXT content/pcre, not this one.
+          const prevTokenKey = out.length > 0 ? optionKeyword(out[out.length - 1]) : null;
+          const alreadyHasStickyBefore = prevTokenKey && HTTP_BUFFERS.has(prevTokenKey);
+          const httpBufIdx = alreadyHasStickyBefore
+            ? -1
+            : trailing.findIndex((t) => HTTP_BUFFERS.has(optionKeyword(t)));
 
           if (httpBufIdx >= 0) {
             const movedBuf = trailing.splice(httpBufIdx, 1)[0]; // removes in-place
