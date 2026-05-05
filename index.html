@@ -3519,11 +3519,10 @@ if __name__ == "__main__":
 
           // ── Section 2: Optimized Rule (always visible) ───────────────
           html += `<div class="opt-section">
-            <div class="opt-section-title" data-toggle="opt-sec-${idx}-rule">
-              <span class="opt-caret">&#9660;</span>
+            <div class="opt-section-title" style="cursor:default;">
               <span>&#10003; Optimized Rule${autoFixes.length ? ` <span style="color:var(--warn);font-weight:400;text-transform:none;letter-spacing:0;">— ${autoFixes.length} auto-fix${autoFixes.length > 1 ? "es" : ""} applied</span>` : ` <span style="color:#50d090;font-weight:400;text-transform:none;letter-spacing:0;">— already optimal</span>`}</span>
             </div>
-            <div class="opt-section-body" id="opt-sec-${idx}-rule">`;
+            <div class="opt-section-body" id="opt-sec-${idx}-rule" style="display:block;">`;
           if (autoFixes.length) {
             html += `<div class="opt-fix-list"><b style="color:#f5c842;font-size:0.78rem;">Auto-fixes applied:</b><ul>${autoFixes.map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul></div>`;
           }
@@ -3553,11 +3552,10 @@ if __name__ == "__main__":
                 <div class="opt-finding-msg">${escapeHtml(s.msg)}${s.fix ? `<span class="opt-finding-fix">&#10142; Suggested fix: <code>${escapeHtml(s.fix)}</code></span>` : ""}</div>
               </div>`).join("");
               return `<div class="opt-section">
-                <div class="opt-section-title" data-toggle="opt-sec-${idx}-${level}">
-                  <span class="opt-caret">&#9660;</span>
+                <div class="opt-section-title" style="cursor:default;">
                   <span>${label} <span style="color:var(--cyan-soft);font-weight:400;">(${items.length})</span></span>
                 </div>
-                <div class="opt-section-body" id="opt-sec-${idx}-${level}">${findings}</div>
+                <div class="opt-section-body" id="opt-sec-${idx}-${level}" style="display:block;">${findings}</div>
               </div>`;
             };
             html += renderGroup("warn", "Warnings", byLevel.warn);
