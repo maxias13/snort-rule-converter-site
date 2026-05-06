@@ -1618,7 +1618,7 @@
 
       <a class="tab-btn" href="https://ngfwpe.cisco.com" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📊</span><span class="label">Performance Estimator</span></a>
 
-      <a class="tab-btn" href="https://www.cisco.com/c/en/us/products/security/firepower-ngfw/datasheet-listing.html" target="_blank" rel="noopener noreferrer"><span class="icon" aria-hidden="true">📄</span><span class="label">FTD Datasheet</span></a>
+      <button class="tab-btn" data-view="ftdCompareView" type="button"><span class="icon" aria-hidden="true">📄</span><span class="label">FTD Spec Comparison</span></button>
     </div>
   </aside>
   <div class="app">
@@ -2175,6 +2175,29 @@ python3 trigger_rules.py --delay 1
 
 
     <!-- ── Download Files (inline view) ─────────────────────────── -->
+    <section id="ftdCompareView" class="view">
+      <div class="panel">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">📄 FTD Spec Comparison</h3>
+            <div style="font-size:0.82rem; color:var(--muted); margin-top:6px;">
+              Cisco Secure Firewall Threat Defense — published datasheet specs (current shipping models). Snort 3 throughput at 1024 B HTTP w/ AVC + IPS.
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <label style="font-size:0.78rem; color:var(--muted); display:flex; align-items:center; gap:6px;">
+              <input type="checkbox" id="ftdShowEol" /> Show EoL/EoS models
+            </label>
+            <button class="btn secondary" id="ftdExportCsv" type="button" style="padding:5px 12px;">⬇ CSV</button>
+          </div>
+        </div>
+        <div id="ftdCompareTableWrap" style="overflow-x:auto; border:1px solid var(--border); border-radius:8px;"></div>
+        <div style="font-size:0.74rem; color:var(--muted); margin-top:10px; line-height:1.55;">
+          Sources: Cisco Secure Firewall 1200/3100/4200 datasheets, Firepower 4100/9300 datasheets, Firepower 1000/2100 datasheets (legacy). Numbers reflect Snort 3 / FTD 7.x where published; values may change with FTD release. Always verify with the latest datasheet for procurement.
+        </div>
+      </div>
+    </section>
+
     <section id="scriptDlView" class="view">
       <div class="panel">
         <div class="scriptdl-head" style="border:0; padding:0; margin-bottom:14px;">
@@ -4984,6 +5007,7 @@ ${optRules.join("\n")}
         if (viewId === "validatorView") updateRuleCount();
         if (viewId === "feedbackView" && window.__fbLoadPosts) window.__fbLoadPosts();
         if (viewId === "scriptDlView" && window.__scriptDlLoad) window.__scriptDlLoad();
+        if (viewId === "ftdCompareView" && window.__ftdCompareRender) window.__ftdCompareRender();
       }
 
       function handleFileLoad(event) {
@@ -7593,6 +7617,242 @@ ${optRules.join("\n")}
         setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
       });
     })();
+  </script>
+
+  <script>
+  /* FTD Spec Comparison — public datasheet values for Cisco Secure Firewall Threat Defense models. */
+  (function () {
+    "use strict";
+
+    const SPECS = [
+      { key: "family",       label: "Family" },
+      { key: "ru",           label: "Form factor" },
+      { key: "status",       label: "Lifecycle" },
+      { key: "fwThroughput", label: "Firewall throughput (1024 B)" },
+      { key: "ipsThroughput",label: "FW + AVC + IPS (1024 B)" },
+      { key: "ipsecVpn",     label: "IPsec VPN throughput" },
+      { key: "maxConn",      label: "Max concurrent sessions" },
+      { key: "newConn",      label: "New connections / sec" },
+      { key: "interfaces",   label: "Built-in interfaces" },
+      { key: "expansion",    label: "NM / FPM expansion" },
+      { key: "redundantPsu", label: "Redundant PSU" },
+      { key: "ha",           label: "HA / Clustering" },
+      { key: "minFtd",       label: "Min FTD release" },
+    ];
+
+    const MODELS = [
+      // Secure Firewall 1200
+      { name: "Secure FW 1210CE", family: "1200", ru: "Desktop", status: "current",
+        fwThroughput: "3.5 Gbps", ipsThroughput: "2.0 Gbps", ipsecVpn: "1.0 Gbps",
+        maxConn: "300 K", newConn: "16 K",
+        interfaces: "8× 1G + 2× 10G SFP", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "7.7" },
+      { name: "Secure FW 1220CX", family: "1200", ru: "Desktop", status: "current",
+        fwThroughput: "5.0 Gbps", ipsThroughput: "3.0 Gbps", ipsecVpn: "1.5 Gbps",
+        maxConn: "500 K", newConn: "25 K",
+        interfaces: "8× 1G + 2× 10G SFP", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "7.7" },
+
+      // Secure Firewall 3100
+      { name: "Secure FW 3105", family: "3100", ru: "1RU", status: "current",
+        fwThroughput: "30 Gbps", ipsThroughput: "12 Gbps", ipsecVpn: "8 Gbps",
+        maxConn: "5 M", newConn: "200 K",
+        interfaces: "8× 1G/10G SFP+", expansion: "1× NM slot",
+        redundantPsu: "Optional", ha: "HA + Cluster (up to 8)", minFtd: "7.4" },
+      { name: "Secure FW 3110", family: "3100", ru: "1RU", status: "current",
+        fwThroughput: "45 Gbps", ipsThroughput: "17 Gbps", ipsecVpn: "12 Gbps",
+        maxConn: "9 M", newConn: "275 K",
+        interfaces: "8× 1G/10G SFP+", expansion: "1× NM slot",
+        redundantPsu: "Optional", ha: "HA + Cluster (up to 8)", minFtd: "7.3" },
+      { name: "Secure FW 3120", family: "3100", ru: "1RU", status: "current",
+        fwThroughput: "60 Gbps", ipsThroughput: "27 Gbps", ipsecVpn: "18 Gbps",
+        maxConn: "15 M", newConn: "375 K",
+        interfaces: "8× 1G/10G SFP+", expansion: "1× NM slot",
+        redundantPsu: "Optional", ha: "HA + Cluster (up to 8)", minFtd: "7.3" },
+      { name: "Secure FW 3130", family: "3100", ru: "1RU", status: "current",
+        fwThroughput: "75 Gbps", ipsThroughput: "37 Gbps", ipsecVpn: "23 Gbps",
+        maxConn: "25 M", newConn: "500 K",
+        interfaces: "8× 1G/10G SFP+ + 8× 10G/25G SFP28", expansion: "1× NM slot",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 8)", minFtd: "7.3" },
+      { name: "Secure FW 3140", family: "3100", ru: "1RU", status: "current",
+        fwThroughput: "90 Gbps", ipsThroughput: "45 Gbps", ipsecVpn: "27 Gbps",
+        maxConn: "35 M", newConn: "750 K",
+        interfaces: "8× 1G/10G SFP+ + 8× 10G/25G SFP28", expansion: "1× NM slot",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 8)", minFtd: "7.3" },
+
+      // Secure Firewall 4200
+      { name: "Secure FW 4215", family: "4200", ru: "1RU", status: "current",
+        fwThroughput: "85 Gbps", ipsThroughput: "65 Gbps", ipsecVpn: "55 Gbps",
+        maxConn: "60 M", newConn: "1.6 M",
+        interfaces: "8× 1G/10G/25G SFP28", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "7.4" },
+      { name: "Secure FW 4225", family: "4200", ru: "1RU", status: "current",
+        fwThroughput: "150 Gbps", ipsThroughput: "80 Gbps", ipsecVpn: "65 Gbps",
+        maxConn: "80 M", newConn: "1.8 M",
+        interfaces: "8× 1G/10G/25G SFP28", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "7.4" },
+      { name: "Secure FW 4245", family: "4200", ru: "2RU", status: "current",
+        fwThroughput: "200 Gbps", ipsThroughput: "150 Gbps", ipsecVpn: "95 Gbps",
+        maxConn: "100 M", newConn: "2.0 M",
+        interfaces: "8× 1G/10G/25G SFP28 + 4× 40G/100G QSFP28", expansion: "3× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "7.4" },
+
+      // Firepower 4100 (legacy)
+      { name: "Firepower 4112", family: "4100", ru: "1RU", status: "eol",
+        fwThroughput: "37 Gbps", ipsThroughput: "20 Gbps", ipsecVpn: "12 Gbps",
+        maxConn: "15 M", newConn: "300 K",
+        interfaces: "8× 10G SFP+", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "6.6" },
+      { name: "Firepower 4115", family: "4100", ru: "1RU", status: "eol",
+        fwThroughput: "60 Gbps", ipsThroughput: "26 Gbps", ipsecVpn: "16 Gbps",
+        maxConn: "28 M", newConn: "500 K",
+        interfaces: "8× 10G SFP+", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "6.4" },
+      { name: "Firepower 4125", family: "4100", ru: "1RU", status: "eol",
+        fwThroughput: "80 Gbps", ipsThroughput: "34 Gbps", ipsecVpn: "20 Gbps",
+        maxConn: "40 M", newConn: "750 K",
+        interfaces: "8× 10G SFP+", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "6.4" },
+      { name: "Firepower 4145", family: "4100", ru: "1RU", status: "eol",
+        fwThroughput: "95 Gbps", ipsThroughput: "45 Gbps", ipsecVpn: "26 Gbps",
+        maxConn: "55 M", newConn: "1.0 M",
+        interfaces: "8× 10G SFP+", expansion: "2× NM slots",
+        redundantPsu: "Standard (1+1)", ha: "HA + Cluster (up to 16)", minFtd: "6.4" },
+
+      // Firepower 9300 (legacy, per security module)
+      { name: "FPR9300 + SM-40", family: "9300", ru: "3RU chassis", status: "eol",
+        fwThroughput: "70 Gbps / SM", ipsThroughput: "35 Gbps / SM", ipsecVpn: "27 Gbps / SM",
+        maxConn: "40 M / SM", newConn: "750 K / SM",
+        interfaces: "Chassis 8× 10G + NM", expansion: "Up to 3× SM + 2× FPM",
+        redundantPsu: "Standard (4× PSU)", ha: "HA + Cluster", minFtd: "6.4" },
+      { name: "FPR9300 + SM-48", family: "9300", ru: "3RU chassis", status: "eol",
+        fwThroughput: "80 Gbps / SM", ipsThroughput: "55 Gbps / SM", ipsecVpn: "32 Gbps / SM",
+        maxConn: "60 M / SM", newConn: "1.0 M / SM",
+        interfaces: "Chassis 8× 10G + NM", expansion: "Up to 3× SM + 2× FPM",
+        redundantPsu: "Standard (4× PSU)", ha: "HA + Cluster", minFtd: "6.4" },
+      { name: "FPR9300 + SM-56", family: "9300", ru: "3RU chassis", status: "eol",
+        fwThroughput: "90 Gbps / SM", ipsThroughput: "70 Gbps / SM", ipsecVpn: "37 Gbps / SM",
+        maxConn: "70 M / SM", newConn: "1.2 M / SM",
+        interfaces: "Chassis 8× 10G + NM", expansion: "Up to 3× SM + 2× FPM",
+        redundantPsu: "Standard (4× PSU)", ha: "HA + Cluster", minFtd: "6.6" },
+
+      // Firepower 1000 (legacy)
+      { name: "Firepower 1010", family: "1000", ru: "Desktop", status: "eol",
+        fwThroughput: "2.0 Gbps", ipsThroughput: "650 Mbps", ipsecVpn: "100 Mbps",
+        maxConn: "100 K", newConn: "10 K",
+        interfaces: "8× 1G (incl. PoE)", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "6.5" },
+      { name: "Firepower 1120", family: "1000", ru: "1RU", status: "eol",
+        fwThroughput: "5.0 Gbps", ipsThroughput: "1.5 Gbps", ipsecVpn: "1.0 Gbps",
+        maxConn: "200 K", newConn: "15 K",
+        interfaces: "8× 1G + 4× 10G SFP+", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "6.4" },
+      { name: "Firepower 1140", family: "1000", ru: "1RU", status: "eol",
+        fwThroughput: "8.5 Gbps", ipsThroughput: "2.2 Gbps", ipsecVpn: "1.4 Gbps",
+        maxConn: "400 K", newConn: "27 K",
+        interfaces: "8× 1G + 4× 10G SFP+", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "6.4" },
+      { name: "Firepower 1150", family: "1000", ru: "1RU", status: "eol",
+        fwThroughput: "10.5 Gbps", ipsThroughput: "3.5 Gbps", ipsecVpn: "2.0 Gbps",
+        maxConn: "600 K", newConn: "36 K",
+        interfaces: "8× 1G + 4× 10G SFP+", expansion: "—",
+        redundantPsu: "No", ha: "HA only", minFtd: "6.6" },
+
+      // Firepower 2100 (legacy)
+      { name: "Firepower 2110", family: "2100", ru: "1RU", status: "eol",
+        fwThroughput: "8.5 Gbps", ipsThroughput: "2.0 Gbps", ipsecVpn: "1.4 Gbps",
+        maxConn: "1 M", newConn: "12 K",
+        interfaces: "12× 1G + 4× 10G SFP+", expansion: "—",
+        redundantPsu: "Standard (1+1)", ha: "HA only", minFtd: "6.2.1" },
+      { name: "Firepower 2120", family: "2100", ru: "1RU", status: "eol",
+        fwThroughput: "10 Gbps", ipsThroughput: "3.0 Gbps", ipsecVpn: "1.5 Gbps",
+        maxConn: "1.5 M", newConn: "16 K",
+        interfaces: "12× 1G + 4× 10G SFP+", expansion: "—",
+        redundantPsu: "Standard (1+1)", ha: "HA only", minFtd: "6.2.1" },
+      { name: "Firepower 2130", family: "2100", ru: "1RU", status: "eol",
+        fwThroughput: "20 Gbps", ipsThroughput: "5.0 Gbps", ipsecVpn: "3.5 Gbps",
+        maxConn: "2 M", newConn: "24 K",
+        interfaces: "12× 1G + 4× 10G SFP+", expansion: "1× NM slot",
+        redundantPsu: "Standard (1+1)", ha: "HA only", minFtd: "6.2.1" },
+      { name: "Firepower 2140", family: "2100", ru: "1RU", status: "eol",
+        fwThroughput: "25 Gbps", ipsThroughput: "8.5 Gbps", ipsecVpn: "5.0 Gbps",
+        maxConn: "3 M", newConn: "40 K",
+        interfaces: "12× 1G + 4× 10G SFP+", expansion: "1× NM slot",
+        redundantPsu: "Standard (1+1)", ha: "HA only", minFtd: "6.2.1" },
+    ];
+
+    const escapeHtml = (s) => String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+    function buildTable(showEol) {
+      const rows = showEol ? MODELS : MODELS.filter((m) => m.status === "current");
+      if (!rows.length) {
+        return '<div style="padding:24px; text-align:center; color:var(--muted);">No models to display.</div>';
+      }
+      let html = '<table style="width:100%; border-collapse:collapse; font-size:0.82rem; min-width:900px;">';
+      html += '<thead><tr>';
+      html += '<th style="position:sticky; left:0; background:var(--bg, #fff); border-bottom:2px solid var(--border); padding:10px 12px; text-align:left; font-weight:600; min-width:200px; z-index:1;">Spec</th>';
+      rows.forEach((m) => {
+        const tag = m.status === "eol"
+          ? ' <span style="font-size:0.65rem; color:#b45309; background:#fef3c7; padding:1px 6px; border-radius:8px; margin-left:4px; vertical-align:middle;">EoL/EoS</span>'
+          : '';
+        html += '<th style="border-bottom:2px solid var(--border); padding:10px 12px; text-align:left; font-weight:600; white-space:nowrap;">'
+              + escapeHtml(m.name) + tag + '</th>';
+      });
+      html += '</tr></thead><tbody>';
+      SPECS.forEach((spec, i) => {
+        const zebra = i % 2 === 1 ? 'background:rgba(0,0,0,0.025);' : '';
+        html += '<tr style="' + zebra + '">';
+        html += '<td style="position:sticky; left:0; background:var(--bg, #fff); border-bottom:1px solid var(--border); padding:8px 12px; font-weight:600; color:var(--muted); z-index:1;">'
+              + escapeHtml(spec.label) + '</td>';
+        rows.forEach((m) => {
+          html += '<td style="border-bottom:1px solid var(--border); padding:8px 12px; white-space:nowrap;">'
+                + escapeHtml(m[spec.key] || '—') + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      return html;
+    }
+
+    function exportCsv(showEol) {
+      const rows = showEol ? MODELS : MODELS.filter((m) => m.status === "current");
+      const csvEsc = (v) => {
+        const s = String(v == null ? "" : v);
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const lines = [];
+      lines.push(["Spec"].concat(rows.map((m) => m.name)).map(csvEsc).join(","));
+      SPECS.forEach((spec) => {
+        lines.push([spec.label].concat(rows.map((m) => m[spec.key] || "")).map(csvEsc).join(","));
+      });
+      const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "ftd_spec_comparison.csv";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function render() {
+      const wrap = document.getElementById("ftdCompareTableWrap");
+      if (!wrap) return;
+      const cb = document.getElementById("ftdShowEol");
+      wrap.innerHTML = buildTable(!!(cb && cb.checked));
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      const cb = document.getElementById("ftdShowEol");
+      const exportBtn = document.getElementById("ftdExportCsv");
+      if (cb) cb.addEventListener("change", render);
+      if (exportBtn) exportBtn.addEventListener("click", function () {
+        exportCsv(!!(cb && cb.checked));
+      });
+    });
+
+    window.__ftdCompareRender = render;
+  })();
   </script>
 
   <!-- TS Analyzer (FPR troubleshoot bundle) - must load AFTER its DOM (#tsAnalyzerView) is in the document -->
