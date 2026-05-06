@@ -256,7 +256,7 @@
       }
 
       let foundText = null;
-      const extras = { iprep: null, sidns: null, siurl: null, cpuRrds: {} };
+      const extras = { iprep: null, sidns: null, siurl: null, cpuRrds: {}, showSummary: null };
       const decodeVer = (bytes) => {
         const s = new TextDecoder('utf-8').decode(bytes).trim();
         const m = s.match(/VERSION\s*=\s*(\S+)/i);
@@ -287,6 +287,8 @@
           onFound: (_n, b) => { extras.sidns = decodeVer(b); } },
         { regex: /siurl_download\/IPRVersion\.dat$/, required: false,
           onFound: (_n, b) => { extras.siurl = decodeVer(b); } },
+        { regex: /sfcli\.pl show summary\.output$/, required: false,
+          onFound: (_n, b) => { extras.showSummary = new TextDecoder('utf-8').decode(b); } },
         cpuRrdTarget,
       ];
       const scanner = makeTarScanner(targets);

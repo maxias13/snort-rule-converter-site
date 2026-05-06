@@ -280,22 +280,42 @@ function parseShowMode(text) {
   return m ? m[1] : text.trim();
 }
 
-/* parseSoftwareVersions: extracts SRU/VDB from show-tech text and merges
- * Security Intelligence versions captured opportunistically from
- * IPRVersion.dat files (passed via `extras`). LSP/GeoDB/Snort engine are not
- * exposed in standard FTD troubleshoot bundles -> reported as null. */
+/* parseSoftwareVersions: extracts SRU/VDB/LSP/GeoDB/Snort-engine from show-tech
+ * text (incl. the `snort version info` block emitted by `show summary`/
+ * `sfcli.pl show_tech_support asa_lina_cli_util`) and merges Security
+ * Intelligence versions captured opportunistically from IPRVersion.dat files
+ * (passed via `extras`). Fields not present in the bundle stay null. */
 function parseSoftwareVersions(text, extras) {
   extras = extras || {};
-  const grab = (re) => { const m = (text || '').match(re); return m ? m[1].trim() : null; };
+  const main = text || '';
+  const summary = extras.showSummary || '';
+  const sources = [main, summary];
+  const grab = (re) => {
+    for (const s of sources) {
+      const m = s.match(re);
+      if (m) return m[1].trim();
+    }
+    return null;
+  };
+
+  const SNORT_VER_RE = /Snort Version\s*:\s*(\d+\.\d+\.\d+(?:\.\d+)?)(?:\s+GRE)?\s*\(Build\s+(\d+)\)/i;
+  let snortEngine = null;
+  for (const s of sources) {
+    const sectIdx = s.search(/[-]+\[\s*snort version info\s*\][-]+/i);
+    const window = sectIdx !== -1 ? s.slice(sectIdx, sectIdx + 800) : s;
+    const m = window.match(SNORT_VER_RE);
+    if (m) { snortEngine = `${m[1]} (Build ${m[2]})`; break; }
+  }
+
   return {
     sru:         grab(/^Rules update version\s*:\s*(\S+)/m),
     vdb:         grab(/^VDB version\s*:\s*(\S+)/m),
     iprep:       extras.iprep || null,
     sidns:       extras.sidns || null,
     siurl:       extras.siurl || null,
-    lsp:         null,
-    geodb:       null,
-    snortEngine: null,
+    lsp:         grab(/^LSP version\s*:\s*(\S+)/m),
+    geodb:       grab(/^(?:GeoDB version|Geolocation Update Version)\s*:\s*(\S+)/m),
+    snortEngine: snortEngine,
   };
 }
 
