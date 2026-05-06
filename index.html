@@ -2016,7 +2016,7 @@ python3 trigger_rules.py --delay 1
           <div class="ts-toolbar">
             <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.remove('collapsed'))">Expand all</button>
             <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.add('collapsed'))">Collapse all</button>
-            <button class="btn secondary" onclick="window.print()">Print / Save as PDF</button>
+            <button class="btn secondary" id="ts-download-html" type="button">HTML Download</button>
           </div>
           <div id="device-summary"></div>
           <div id="health-findings"></div>

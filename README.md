@@ -1,261 +1,133 @@
 # Snort 2 → Snort 3 Local Rule Converter
 
-> **Site URL:** https://maxias13.github.io/snort-rule-converter/  
-> **Site Owner:** Jungsub Shin (kaishin@cisco.com)  
-> **Disclaimer:** All information provided on this site is not official information from Cisco Systems. Please use it with caution.
+A single-file browser app for working with Cisco Secure Firewall (FTD / Firepower)
+**Snort rule sets** and **troubleshoot bundles**. Everything runs **100% in the
+browser** — no rules, no traffic, and no troubleshoot data ever leave your machine.
 
----
-
-## Overview
-
-A fully static, single-file web application (`index.html`) that helps network security engineers migrate Cisco Secure Firewall (formerly Firepower) local Snort 2 rules to Snort 3 format.  
-No backend server required — hosted on GitHub Pages.
+> Open `index.html` directly, or serve the folder with any static HTTP server.
 
 ---
 
 ## Features
 
-### 1. Home — Rule Converter
-Converts Snort 2 local rules to Snort 3 syntax via a **4-pass conversion pipeline**.
+The app is organized as a tabbed workspace. Each tab is self-contained and
+operates entirely client-side.
 
-#### Conversion Algorithm
-
-**Pass 1 — Option-Level Keyword Transformation**
-
-Each rule is parsed into a header and semicolon-delimited options (quote-aware, escape-aware tokenizer). The following transformations are applied per keyword:
-
-| Snort 2 | Action | Snort 3 Result |
-|---------|--------|----------------|
-| `uricontent:"X"` | Split into sticky buffer + content | `http_uri; content:"X"` |
-| `flowbits:set,name` | Preserved for session-state logic | `flowbits:set,name` |
-| `flowbits:noalert` | Standalone flag conversion | `noalert` |
-| `flowbits:reset` | No Snort 3 equivalent | ⚠ removed + WARNING |
-| `isdataat:N,rawbytes` | rawbytes sub-option stripped | `isdataat:N` |
-| `file_data:mime` | Parameter stripped | `file_data` |
-| `fast_pattern:only` | `:only` qualifier removed | `fast_pattern` |
-| `metadata:service http` | service entries promoted | `service:http` or `alert http` |
-| `sameip` | Renamed | `same_ip` |
-| `rawbytes`, `threshold`, `resp`, `activates`, `activated_by`, `logto`, `session` | Removed in Snort 3 | ⚠ removed + WARNING |
-| `react`, `tag`, `stream_reassemble`, `replace` | Supported or changed depending on Snort 3 context | ⚠ flagged for review / action-specific handling |
-
-**Pass 2 — Sticky Buffer Reordering**
-
-In Snort 3, sticky buffer keywords (`http_uri`, `http_header`, etc.) must appear **before** their associated `content` option. This pass moves any out-of-order sticky buffers to the correct position.
-
-**Pass 3 — PCRE HTTP Flag Conversion**
-
-Snort 2 PCRE uses single-letter HTTP flags (e.g. `/pattern/Ui` for URI). Snort 3 replaces these with sticky buffers placed before the pcre option.
-
-```
-pcre:"/pattern/Ui"  →  http_uri; pcre:"/pattern/i"
-```
-
-**Pass 4 — Content Modifier Inlining**
-
-In Snort 3, positional modifiers (`depth`, `within`, `offset`, `distance`, `nocase`, `fast_pattern`) must be inlined as comma-separated arguments inside the content option.
-
-```
-content:"X"; depth:20; nocase; distance:0;
-→ content:"X", depth 20, nocase, distance 0;
-```
-
-**Final Steps**
-- `gid`, `sid`, `rev` are always sorted to the end of the options in that order
-- If a **Start SID** is specified, each rule's SID is remapped sequentially from that value
-- Original → new SID mapping is persisted to `localStorage` for cross-session traceability
-
-#### Additional Home Features
-- **File drag & drop** — drag a `.rules` file directly onto the input area
-- **Side-by-side diff view** — token-level diff highlighting between original and converted rules
-- **Rule explanation panel** — per-rule breakdown of action, protocol, network, detection criteria, metadata
-- **Download converted rules** — export as `.rules` file with FMC-compatible naming
+| Tab | Purpose |
+|---|---|
+| 🏠 **Home** | Landing page, recent updates, and quick links. |
+| ⚡ **Rule Optimization (Snort 2 / Snort 3)** | Lints, deduplicates, and rewrites local rules. Generates a downloadable HTML optimization report. |
+| 🔀 **Rules Migration** | Converts Snort 2 rules to Snort 3 syntax (sticky-buffers, `pcre` flag rewrites, `threshold` → `detection_filter` / `event_filter`, `uricontent` → `http_uri`, action remaps, etc.) with side-by-side diff. |
+| 🐍 **Python Validator** | In-browser static analyzer for Snort 3 rules with a Python-backed rule-engine view. |
+| 🧬 **Search Duplicate Rules** | Detects duplicate / near-duplicate rules across pasted or uploaded rule sets. |
+| 📥 **Download Files** | Bundled reference assets — Snort 2 / 3 manuals (EN / KR) and the FMC Snort 2 local-rules exporter script. |
+| 🔄 **Snort 2 SRU Updates** | Browse the latest Cisco Snort 2 SRU update history. |
+| 📋 **Snort 3 LSP Updates** | Browse the latest Cisco Snort 3 LSP update history. |
+| 🔬 **Analysis TS File** | Drop in a Firepower troubleshoot bundle (`.tar.gz`) or a `show_tech_output.txt` and get a full health report (CPU, memory, block pools, conn / xlate, ASP drops, Snort statistics, per-interface stats). |
+| 💬 **Feedback** | In-app feedback board. |
+| 🔍 **Search Snort Rules** *(external link)* | Opens [snort.org rule docs search](https://www.snort.org/rule-docs-search). |
+| 📊 **Performance Calculator** *(external link)* | Opens [Cisco NGFW Performance Estimator](https://ngfwpe.cisco.com). |
 
 ---
 
-### 2. Rule Optimization
+## 🔬 Analysis TS File — what it parses
 
-Analyzes Snort 2 or Snort 3 local rules, provides optimization suggestions in **Korean**, and emits an auto-fixed version of each rule.
+The TS analyzer is a streaming, in-browser troubleshoot decoder. It accepts
+either:
 
-- **Version toggle** — Snort 2 / Snort 3 selector applies version-specific checks
-- **Multi-line rule support** — parenthesis depth tracking joins formatted multi-line rules before analysis
-- **Version mismatch detection** — warns if Snort 3-only keywords appear in a Snort 2 rule (or vice versa)
-- **Per-rule suggestions** — categorized as `PERF` (performance), `WARN` (correctness), `INFO` (best practice)
-- **Per-option detailed explanation** — `OPT_EXPLAIN` database covers ~40 keywords with Korean descriptions
-- **Click to expand** — rule header shows truncated rule, click to reveal full text
-- **Auto-fix engine** — `applySnort2Fixes()` / `applySnort3Fixes()` rewrites safe, deterministic issues and lists the changes that were applied
-- **All Optimized Rules panel** — top-of-screen aggregated view of every fixed rule with a one-click **Copy All** button (rendered for **both Snort 2 and Snort 3**)
-- **Per-rule Optimized Rule section** — each rule card shows its fixed version + auto-fixes list + per-rule Copy button (rendered for **both Snort 2 and Snort 3**)
+- A raw `show_tech_output.txt`, **or**
+- A full `*-troubleshoot.tar.gz` bundle (any size — the file is streamed in
+  8 MB chunks; gzip is decompressed in 1 MB pako chunks; the embedded TAR is
+  walked entry-by-entry to locate `show_tech_output.txt` without ever holding
+  the whole archive in memory).
 
-#### Suggestion Categories (examples)
+Once the `show tech` text is in hand it is split by `==== ... ====` /
+`---- show <command> ----` separators and each section is parsed into a
+typed model:
 
-| Level | Example Check |
-|-------|---------------|
-| PERF | `pcre` without preceding `content` anchor |
-| PERF | Multiple `content` options without `fast_pattern` |
-| PERF | Missing `flow` option |
-| WARN | Unknown rule action |
-| WARN | Missing `msg`, `sid`, `rev` |
-| WARN | SID not in local rule range (1,000,000+) |
-| WARN | Deprecated Snort 2 keywords present |
-| INFO | `flowbits` support / `xbits` host-state guidance |
-| INFO | `dce_stub_data` requires dce2 inspector |
+- `show version` → device model, hardware, serial, software version, uptime
+- `show cpu usage`, `show cpu detailed`
+- `show memory`, `show memory detail`, **block pools** (`show blocks`)
+- `show conn count`, `show xlate count`, conn / NAT growth
+- `show traffic` — per-interface and aggregated bps / pps / avg packet size
+- `show interface` — link, errors, drops, queue depth
+- `show asp drop` — top drop reasons with severity
+- `show snort statistics` / `show snort instances` — per-instance load, bypass
 
-#### Auto-Fix Examples
+The renderer then produces a Cisco-branded health report with:
 
-| Version | Auto-Fix |
-|---------|----------|
-| Snort 2 / 3 | Inject `fast_pattern` on the longest `content` when missing |
-| Snort 2 / 3 | Append `flow:established,to_server;` when `flow` is absent |
-| Snort 2 / 3 | Reorder `sid; rev; gid;` to the end of the option list for FMC local-rule imports |
-| Snort 3 | Convert `uricontent:"X"` → `http_uri; content:"X"` |
-| Snort 3 | Preserve `flowbits` when session-state semantics are intended; recommend `xbits` only for host/IP-state tracking |
-| Snort 3 | Strip or flag Snort-2-only/changed modifiers (`rawbytes`, `:only`, `metadata:service http` → `service:http` or `alert http`) |
-| Snort 3 | Inline positional content modifiers (`depth`, `within`, `offset`, `distance`, `nocase`, `fast_pattern`) |
-| Snort 3 | Promote sticky buffers (`http_uri`, `http_header`, …) before their `content` |
+- A device summary card
+- Severity-classified findings (Critical / Warning / Info) with thresholds:
+  - CPU 5-min ≥ 90 % → Critical, ≥ 70 % → Warning
+  - Memory ≥ 90 % → Critical, ≥ 80 % → Warning
+  - ASP top drop reason > 10⁹ → Critical, > 10⁶ → Warning
+  - Snort `bypassed (down)` > 0 → Critical, `bypassed (busy)` > 0 → Warning
+- Collapsible per-section panels with raw values
+- Toolbar: **Expand all / Collapse all / Print (Save as PDF)**
+
+All rendering uses Chart.js + plain DOM — no server round-trips, no upload.
 
 ---
 
-### 3. Python Validator
+## Getting started
 
-Generates a standalone Python 3 script (`validate_snort3.py`) for offline Snort 3 rule validation.
+```bash
+# Just open it
+open index.html
 
-- **No dependencies** — pure Python 3, no external packages required
-- **Embed converted rules** — load rules converted on the Home tab directly into the script
-- **Network variable inputs** — configure `$HOME_NET` / `$EXTERNAL_NET` (Source/Dest IP/CIDR)
-- **Apply to Script** — commits network variables into the generated script
-- **Download / Copy** — export the script for use in CI/CD pipelines or local validation
-
----
-
-### 4. Snort SRU Updates
-
-Displays the current week's **Snort 2 Subscriber Rule Update (SRU)** release notes.
-
-- Fetches all advisory pages for the current week (Sunday–Saturday) in parallel via `Promise.all`
-- Source: `snort.org/advisories/talos-rules-YYYY-MM-DD`
-- Filters blocks matching `Snort version 2XXXXXXX` pattern
-- Shows **New / Modified / Deleted** rule counts per day with collapsible day blocks
-- CORS-proxied via `api.codetabs.com` when direct fetch is blocked
-
----
-
-### 5. Snort LSP Updates
-
-Displays the current week's **Snort 3 Lightweight Security Package (LSP)** release notes.
-
-- Same fetch and display architecture as SRU
-- Filters blocks matching `Snort version 3.X.X.X` pattern
-- Shows **New / Modified / Deleted** rules per day
-
----
-
-### 6. Site Information
-
-Static informational page covering:
-- Site owner, site name, purpose, target users
-- Feature list with detailed conversion algorithm documentation
-- Technical stack (GitHub Pages, Cloudflare Workers, GitHub Issues API)
-- Disclaimer
-
----
-
-### 7. Useful Script Download
-
-An inline page (the header **"Useful Script Download"** button switches the main view, just like Home / Rule Optimization / etc.) that lists helper scripts (e.g. FMC Snort 2 rule exporter) directly from the GitHub repository's `Download_Files/` folder.
-
-#### Architecture
-
-```
-Browser
-    ↓  GET (public, no auth)
-GitHub Contents API
-    ↓
-maxias13/snort-rule-converter-site/Download_Files/  (branch: main)
+# …or serve it (recommended so XHR / fetch and module loaders behave normally)
+python3 -m http.server 8766
+# then visit http://localhost:8766/
 ```
 
-- Download list is fetched live via the GitHub Contents API on every modal open — no rebuild required when files are added or removed.
-- File browser link in the modal footer opens `tree/main/Download_Files` on GitHub for direct browsing.
-
-#### Tabs
-
-| Tab | Access | Behavior |
-|-----|--------|----------|
-| Download | Public | Lists every file in `Download_Files/` with size + click-to-download |
-| Upload (Admin) | Password + GitHub PAT | Drops a new file into `Download_Files/` via authenticated `PUT` |
-
-#### Upload Flow (Admin)
-
-1. Enter admin password — verified client-side via SHA-256 hash compare against the embedded hash constant.
-2. Provide a GitHub PAT (Personal Access Token) with `contents:write` scope on this repo. The PAT is persisted in `localStorage` (`scriptdl_pat`) so it survives reloads.
-3. Drop or pick a file → it is base64-encoded in the browser and `PUT` to `Download_Files/<filename>` via the GitHub Contents API with commit message `"Add Download_Files/<filename> via web upload"`.
-4. The download list refreshes immediately after the upload commit.
-
-> Files are served live from `/Download_Files` on GitHub — anything pushed to that folder (via the web UI or `git push`) appears in the modal automatically.
+No build step. No `npm install`. The few external dependencies (pako, Chart.js,
+icon font) load from public CDNs.
 
 ---
 
-### 8. Feedback Board
-
-Community bulletin board where visitors can leave feedback without a GitHub account.
-
-#### Architecture
+## Repository layout
 
 ```
-Browser (no login required)
-    ↓
-Cloudflare Worker (snort-feedback.snort-feedback.workers.dev)
-    ↓  [GitHub token stored server-side as environment secret]
-GitHub Issues API (maxias13/snort-rule-converter, label: feedback)
+snort-rule-converter-site/
+├── index.html                          # The entire app (UI + most logic)
+├── snort-logo.png                      # App icon
+├── scripts/
+│   ├── README.md
+│   └── ts-analyzer/                    # Analysis TS File feature
+│       ├── parser.js                   # tar.gz streaming + show-tech section parser
+│       ├── renderer.js                 # health-report renderer (Chart.js)
+│       └── app.js                      # drop-zone, file picker, progress wiring
+└── Download_Files/                     # Assets surfaced by the Download Files tab
+    ├── 20260426_002539_snort_2_rules_exporter_all.py
+    ├── snort_2_manual.pdf
+    ├── snort_2_manual_new_EN.pdf
+    ├── snort_2_manual_new_KR.pdf
+    └── snort_3_manual.pdf
 ```
 
-#### Post Types
+---
 
-| Type | Badge Color | Notes |
-|------|-------------|-------|
-| Feature Request | Cyan | Open to all visitors |
-| Bug Report | Red | Open to all visitors |
-| Suggestion | Yellow | Open to all visitors |
-| Notice | Gold ★ | **Admin only** — requires password (SHA-256 hashed, client-side gate) |
+## Privacy
 
-#### Behavior
-- **Notice** posts always appear at the top of the list
-- Posts show title only by default — click to expand author, date, content
-- Submitted posts are stored as GitHub Issues and can be managed (edited/closed/deleted) at `github.com/maxias13/snort-rule-converter/issues`
-- Active tab persists in URL hash (e.g. `#feedbackView`) — survives page refresh
+- No telemetry.
+- No upload, no fetch of user data.
+- Rule text and troubleshoot bundles are read with the `File` API and parsed
+  in-page; nothing is sent over the network.
+- The only outbound requests are CDN fetches for `pako` and `Chart.js` (and
+  the GFM-style icon font used by the UI).
 
 ---
 
-## Technical Stack
+## Browser support
 
-| Component | Technology |
-|-----------|-----------|
-| Hosting | GitHub Pages (static) |
-| Frontend | Pure HTML / CSS / JavaScript — zero dependencies |
-| Feedback Backend | Cloudflare Workers + GitHub Issues REST API |
-| Fonts | Google Fonts (Inter) |
-| Rule update source | snort.org Talos advisory pages |
-| CORS proxy fallback | api.codetabs.com |
+Tested on current Chromium-based browsers and Safari. Requires:
+
+- ES2020+ JavaScript
+- `Blob.stream()` (for the TS analyzer streaming reader)
+- `IntersectionObserver` (for tab-aware lazy init)
 
 ---
 
-## Navigation
+## License
 
-| Tab | URL Hash | Description |
-|-----|----------|-------------|
-| Home | `#homeView` | Rule converter + diff view |
-| Rule Optimization | `#optimizerView` | Per-rule analysis (Korean) |
-| Python Validator | `#validatorView` | Downloadable validation script |
-| Snort SRU Updates | `#sruView` | Weekly Snort 2 rule changes |
-| Snort LSP Updates | `#lspView` | Weekly Snort 3 rule changes |
-| Site Information | `#siteinfoView` | About this site |
-| Feedback | `#feedbackView` | Community board |
-| Useful Script Download | (modal) | Lists & downloads files from `Download_Files/`; admin upload |
-| How to write Snort 3 rules ↗ | — | External link to docs.snort.org |
-
----
-
-## Repository
-
-- **Source:** `index.html` (single-file application)
-- **GitHub:** https://github.com/maxias13/snort-rule-converter-site
-- **Live Site:** https://maxias13.github.io/snort-rule-converter-site/
+Internal use. See repository owner for redistribution terms.

@@ -271,9 +271,80 @@
     showProgress('Rendering report...', 0.97);
     await new Promise(r => setTimeout(r, 0));
     window.FPRRenderer.renderReport(data);
+    window.__tsAnalyzerLastData = data;
 
     hideProgress();
     reportBox.classList.remove('hidden');
     reportBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  // -- HTML Download --------------------------------------------------------
+  // Snapshots #report into a self-contained HTML file: inlines current
+  // page CSS, replaces every Chart.js <canvas> with a PNG <img> so charts
+  // survive without re-running JS, and triggers a Blob download.
+  document.getElementById('ts-download-html')?.addEventListener('click', () => {
+    const reportNode = document.getElementById('report');
+    if (!reportNode || reportNode.classList.contains('hidden')) return;
+
+    const clone = reportNode.cloneNode(true);
+    clone.querySelector('.ts-toolbar')?.remove();
+    const liveCanvases = reportNode.querySelectorAll('canvas');
+    const cloneCanvases = clone.querySelectorAll('canvas');
+    cloneCanvases.forEach((c, i) => {
+      const live = liveCanvases[i];
+      if (!live) return;
+      try {
+        const img = document.createElement('img');
+        img.src = live.toDataURL('image/png');
+        img.style.cssText = 'max-width:100%;height:auto;display:block;';
+        img.width = live.width;
+        img.height = live.height;
+        c.replaceWith(img);
+      } catch { /* tainted canvas — leave placeholder */ }
+    });
+
+    const styleParts = [];
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) styleParts.push(rule.cssText);
+      } catch { /* CORS-restricted sheet — skip */ }
+    }
+    const css = styleParts.join('\n');
+
+    // Filename: <hostname>_<model>_health_<YYYYMMDD_HHMMSS>.html
+    const v = window.__tsAnalyzerLastData?.version || {};
+    const slug = (s) => String(s || '').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'device';
+    const now = new Date();
+    const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    const filename = `${slug(v.hostname)}_${slug(v.model)}_health_${ts}.html`;
+
+    const title = `FPR Health Report — ${v.hostname || 'unknown'} (${v.model || 'unknown'})`;
+    const html =
+`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${title.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</title>
+<style>${css}
+body{margin:0;padding:24px;background:#0b1220;color:#e6ebf5;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.ts-report{display:block;}
+img{max-width:100%;}
+@media print{body{background:#fff;color:#000;}}
+</style>
+</head>
+<body>
+<div id="tsAnalyzerView"><div class="ts-report">${clone.innerHTML}</div></div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 })();
