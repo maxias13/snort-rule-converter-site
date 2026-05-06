@@ -441,25 +441,84 @@ function renderCPUCharts(h) {
   }
 }
 
+// Tab grouping for the analysis report. Section IDs match sectionBlock() ids
+// so that DOM IDs (sec-versions etc.) remain stable for any external anchors.
+const REPORT_TABS = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    sections: [
+      ['versions', 'Software Versions (SRU / VDB / Security Intelligence)', d => renderSoftwareVersions(d.versions)],
+    ],
+  },
+  {
+    id: 'performance',
+    label: 'Performance',
+    sections: [
+      ['cpuhistory', 'CPU Usage History — D/W/M/Y (per-core RRDs)', d => renderCPUHistory(d.cpuHistory)],
+      ['cpumem',     'CPU & Memory (show cpu / show memory)',       d => renderCpuMemSection(d)],
+      ['resource',   'Resource usage (show resource usage)',         d => renderResourceSection(d.resourceUsage)],
+    ],
+  },
+  {
+    id: 'traffic',
+    label: 'Traffic',
+    sections: [
+      ['connxlate',  'Connections & NAT (show conn count / show xlate count)', d => renderConnXlateSection(d)],
+      ['traffic',    'Traffic statistics (show traffic)',                       d => renderTrafficSection(d.traffic)],
+      ['interfaces', 'Interface status (show interface)',                       d => renderInterfacesSection(d.interfaces)],
+      ['asp',        'ASP Drop (show asp drop)',                                d => renderAspDropSection(d.aspDrop)],
+    ],
+  },
+  {
+    id: 'snort',
+    label: 'Snort',
+    sections: [
+      ['snort',  'Snort statistics (show snort statistics)', d => renderSnortSection(d.snortStats)],
+      ['blocks', 'Block pools (show blocks)',                d => renderBlocksSection(d.blocks)],
+    ],
+  },
+];
+
+function renderTabBar(activeId) {
+  const buttons = REPORT_TABS.map(t =>
+    `<button type="button" class="ts-tab${t.id === activeId ? ' active' : ''}" data-tab="${t.id}" onclick="window.FPRRenderer.switchTab('${t.id}')">${t.label}</button>`
+  ).join('');
+  return `<div class="ts-tabbar">${buttons}</div>`;
+}
+
+function renderTabPanels(data, activeId) {
+  return REPORT_TABS.map(t => {
+    const body = t.sections
+      .map(([id, title, fn]) => sectionBlock(id, title, fn(data)))
+      .join('');
+    const head = t.id === 'overview'
+      ? `<div class="ts-tab-findings">${evaluateHealth(data)}</div>`
+      : '';
+    return `<div class="ts-tab-panel${t.id === activeId ? ' active' : ''}" data-tab-panel="${t.id}">${head}${body}</div>`;
+  }).join('');
+}
+
+function switchTab(tabId) {
+  document.querySelectorAll('#tsAnalyzerView .ts-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === tabId);
+  });
+  document.querySelectorAll('#tsAnalyzerView .ts-tab-panel').forEach(p => {
+    p.classList.toggle('active', p.dataset.tabPanel === tabId);
+  });
+}
+
 function renderReport(data) {
   document.getElementById('device-summary').innerHTML = renderDeviceSummary(data);
-  document.getElementById('health-findings').innerHTML = evaluateHealth(data);
+  document.getElementById('health-findings').innerHTML = '';
 
-  const sections = [
-    sectionBlock('versions', 'Software Versions (SRU / VDB / Security Intelligence)', renderSoftwareVersions(data.versions)),
-    sectionBlock('cpuhistory', 'CPU Usage History — D/W/M/Y (per-core RRDs)', renderCPUHistory(data.cpuHistory)),
-    sectionBlock('cpumem', 'CPU & Memory (show cpu / show memory)', renderCpuMemSection(data)),
-    sectionBlock('connxlate', 'Connections & NAT (show conn count / show xlate count)', renderConnXlateSection(data)),
-    sectionBlock('traffic', 'Traffic statistics (show traffic)', renderTrafficSection(data.traffic)),
-    sectionBlock('interfaces', 'Interface status (show interface)', renderInterfacesSection(data.interfaces)),
-    sectionBlock('asp', 'ASP Drop (show asp drop)', renderAspDropSection(data.aspDrop)),
-    sectionBlock('snort', 'Snort statistics (show snort statistics)', renderSnortSection(data.snortStats)),
-    sectionBlock('blocks', 'Block pools (show blocks)', renderBlocksSection(data.blocks)),
-    sectionBlock('resource', 'Resource usage (show resource usage)', renderResourceSection(data.resourceUsage)),
-  ].join('');
-  document.getElementById('sections').innerHTML = sections;
+  const activeId = REPORT_TABS[0].id;
+  document.getElementById('sections').innerHTML =
+    renderTabBar(activeId) + `<div class="ts-tab-panels">${renderTabPanels(data, activeId)}</div>`;
 
+  // Render all charts once on load. Hidden tab panels keep their canvases in
+  // the DOM (display:none ≠ removed), so tab switches need no re-render.
   setTimeout(() => { renderCharts(data); renderCPUCharts(data.cpuHistory); }, 50);
 }
 
-window.FPRRenderer = { renderReport, evaluateHealth, renderCPUCharts };
+window.FPRRenderer = { renderReport, evaluateHealth, renderCPUCharts, switchTab };

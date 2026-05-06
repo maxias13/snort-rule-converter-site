@@ -1556,6 +1556,15 @@
     #tsAnalyzerView .section-head h3 { margin: 0; font-size: 0.95rem; }
     #tsAnalyzerView .section-body { padding: 14px; font-size: 0.85rem; }
     #tsAnalyzerView .section.collapsed .section-body { display: none; }
+    #tsAnalyzerView .ts-tabbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 2px; padding: 8px 0 0; margin-top: 8px; background: var(--bg, #0a0e1a); border-bottom: 1px solid var(--border, #334); }
+    #tsAnalyzerView .ts-tab { background: transparent; color: var(--text-dim, #8a93a6); border: 1px solid transparent; border-bottom: none; padding: 10px 18px; font-size: 0.88rem; font-weight: 600; letter-spacing: 0.02em; cursor: pointer; border-radius: 8px 8px 0 0; transition: color .15s, background .15s, border-color .15s; }
+    #tsAnalyzerView .ts-tab:hover { color: #e5e7eb; background: rgba(255,255,255,0.03); }
+    #tsAnalyzerView .ts-tab.active { color: var(--cyan, #00bceb); background: var(--surface, #0f1830); border-color: var(--border, #334); border-bottom-color: var(--surface, #0f1830); position: relative; }
+    #tsAnalyzerView .ts-tab.active::after { content: ''; position: absolute; left: 12px; right: 12px; top: 0; height: 2px; background: var(--cyan, #00bceb); border-radius: 2px; }
+    #tsAnalyzerView .ts-tab-panels { padding-top: 4px; }
+    #tsAnalyzerView .ts-tab-panel { display: none; }
+    #tsAnalyzerView .ts-tab-panel.active { display: block; }
+    #tsAnalyzerView .ts-tab-findings { margin-top: 16px; }
     #tsAnalyzerView table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
     #tsAnalyzerView th, #tsAnalyzerView td { padding: 6px 8px; border-bottom: 1px solid var(--border, #334); text-align: left; }
     #tsAnalyzerView th { background: rgba(255,255,255,0.03); font-weight: 600; color: var(--text-dim, #8a93a6); }
