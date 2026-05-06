@@ -41,7 +41,7 @@ function statCard(label, value, sub, sev) {
 
 function findingCard(sev, title, body) {
   return `<div class="finding ${sev}">
-    <div class="finding-title"><span class="finding-tag ${sev}">${sev}</span>${escapeHtml(title)}</div>
+    <div class="finding-title"><span class="sev ${sev}">${sev.toUpperCase()}</span><span class="finding-name">${escapeHtml(title)}</span></div>
     <div class="finding-detail">${body}</div>
   </div>`;
 }
