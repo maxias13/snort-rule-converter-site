@@ -75,7 +75,10 @@
       onAllRequiredFound = null;
     }
     targets.forEach(t => { t._fired = false; t.required = t.required !== false; });
-    const allRequiredFired = () => targets.every(t => !t.required || t._fired);
+    // Multi-match targets keep capturing across the whole stream, so we must
+    // NOT short-circuit when only required (single-shot) targets fire.
+    const hasMulti = targets.some(t => t._multi);
+    const allRequiredFired = () => !hasMulti && targets.every(t => !t.required || t._fired);
 
     let buf = new Uint8Array(0);
     let mode = 'header';
@@ -208,6 +211,8 @@
             if (activeTarget) {
               activeTarget._fired = true;
               try { activeTarget.onFound(capturedName, out); } catch (e) { console.error(e); }
+              // Multi-match targets (e.g. 128 LocalCpuN.rrd) re-arm after each capture.
+              if (activeTarget._multi) activeTarget._fired = false;
             }
             activeTarget = null;
             captured = [];
@@ -251,11 +256,24 @@
       }
 
       let foundText = null;
-      const extras = { iprep: null, sidns: null, siurl: null };
+      const extras = { iprep: null, sidns: null, siurl: null, cpuRrds: {} };
       const decodeVer = (bytes) => {
         const s = new TextDecoder('utf-8').decode(bytes).trim();
         const m = s.match(/VERSION\s*=\s*(\S+)/i);
         return m ? m[1] : (s || null);
+      };
+      const cpuRrdTarget = {
+        regex: /LocalCpu(\d+)Usage\.rrd$/,
+        required: false,
+        _multi: true,
+        onFound: (name, bytes) => {
+          const m = name.match(/LocalCpu(\d+)Usage\.rrd$/);
+          if (!m) return;
+          const core = parseInt(m[1], 10);
+          extras.cpuRrds[core] = bytes.buffer.slice(
+            bytes.byteOffset, bytes.byteOffset + bytes.byteLength
+          );
+        }
       };
       const targets = [
         { regex: /show_tech_output\.txt$|show.tech.*\.txt$/i, required: true,
@@ -269,6 +287,7 @@
           onFound: (_n, b) => { extras.sidns = decodeVer(b); } },
         { regex: /siurl_download\/IPRVersion\.dat$/, required: false,
           onFound: (_n, b) => { extras.siurl = decodeVer(b); } },
+        cpuRrdTarget,
       ];
       const scanner = makeTarScanner(targets);
 
@@ -312,7 +331,7 @@
   async function runParseAndRender(text, sourceName, extras) {
     showProgress(`Parsing... (${(text.length / 1024).toFixed(0)} KB)`, 0.9);
     await new Promise(r => setTimeout(r, 0));
-    const data = window.FPRParser.parseAll(text);
+    const data = window.FPRParser.parseAll(text, extras || {});
     data._sourceFile = sourceName;
     if (window.FPRParser.parseSoftwareVersions) {
       data.versions = window.FPRParser.parseSoftwareVersions(text, extras || {});

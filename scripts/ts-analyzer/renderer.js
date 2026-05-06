@@ -348,12 +348,106 @@ function renderSoftwareVersions(v) {
   return table(['Component', 'Version'], rows);
 }
 
+function renderCPUHistory(h) {
+  if (!h || !h.series) return '<p style="color:var(--text-dim)">No CPU history available (RRD files not found in bundle)</p>';
+  const buckets = [
+    { key: 'daily',   label: 'Daily (last 24h, 1-min avg)' },
+    { key: 'weekly',  label: 'Weekly (last 7d, 5-min avg)' },
+    { key: 'monthly', label: 'Monthly (last 30d, 30-min avg)' },
+    { key: 'yearly',  label: 'Yearly (last 365d, hourly avg)' },
+  ];
+  const stats = `<div class="summary-grid" style="margin-bottom:16px">
+    ${statCard('Cores parsed', String(h.cores.length))}
+    ${statCard('Snort cores (heuristic)', String(h.snortCores.length))}
+    ${statCard('Lina cores (heuristic)', String(h.linaCores.length))}
+    ${statCard('Last sample', h.lastUpdate ? new Date(h.lastUpdate * 1000).toISOString().replace('T', ' ').substring(0, 19) + ' UTC' : '-')}
+  </div>`;
+  let charts = '';
+  for (const b of buckets) {
+    if (!h.series[b.key]) continue;
+    charts += `<h3 style="margin:16px 0 6px;font-size:14px;color:var(--text-dim)">${escapeHtml(b.label)}</h3>
+      <div class="chart-wrap" style="height:240px"><canvas id="chart-cpu-${b.key}"></canvas></div>`;
+  }
+  charts += `<h3 style="margin:16px 0 6px;font-size:14px;color:var(--text-dim)">Per-core heatmap (Daily, 0%=blue → 100%=red)</h3>
+    <div class="chart-wrap" style="height:480px;background:#0b1220;padding:8px"><canvas id="chart-cpu-heatmap" style="width:100%;height:100%"></canvas></div>`;
+  return stats + charts;
+}
+
+function drawCPUHeatmap(canvas, daily, cores) {
+  if (!canvas || !daily) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+  canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+  ctx.scale(dpr, dpr);
+  const N = daily.timestamps.length;
+  const C = cores.length;
+  if (!N || !C) return;
+  const cellW = cssW / N;
+  const cellH = cssH / C;
+  // Heat ramp: blue (0%) -> cyan -> green -> yellow -> red (100%)
+  const heat = (v) => {
+    if (!Number.isFinite(v)) return '#1a2332';
+    const t = Math.max(0, Math.min(1, v / 100));
+    const r = t < 0.5 ? Math.round(255 * (t * 2)) : 255;
+    const g = t < 0.5 ? 255 : Math.round(255 * (1 - (t - 0.5) * 2));
+    const b = t < 0.25 ? 255 : t < 0.5 ? Math.round(255 * (1 - (t - 0.25) * 4)) : 0;
+    return `rgb(${r},${g},${b})`;
+  };
+  for (let ci = 0; ci < C; ci++) {
+    const series = daily.perCore[cores[ci]];
+    for (let ti = 0; ti < N; ti++) {
+      ctx.fillStyle = heat(series[ti]);
+      ctx.fillRect(ti * cellW, ci * cellH, Math.ceil(cellW), Math.ceil(cellH));
+    }
+  }
+}
+
+function renderCPUCharts(h) {
+  if (!h || !h.series || typeof Chart === 'undefined') return;
+  const buckets = ['daily', 'weekly', 'monthly', 'yearly'];
+  for (const b of buckets) {
+    const s = h.series[b];
+    const ctx = document.getElementById(`chart-cpu-${b}`);
+    if (!s || !ctx) continue;
+    const labels = s.timestamps.map(ts => {
+      const d = new Date(ts * 1000);
+      if (b === 'daily')   return d.toISOString().substring(11, 16);
+      if (b === 'weekly')  return d.toISOString().substring(5, 16).replace('T', ' ');
+      if (b === 'monthly') return d.toISOString().substring(5, 10);
+      return d.toISOString().substring(0, 10);
+    });
+    new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [
+        { label: 'System avg', data: s.systemAvg, borderColor: '#049fd9', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+        { label: 'Snort cores', data: s.snortAvg, borderColor: '#e74c3c', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+        { label: 'Lina cores',  data: s.linaAvg,  borderColor: '#27ae60', backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+        { label: 'Max envelope', data: s.envMax, borderColor: 'rgba(231,76,60,0.25)', backgroundColor: 'transparent', borderWidth: 1, pointRadius: 0, borderDash: [3, 3] },
+        { label: 'Min envelope', data: s.envMin, borderColor: 'rgba(39,174,96,0.25)', backgroundColor: 'transparent', borderWidth: 1, pointRadius: 0, borderDash: [3, 3] },
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        scales: {
+          y: { min: 0, max: 100, ticks: { callback: v => v + '%' } },
+          x: { ticks: { maxTicksLimit: 12, autoSkip: true } }
+        },
+        plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } }
+      }
+    });
+  }
+  if (h.series.daily) {
+    drawCPUHeatmap(document.getElementById('chart-cpu-heatmap'), h.series.daily, h.cores);
+  }
+}
+
 function renderReport(data) {
   document.getElementById('device-summary').innerHTML = renderDeviceSummary(data);
   document.getElementById('health-findings').innerHTML = evaluateHealth(data);
 
   const sections = [
     sectionBlock('versions', 'Software Versions (SRU / VDB / Security Intelligence)', renderSoftwareVersions(data.versions)),
+    sectionBlock('cpuhistory', 'CPU Usage History — D/W/M/Y (per-core RRDs)', renderCPUHistory(data.cpuHistory)),
     sectionBlock('cpumem', 'CPU & Memory (show cpu / show memory)', renderCpuMemSection(data)),
     sectionBlock('connxlate', 'Connections & NAT (show conn count / show xlate count)', renderConnXlateSection(data)),
     sectionBlock('traffic', 'Traffic statistics (show traffic)', renderTrafficSection(data.traffic)),
@@ -365,7 +459,7 @@ function renderReport(data) {
   ].join('');
   document.getElementById('sections').innerHTML = sections;
 
-  setTimeout(() => renderCharts(data), 50);
+  setTimeout(() => { renderCharts(data); renderCPUCharts(data.cpuHistory); }, 50);
 }
 
-window.FPRRenderer = { renderReport, evaluateHealth };
+window.FPRRenderer = { renderReport, evaluateHealth, renderCPUCharts };

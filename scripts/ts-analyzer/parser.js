@@ -299,9 +299,109 @@ function parseSoftwareVersions(text, extras) {
   };
 }
 
-function parseAll(showTechText) {
+function parseCPUHistory(extras) {
+  if (!extras || !extras.cpuRrds) return null;
+  const cores = Object.keys(extras.cpuRrds).map(n => parseInt(n, 10)).sort((a, b) => a - b);
+  if (!cores.length || typeof window === 'undefined' || !window.RRDParser) return null;
+
+  const RRD = window.RRDParser;
+  const perCore = {};
+  let lastUpdate = 0;
+  for (const c of cores) {
+    try {
+      const rrd = RRD.parseRRD(extras.cpuRrds[c]);
+      perCore[c] = rrd;
+      if (rrd.lastUpdate > lastUpdate) lastUpdate = rrd.lastUpdate;
+    } catch (e) {
+      console.warn(`[cpuHistory] core ${c} parse failed:`, e.message);
+    }
+  }
+  const validCores = Object.keys(perCore).map(n => parseInt(n, 10));
+  if (!validCores.length) return null;
+
+  const ref = perCore[validCores[0]];
+  const rraIdx = RRD.classifyRRAs(ref);
+  const buckets = ['daily', 'weekly', 'monthly', 'yearly'];
+
+  const series = {};
+  for (const bucket of buckets) {
+    const bInfo = rraIdx[bucket];
+    if (!bInfo || bInfo.avg == null) { series[bucket] = null; continue; }
+    const idx = bInfo.avg;
+    const refRows = RRD.rraToSeries(ref, idx);
+    const timestamps = refRows.map(r => r.ts);
+    const N = timestamps.length;
+    const refStep = ref.rras[idx].step;
+
+    const perCoreData = {};
+    for (const c of validCores) {
+      const rows = RRD.rraToSeries(perCore[c], idx);
+      const vals = rows.map(r => r.val);
+      perCoreData[c] = vals.length === N ? vals
+        : vals.length > N ? vals.slice(vals.length - N)
+        : Array(N - vals.length).fill(NaN).concat(vals);
+    }
+
+    const systemAvg = new Array(N), envMin = new Array(N), envMax = new Array(N);
+    for (let t = 0; t < N; t++) {
+      let sum = 0, n = 0, mn = Infinity, mx = -Infinity;
+      for (const c of validCores) {
+        const v = perCoreData[c][t];
+        if (Number.isFinite(v)) { sum += v; n++; if (v < mn) mn = v; if (v > mx) mx = v; }
+      }
+      systemAvg[t] = n ? sum / n : NaN;
+      envMin[t] = n ? mn : NaN;
+      envMax[t] = n ? mx : NaN;
+    }
+
+    series[bucket] = { timestamps, systemAvg, envMin, envMax, perCore: perCoreData, step: refStep };
+  }
+
+  // Heuristic split: cores whose long-term (yearly or monthly) avg sits in the
+  // upper tertile are "Snort" (heavy DPI workers); rest are "Lina/system".
+  // Falls back to no-split if reference RRA absent.
+  const refKey = series.yearly ? 'yearly' : (series.monthly ? 'monthly' : 'daily');
+  const refData = series[refKey];
+  const coreAvg = {};
+  for (const c of validCores) {
+    let sum = 0, n = 0;
+    for (const v of refData.perCore[c]) { if (Number.isFinite(v)) { sum += v; n++; } }
+    coreAvg[c] = n ? sum / n : 0;
+  }
+  const sortedAvgs = validCores.map(c => coreAvg[c]).sort((a, b) => a - b);
+  const cutoff = sortedAvgs[Math.floor(sortedAvgs.length * 0.5)] || 0;
+  const snortCores = validCores.filter(c => coreAvg[c] > cutoff);
+  const linaCores = validCores.filter(c => coreAvg[c] <= cutoff);
+
+  for (const bucket of buckets) {
+    const s = series[bucket];
+    if (!s) continue;
+    const N = s.timestamps.length;
+    const snortAvg = new Array(N), linaAvg = new Array(N);
+    for (let t = 0; t < N; t++) {
+      let ss = 0, sn = 0, ls = 0, ln = 0;
+      for (const c of snortCores) { const v = s.perCore[c][t]; if (Number.isFinite(v)) { ss += v; sn++; } }
+      for (const c of linaCores)  { const v = s.perCore[c][t]; if (Number.isFinite(v)) { ls += v; ln++; } }
+      snortAvg[t] = sn ? ss / sn : NaN;
+      linaAvg[t]  = ln ? ls / ln : NaN;
+    }
+    s.snortAvg = snortAvg;
+    s.linaAvg  = linaAvg;
+  }
+
+  return {
+    lastUpdate,
+    cores: validCores,
+    snortCores,
+    linaCores,
+    series,
+  };
+}
+
+function parseAll(showTechText, extras) {
   const sections = splitShowTechSections(showTechText);
   return {
+    cpuHistory: parseCPUHistory(extras),
     raw: sections,
     clock: parseShowClock(sections['show clock']),
     version: parseShowVersion(sections['show version'] || sections['show inventory']),
@@ -332,5 +432,6 @@ window.FPRParser = {
   splitShowTechSections,
   parseAll,
   parseSoftwareVersions,
+  parseCPUHistory,
   findShowTechFile,
 };
