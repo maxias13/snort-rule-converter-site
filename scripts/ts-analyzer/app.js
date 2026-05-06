@@ -11,31 +11,125 @@
 
   const $ = (id) => document.getElementById(id);
   const uploadZone   = $('upload-zone');
+  const uploadZone2  = $('upload-zone-2');
   const fileInput    = $('file-input');
+  const fileInput2   = $('file-input-2');
+  const uploadZoneLabel = $('upload-zone-label');
+  const fileNamePrimary = $('file-name-primary');
+  const fileNameSecondary = $('file-name-secondary');
+  const modePicker = $('ts-mode-picker');
   const progressBox  = $('progress');
   const progressMsg  = $('progress-msg');
   const progressFill = $('progress-fill');
   const errorBox     = $('error-box');
   const reportBox    = $('report');
 
-  uploadZone.addEventListener('click', (e) => {
-    if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') fileInput.click();
-  });
-  uploadZone.querySelector('button')?.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', (e) => {
-    const f = e.target.files?.[0];
-    if (f) handleFile(f);
-  });
-  ['dragenter', 'dragover'].forEach(ev =>
-    uploadZone.addEventListener(ev, (e) => { e.preventDefault(); uploadZone.classList.add('dragging'); })
-  );
-  ['dragleave', 'drop'].forEach(ev =>
-    uploadZone.addEventListener(ev, (e) => { e.preventDefault(); uploadZone.classList.remove('dragging'); })
-  );
-  uploadZone.addEventListener('drop', (e) => {
-    const f = e.dataTransfer?.files?.[0];
-    if (f) handleFile(f);
-  });
+  let currentMode = 'ftd';
+  let isProcessing = false;
+  const selectedFiles = { primary: null, secondary: null };
+
+  bindUploadZone(uploadZone, fileInput, 'primary');
+  if (uploadZone2 && fileInput2) bindUploadZone(uploadZone2, fileInput2, 'secondary');
+  bindModePicker();
+  applyMode('ftd', { resetFiles: false });
+
+  function bindUploadZone(zone, input, role) {
+    zone.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') input.click();
+    });
+    zone.querySelector('button')?.addEventListener('click', () => input.click());
+    input.addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (f) onFileSelected(f, role);
+    });
+    ['dragenter', 'dragover'].forEach(ev =>
+      zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.add('dragging'); })
+    );
+    ['dragleave', 'drop'].forEach(ev =>
+      zone.addEventListener(ev, (e) => { e.preventDefault(); zone.classList.remove('dragging'); })
+    );
+    zone.addEventListener('drop', (e) => {
+      const f = e.dataTransfer?.files?.[0];
+      if (!f) return;
+      onFileSelected(f, role);
+    });
+  }
+
+  function bindModePicker() {
+    if (!modePicker) return;
+    const cards = modePicker.querySelectorAll('.ts-mode-card');
+    cards.forEach((card) => {
+      card.addEventListener('click', () => {
+        const mode = card.dataset.mode;
+        if (!mode || mode === currentMode) return;
+        applyMode(mode, { resetFiles: true });
+      });
+    });
+  }
+
+  function setZoneFileName(role, file) {
+    const isPrimary = role === 'primary';
+    const zone = isPrimary ? uploadZone : uploadZone2;
+    const fileNameEl = isPrimary ? fileNamePrimary : fileNameSecondary;
+    if (!zone || !fileNameEl) return;
+    if (file) {
+      fileNameEl.textContent = file.name;
+      fileNameEl.classList.remove('hidden');
+      zone.classList.add('filled');
+    } else {
+      fileNameEl.textContent = '';
+      fileNameEl.classList.add('hidden');
+      zone.classList.remove('filled');
+    }
+  }
+
+  function clearSelectedFiles() {
+    selectedFiles.primary = null;
+    selectedFiles.secondary = null;
+    fileInput.value = '';
+    if (fileInput2) fileInput2.value = '';
+    setZoneFileName('primary', null);
+    setZoneFileName('secondary', null);
+    reportBox.classList.add('hidden');
+    errorBox.classList.add('hidden');
+  }
+
+  function applyMode(mode, opts = {}) {
+    const options = { resetFiles: true, ...opts };
+    currentMode = mode;
+    console.log('[mode]', currentMode);
+
+    const cards = modePicker?.querySelectorAll('.ts-mode-card') || [];
+    cards.forEach((card) => {
+      const isSelected = card.dataset.mode === currentMode;
+      card.classList.toggle('selected', isSelected);
+      const radio = card.querySelector('input[type="radio"]');
+      if (radio) radio.checked = isSelected;
+    });
+
+    if (currentMode === 'ftd') {
+      uploadZoneLabel.textContent = 'FTD troubleshoot bundle';
+      fileInput.accept = '.gz,.tgz,.tar.gz,.txt';
+      uploadZone2?.classList.add('hidden');
+    } else if (currentMode === 'fmc') {
+      uploadZoneLabel.textContent = 'FMC troubleshoot bundle';
+      fileInput.accept = '.gz,.tgz,.tar.gz';
+      uploadZone2?.classList.add('hidden');
+    } else {
+      uploadZoneLabel.textContent = 'FTD troubleshoot bundle';
+      fileInput.accept = '.gz,.tgz,.tar.gz,.txt';
+      if (fileInput2) fileInput2.accept = '.gz,.tgz,.tar.gz';
+      uploadZone2?.classList.remove('hidden');
+    }
+
+    if (options.resetFiles) clearSelectedFiles();
+  }
+
+  function onFileSelected(file, role) {
+    selectedFiles[role] = file;
+    setZoneFileName(role, file);
+    processBundles();
+  }
 
   function showProgress(msg, ratio) {
     progressBox.classList.remove('hidden');
@@ -51,6 +145,81 @@
     errorBox.classList.remove('hidden');
     errorBox.textContent = 'Error: ' + msg;
     console.error(msg);
+  }
+
+  const decodeText = (bytes) => new TextDecoder('utf-8').decode(bytes);
+  const decodeVersionDat = (bytes) => {
+    const s = decodeText(bytes).trim();
+    const m = s.match(/VERSION\s*=\s*(\S+)/i);
+    return m ? m[1] : (s || null);
+  };
+
+  function makeFtdTargets(extras, onFoundText) {
+    const cpuRrdTarget = {
+      regex: /LocalCpu(\d+)Usage\.rrd$/,
+      required: false,
+      _multi: true,
+      onFound: (name, bytes) => {
+        const m = name.match(/LocalCpu(\d+)Usage\.rrd$/);
+        if (!m) return;
+        const core = parseInt(m[1], 10);
+        extras.cpuRrds[core] = bytes.buffer.slice(
+          bytes.byteOffset, bytes.byteOffset + bytes.byteLength
+        );
+      }
+    };
+
+    return [
+      {
+        regex: /show_tech_output\.txt$|show.tech.*\.txt$/i,
+        required: true,
+        onFound: (name, bytes) => {
+          console.log(`[scanner] captured ${name} (${bytes.length} bytes)`);
+          onFoundText({ name, text: decodeText(bytes) });
+        }
+      },
+      { regex: /iprep_download\/IPRVersion\.dat$/, required: false, onFound: (_n, b) => { extras.iprep = decodeVersionDat(b); } },
+      { regex: /sidns_download\/IPRVersion\.dat$/, required: false, onFound: (_n, b) => { extras.sidns = decodeVersionDat(b); } },
+      { regex: /siurl_download\/IPRVersion\.dat$/, required: false, onFound: (_n, b) => { extras.siurl = decodeVersionDat(b); } },
+      { regex: /sfcli\.pl show summary\.output$/, required: false, onFound: (_n, b) => { extras.showSummary = decodeText(b); } },
+      { regex: /var\/sf\/geodb\/ipv4_country_code_map$/, required: false, _mtimeOnly: true, onFound: (_n, _b, mtime) => { extras.geodbMtime = mtime; } },
+      cpuRrdTarget,
+    ];
+  }
+
+  function makeFmcTargets(extras) {
+    extras.fmc = extras.fmc || {
+      sfVersion: null,
+      sruVersions: null,
+      seuVersions: null,
+      vdbConf: null,
+      sruConf: null,
+      hostname: null,
+      sftunnel: null,
+      geodbMtime: null,
+    };
+    const fmc = extras.fmc;
+
+    // Keep scanning after sentinel match so we can opportunistically collect
+    // all optional FMC files in one pass.
+    const keepScanningTarget = { regex: /a^/, required: false, _multi: true, onFound: () => {} };
+
+    return [
+      { regex: /dir-archives\/etc\/sf\/sf-version$/, required: true, onFound: (_n, b) => { fmc.sfVersion = decodeText(b).trim(); } },
+      { regex: /dir-archives\/etc\/sf\/sru_versions\.conf$/, required: false, onFound: (_n, b) => { fmc.sruVersions = decodeText(b); } },
+      { regex: /dir-archives\/etc\/sf\/seu_versions\.conf$/, required: false, onFound: (_n, b) => { fmc.seuVersions = decodeText(b); } },
+      { regex: /dir-archives\/etc\/sf\/\.versiondb\/vdb\.conf$/, required: false, onFound: (_n, b) => { fmc.vdbConf = decodeText(b); } },
+      { regex: /dir-archives\/etc\/sf\/\.versiondb\/sru\.conf$/, required: false, onFound: (_n, b) => { fmc.sruConf = decodeText(b); } },
+      { regex: /dir-archives\/etc\/hostname$/, required: false, onFound: (_n, b) => { fmc.hostname = decodeText(b).trim(); } },
+      { regex: /dir-archives\/etc\/sf\/sftunnel\.conf$/, required: false, onFound: (_n, b) => { fmc.sftunnel = decodeText(b); } },
+      { regex: /var\/sf\/geodb\/ipv4_country_code_map$/, required: false, _mtimeOnly: true, onFound: (_n, _b, mtime) => { fmc.geodbMtime = mtime; } },
+      keepScanningTarget,
+    ];
+  }
+
+  function resolveBundleType(role) {
+    if (currentMode === 'both') return role === 'secondary' ? 'fmc' : 'ftd';
+    return currentMode;
   }
 
   /* USTAR / GNU tar header layout used below:
@@ -124,6 +293,7 @@
 
           const name     = readStr(hdr, 0, 100);
           const size     = readOctal(hdr, 124, 12);
+          const mtime    = readOctal(hdr, 136, 12); // POSIX seconds since epoch
           const typeflag = String.fromCharCode(hdr[156] || 0x30);
           const prefix   = readStr(hdr, 345, 155);
           const blocks = Math.ceil(size / 512);
@@ -147,9 +317,19 @@
             }
           }
           if (activeTarget) {
-            mode = 'capture';
-            capturedName = fullName;
-            captured = [];
+            // _mtimeOnly: fire immediately with header mtime, skip body to save memory.
+            if (activeTarget._mtimeOnly) {
+              activeTarget._fired = true;
+              try { activeTarget.onFound(fullName, null, mtime); } catch (e) { console.error(e); }
+              if (activeTarget._multi) activeTarget._fired = false;
+              activeTarget = null;
+              mode = 'skip';
+            } else {
+              mode = 'capture';
+              capturedName = fullName;
+              captured = [];
+              activeTarget._capturedMtime = mtime;
+            }
           } else {
             mode = 'skip';
           }
@@ -237,10 +417,9 @@
     return { append, isDone: () => done };
   }
 
-  async function handleFile(file) {
+  async function scanBundle(file, role) {
+    const bundleType = resolveBundleType(role);
     try {
-      reportBox.classList.add('hidden');
-      errorBox.classList.add('hidden');
       showProgress(`Loading file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, 0);
 
       const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
@@ -248,49 +427,27 @@
       const isPlainText = !isGzip && /show.?tech|Cisco Adaptive Security|Hardware:/i.test(
         new TextDecoder('utf-8', { fatal: false }).decode(head)
       );
-      if (isPlainText) {
+      if (bundleType === 'ftd' && isPlainText) {
         showProgress('Processing show_tech_output.txt directly...', 0.5);
         const text = await file.text();
-        await runParseAndRender(text, file.name, {});
-        return;
+        return {
+          text,
+          sourceName: file.name,
+          extras: { iprep: null, sidns: null, siurl: null, cpuRrds: {}, showSummary: null, geodbMtime: null }
+        };
+      }
+      if (bundleType === 'fmc' && isPlainText) {
+        throw new Error('FMC mode requires a troubleshoot bundle archive (.tar.gz/.tgz/.gz), not plain text.');
       }
 
       let foundText = null;
-      const extras = { iprep: null, sidns: null, siurl: null, cpuRrds: {}, showSummary: null };
-      const decodeVer = (bytes) => {
-        const s = new TextDecoder('utf-8').decode(bytes).trim();
-        const m = s.match(/VERSION\s*=\s*(\S+)/i);
-        return m ? m[1] : (s || null);
-      };
-      const cpuRrdTarget = {
-        regex: /LocalCpu(\d+)Usage\.rrd$/,
-        required: false,
-        _multi: true,
-        onFound: (name, bytes) => {
-          const m = name.match(/LocalCpu(\d+)Usage\.rrd$/);
-          if (!m) return;
-          const core = parseInt(m[1], 10);
-          extras.cpuRrds[core] = bytes.buffer.slice(
-            bytes.byteOffset, bytes.byteOffset + bytes.byteLength
-          );
-        }
-      };
-      const targets = [
-        { regex: /show_tech_output\.txt$|show.tech.*\.txt$/i, required: true,
-          onFound: (name, bytes) => {
-            console.log(`[scanner] captured ${name} (${bytes.length} bytes)`);
-            foundText = { name, text: new TextDecoder('utf-8').decode(bytes) };
-          } },
-        { regex: /iprep_download\/IPRVersion\.dat$/, required: false,
-          onFound: (_n, b) => { extras.iprep = decodeVer(b); } },
-        { regex: /sidns_download\/IPRVersion\.dat$/, required: false,
-          onFound: (_n, b) => { extras.sidns = decodeVer(b); } },
-        { regex: /siurl_download\/IPRVersion\.dat$/, required: false,
-          onFound: (_n, b) => { extras.siurl = decodeVer(b); } },
-        { regex: /sfcli\.pl show summary\.output$/, required: false,
-          onFound: (_n, b) => { extras.showSummary = new TextDecoder('utf-8').decode(b); } },
-        cpuRrdTarget,
-      ];
+      const extras = bundleType === 'ftd'
+        ? { iprep: null, sidns: null, siurl: null, cpuRrds: {}, showSummary: null, geodbMtime: null }
+        : { fmc: { sfVersion: null, sruVersions: null, seuVersions: null, vdbConf: null, sruConf: null, hostname: null, sftunnel: null, geodbMtime: null } };
+
+      const targets = bundleType === 'ftd'
+        ? makeFtdTargets(extras, (v) => { foundText = v; })
+        : makeFmcTargets(extras);
       const scanner = makeTarScanner(targets);
 
       let inflator = null;
@@ -323,10 +480,61 @@
         if (scanner.isDone()) break;
       }
 
-      if (!foundText) throw new Error('show_tech_output.txt not found in bundle.');
-      await runParseAndRender(foundText.text, foundText.name, extras);
+      if (bundleType === 'ftd' && !foundText) {
+        throw new Error('show_tech_output.txt not found in FTD bundle.');
+      }
+      if (bundleType === 'fmc' && !extras.fmc?.sfVersion) {
+        throw new Error('dir-archives/etc/sf/sf-version not found in FMC bundle.');
+      }
+
+      return {
+        text: foundText ? foundText.text : '',
+        sourceName: foundText ? foundText.name : file.name,
+        extras,
+      };
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async function processBundles() {
+    if (isProcessing) return;
+
+    try {
+      reportBox.classList.add('hidden');
+      errorBox.classList.add('hidden');
+
+      if (currentMode === 'both') {
+        if (!selectedFiles.primary || !selectedFiles.secondary) return;
+        isProcessing = true;
+
+        const ftdResult = await scanBundle(selectedFiles.primary, 'primary');
+        const fmcResult = await scanBundle(selectedFiles.secondary, 'secondary');
+
+        const mergedExtras = {
+          ...(ftdResult.extras || {}),
+          fmc: fmcResult.extras?.fmc || null,
+          bundleMode: 'both',
+        };
+
+        await runParseAndRender(
+          ftdResult.text,
+          `${ftdResult.sourceName} + ${fmcResult.sourceName}`,
+          mergedExtras
+        );
+        return;
+      }
+
+      if (!selectedFiles.primary) return;
+      isProcessing = true;
+
+      const result = await scanBundle(selectedFiles.primary, 'primary');
+      const extras = { ...(result.extras || {}), bundleMode: currentMode };
+      await runParseAndRender(result.text, result.sourceName, extras);
     } catch (e) {
       showError(e.message || String(e));
+    } finally {
+      isProcessing = false;
     }
   }
 

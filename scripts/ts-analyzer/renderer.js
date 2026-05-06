@@ -63,9 +63,42 @@ function sectionBlock(id, title, body) {
 }
 
 function renderDeviceSummary(data) {
+  const mode = data.bundleMode || 'ftd';
   const v = data.version || {};
   const fw = data.firewall || {};
   const fo = data.failover || {};
+  const fmc = data.fmcData || {};
+
+  if (mode === 'fmc') {
+    return `<div class="summary-grid">
+      ${statCard('FMC Hostname', fmc.hostname || '-')}
+      ${statCard('FMC Version', fmc.fmcVersion || '-')}
+      ${statCard('FX-OS Version', fmc.fxosVersion || '-')}
+      ${statCard('SRU', fmc.sru || '-')}
+      ${statCard('VDB', fmc.vdb || '-')}
+      ${statCard('Snort 2 Engine', fmc.snort2Engine || '-')}
+      ${statCard('Snort 3 Engine', fmc.snort3Engine || '-')}
+      ${statCard('GeoDB', fmc.geodb || '-')}
+    </div>`;
+  }
+
+  if (mode === 'both') {
+    return `<div class="summary-grid">
+      ${statCard('FTD Hostname', v.hostname || '-')}
+      ${statCard('FTD Platform', v.platform || '-')}
+      ${statCard('FTD Software', v.softwareVersion || '-')}
+      ${statCard('FTD Serial', v.serial || '-')}
+      ${statCard('FMC Hostname', fmc.hostname || '-')}
+      ${statCard('FMC Version', fmc.fmcVersion || '-')}
+      ${statCard('FMC SRU', fmc.sru || '-')}
+      ${statCard('FMC VDB', fmc.vdb || '-')}
+      ${statCard('Failover', fo.enabled ? `${fo.unit} (${fo.state})` : 'Disabled')}
+      ${statCard('Clock', data.clock || '-')}
+      ${statCard('Firewall Mode', fw.mode || data.mode || '-')}
+      ${statCard('Uptime', v.uptime || '-')}
+    </div>`;
+  }
+
   const cards = [
     statCard('Hostname', v.hostname || '-'),
     statCard('Platform', v.platform || '-'),
@@ -81,6 +114,8 @@ function renderDeviceSummary(data) {
 
 function evaluateHealth(data) {
   const findings = [];
+  const mode = data.bundleMode || 'ftd';
+  if (mode === 'fmc') return '<div class="findings"></div>';
 
   if (data.cpu) {
     const c = data.cpu;
@@ -366,6 +401,78 @@ function renderSoftwareVersions(v) {
   return table(['Component', 'Active feeds / lists'], rows);
 }
 
+function renderFmcOverview(data) {
+  const f = data.fmcData || {};
+  return `<div class="summary-grid">
+    ${statCard('FMC Version', f.fmcVersion || '-')}
+    ${statCard('FX-OS Version', f.fxosVersion || '-')}
+    ${statCard('Hostname', f.hostname || '-')}
+    ${statCard('SRU', f.sru || '-')}
+    ${statCard('VDB', f.vdb || '-')}
+    ${statCard('Snort 2 Engine', f.snort2Engine || '-')}
+    ${statCard('Snort 3 Engine', f.snort3Engine || '-')}
+  </div>`;
+}
+
+function renderFmcSectionTable(rows) {
+  return table(['Component', 'Value'], rows);
+}
+
+function renderFmcVersionHostname(data) {
+  const f = data.fmcData || {};
+  return renderFmcSectionTable([
+    ['FMC Version', f.fmcVersion || '-'],
+    ['FX-OS Version', f.fxosVersion || '-'],
+    ['Hostname', f.hostname || '-'],
+  ]);
+}
+
+function renderFmcRulePacks(data) {
+  const f = data.fmcData || {};
+  return renderFmcSectionTable([
+    ['Intrusion Rules Update (SRU)', f.sru || '-'],
+    ['Rule Pack', f.snortRulePack || '-'],
+    ['Decoder Rule Pack', f.snortDecoderPack || '-'],
+    ['Policy Pack', f.snortPolicyPack || '-'],
+    ['Module Pack', f.snortModulePack || '-'],
+  ]);
+}
+
+function renderFmcEngines(data) {
+  const f = data.fmcData || {};
+  return renderFmcSectionTable([
+    ['Snort 2 Engine', f.snort2Engine || '-'],
+    ['Snort 3 Engine', f.snort3Engine || '-'],
+  ]);
+}
+
+function renderFmcVdb(data) {
+  const f = data.fmcData || {};
+  return renderFmcSectionTable([
+    ['VDB', f.vdb || '-'],
+    ['AppID Version', f.appidVer || '-'],
+    ['NAVL Version', f.navlVer || '-'],
+  ]);
+}
+
+function renderFmcGeodb(data) {
+  const f = data.fmcData || {};
+  return renderFmcSectionTable([
+    ['GeoDB', f.geodb || '-'],
+  ]);
+}
+
+function renderFmcSftunnel(data) {
+  const f = data.fmcData || {};
+  if (Array.isArray(f.sftunnelPeers) && f.sftunnelPeers.length) {
+    return table(['Peer'], f.sftunnelPeers.map((p) => [p]));
+  }
+  if (f.sftunnelRaw) {
+    return `<pre style="white-space:pre-wrap;word-break:break-word;margin:0">${escapeHtml(f.sftunnelRaw)}</pre>`;
+  }
+  return '<p style="color:var(--text-dim)">No data</p>';
+}
+
 function renderCPUHistory(h) {
   if (!h || !h.series) return '<p style="color:var(--text-dim)">No CPU history available (RRD files not found in bundle)</p>';
   const buckets = [
@@ -498,15 +605,48 @@ const REPORT_TABS = [
   },
 ];
 
-function renderTabBar(activeId) {
-  const buttons = REPORT_TABS.map(t =>
+function getReportTabs(data) {
+  const mode = data.bundleMode || 'ftd';
+  if (mode === 'ftd') return REPORT_TABS;
+
+  const fmcTab = {
+    id: 'fmc',
+    label: 'FMC',
+    sections: [
+      ['fmc-version-hostname', 'FMC Version & Hostname', d => renderFmcVersionHostname(d)],
+      ['fmc-rules', 'Snort Rule Packs (SRU)', d => renderFmcRulePacks(d)],
+      ['fmc-engines', 'Snort Engines', d => renderFmcEngines(d)],
+      ['fmc-vdb', 'VDB / AppID / NAVL', d => renderFmcVdb(d)],
+      ['fmc-geodb', 'GeoDB', d => renderFmcGeodb(d)],
+      ['fmc-sftunnel', 'Sftunnel Peers', d => renderFmcSftunnel(d)],
+    ],
+  };
+
+  if (mode === 'fmc') {
+    return [
+      {
+        id: 'overview',
+        label: 'Overview',
+        sections: [
+          ['fmc-overview', 'FMC Summary', d => renderFmcOverview(d)],
+        ],
+      },
+      fmcTab,
+    ];
+  }
+
+  return [...REPORT_TABS, fmcTab];
+}
+
+function renderTabBar(tabs, activeId) {
+  const buttons = tabs.map(t =>
     `<button type="button" class="ts-tab${t.id === activeId ? ' active' : ''}" data-tab="${t.id}" onclick="window.FPRRenderer.switchTab('${t.id}')">${t.label}</button>`
   ).join('');
   return `<div class="ts-tabbar">${buttons}</div>`;
 }
 
-function renderTabPanels(data, activeId) {
-  return REPORT_TABS.map(t => {
+function renderTabPanels(tabs, data, activeId) {
+  return tabs.map(t => {
     const body = t.sections
       .map(([id, title, fn]) => sectionBlock(id, title, fn(data)))
       .join('');
@@ -530,9 +670,10 @@ function renderReport(data) {
   document.getElementById('device-summary').innerHTML = renderDeviceSummary(data);
   document.getElementById('health-findings').innerHTML = '';
 
-  const activeId = REPORT_TABS[0].id;
+  const tabs = getReportTabs(data);
+  const activeId = tabs[0].id;
   document.getElementById('sections').innerHTML =
-    renderTabBar(activeId) + `<div class="ts-tab-panels">${renderTabPanels(data, activeId)}</div>`;
+    renderTabBar(tabs, activeId) + `<div class="ts-tab-panels">${renderTabPanels(tabs, data, activeId)}</div>`;
 
   // Render all charts once on load. Hidden tab panels keep their canvases in
   // the DOM (display:none ≠ removed), so tab switches need no re-render.

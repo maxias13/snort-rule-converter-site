@@ -307,12 +307,21 @@ function parseSoftwareVersions(text, extras) {
     if (m) { snortEngine = `${m[1]} (Build ${m[2]})`; break; }
   }
 
+  let geodb = grab(/^(?:GeoDB version|Geolocation Update Version)\s*:\s*(\S+)/m);
+  if (!geodb && Number.isFinite(extras.geodbMtime) && extras.geodbMtime > 0) {
+    const d = new Date(extras.geodbMtime * 1000);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    geodb = `${yyyy}-${mm}-${dd} (from /var/sf/geodb/ mtime)`;
+  }
+
   return {
     sru:         grab(/^Rules update version\s*:\s*(\S+)/m),
     vdb:         grab(/^VDB version\s*:\s*(\S+)/m),
     siActive:    parseSecurityIntelligenceActive(main),
     lsp:         grab(/^LSP version\s*:\s*(\S+)/m),
-    geodb:       grab(/^(?:GeoDB version|Geolocation Update Version)\s*:\s*(\S+)/m),
+    geodb:       geodb,
     snortEngine: snortEngine,
   };
 }
@@ -488,9 +497,113 @@ function parseCPUHistory(extras) {
   };
 }
 
-function parseAll(showTechText, extras) {
-  const sections = splitShowTechSections(showTechText);
+function parseKeyValueText(text) {
+  const out = {};
+  if (!text) return out;
+  for (const line of text.split('\n')) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const idx = t.indexOf('=');
+    if (idx <= 0) continue;
+    const key = t.slice(0, idx).trim();
+    const value = t.slice(idx + 1).trim();
+    if (!key) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function parseSftunnelPeers(text) {
+  if (!text) return [];
+  const peers = [];
+  const seen = new Set();
+  const blockRe = /peer\s*\{([\s\S]*?)\}/gi;
+  let m;
+  while ((m = blockRe.exec(text)) !== null) {
+    const block = m[1];
+    const nameMatch = block.match(/\bname\s+([^\s;]+)/i);
+    const remoteMatch = block.match(/\bremote\s+([^\s;]+)/i);
+    const hostMatch = block.match(/\bhost\s+([^\s;]+)/i);
+    const value = (nameMatch?.[1] || remoteMatch?.[1] || hostMatch?.[1] || '').trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    peers.push(value);
+  }
+  if (peers.length) return peers;
+
+  const lineRe = /\b(?:peer|remote|host)\s+([^\s;#]+)/gi;
+  while ((m = lineRe.exec(text)) !== null) {
+    const value = (m[1] || '').trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    peers.push(value);
+  }
+  return peers;
+}
+
+function parseFmcVersions(extras) {
+  const fmc = extras?.fmc || {};
+  const sfVersionText = String(fmc.sfVersion || '').trim();
+  const sfParts = sfVersionText ? sfVersionText.split('/') : [];
+
+  const parseVersionBuild = (part) => {
+    const m = String(part || '').match(/v(\d+\.\d+\.\d+)\s*\(build\s+(\d+)\)/i);
+    if (!m) return '';
+    return `v${m[1]} (build ${m[2]})`;
+  };
+
+  const sruVersions = parseKeyValueText(fmc.sruVersions);
+  const seuVersions = parseKeyValueText(fmc.seuVersions);
+  const vdbConf = parseKeyValueText(fmc.vdbConf);
+  const sruConf = parseKeyValueText(fmc.sruConf);
+
+  let geodb = null;
+  if (Number.isFinite(fmc.geodbMtime) && fmc.geodbMtime > 0) {
+    const d = new Date(fmc.geodbMtime * 1000);
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    geodb = `${yyyy}-${mm}-${dd} (from /var/sf/geodb/ mtime)`;
+  }
+
+  const vdb = vdbConf.CURRENT_VERSION
+    ? `${vdbConf.CURRENT_VERSION}${vdbConf.CURRENT_BUILD ? ` (build ${vdbConf.CURRENT_BUILD})` : ''}`
+    : null;
+
+  const sruFromVersions = sruVersions.Intrusion_Rules_Update || null;
+  const sruFromSruConf = sruConf.CURRENT_VERSION
+    ? `${sruConf.CURRENT_VERSION}${sruConf.CURRENT_BUILD ? `-${sruConf.CURRENT_BUILD}` : ''}`
+    : null;
+
   return {
+    fmcVersion: parseVersionBuild(sfParts[0] || sfVersionText),
+    fxosVersion: parseVersionBuild(sfParts[1] || ''),
+    hostname: (fmc.hostname || '').trim() || null,
+    sru: sruFromVersions || sruFromSruConf,
+    snortRulePack: sruVersions.Rule_Pack || sruConf.RULES || null,
+    snortDecoderPack: sruVersions.Sourcefire_Decoder_Rule_Pack || sruConf.DECODER || null,
+    snortPolicyPack: sruVersions.Sourcefire_Policy_Pack || sruConf.POLICY || null,
+    snortModulePack: sruVersions.Module_Pack || sruConf.MODULE || null,
+    snort2Engine: seuVersions.snort || sruVersions.snort || null,
+    snort3Engine: seuVersions.snort3 || null,
+    vdb,
+    appidVer: vdbConf.CURRENT_APPID_VER || null,
+    navlVer: vdbConf.CURRENT_NAVL_VER || null,
+    geodb,
+    sftunnelPeers: parseSftunnelPeers(fmc.sftunnel),
+    sftunnelRaw: fmc.sftunnel || null,
+  };
+}
+
+function parseAll(showTechText, extras) {
+  const bundleMode = extras?.bundleMode || 'ftd';
+  const sections = splitShowTechSections(showTechText);
+  const data = {
+    bundleMode,
     cpuHistory: parseCPUHistory(extras),
     raw: sections,
     clock: parseShowClock(sections['show clock']),
@@ -509,6 +622,8 @@ function parseAll(showTechText, extras) {
     snortStats: parseShowSnortStatistics(sections['show snort statistics']),
     resourceUsage: parseShowResourceUsage(sections['show resource usage counter all 1']),
   };
+  if (extras?.fmc) data.fmcData = parseFmcVersions(extras);
+  return data;
 }
 
 function findShowTechFile(files) {
@@ -522,6 +637,7 @@ window.FPRParser = {
   splitShowTechSections,
   parseAll,
   parseSoftwareVersions,
+  parseFmcVersions,
   parseCPUHistory,
   findShowTechFile,
 };
