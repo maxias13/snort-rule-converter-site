@@ -49,7 +49,7 @@
   function showError(msg) {
     hideProgress();
     errorBox.classList.remove('hidden');
-    errorBox.textContent = '오류: ' + msg;
+    errorBox.textContent = 'Error: ' + msg;
     console.error(msg);
   }
 
@@ -204,7 +204,7 @@
     try {
       reportBox.classList.add('hidden');
       errorBox.classList.add('hidden');
-      showProgress(`파일 로드 중: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, 0);
+      showProgress(`Loading file: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`, 0);
 
       const head = new Uint8Array(await file.slice(0, 512).arrayBuffer());
       const isGzip = head[0] === 0x1f && head[1] === 0x8b;
@@ -212,7 +212,7 @@
         new TextDecoder('utf-8', { fatal: false }).decode(head)
       );
       if (isPlainText) {
-        showProgress('show_tech_output.txt 직접 처리 중...', 0.5);
+        showProgress('Processing show_tech_output.txt directly...', 0.5);
         const text = await file.text();
         await runParseAndRender(text, file.name);
         return;
@@ -227,7 +227,7 @@
 
       let inflator = null;
       if (isGzip) {
-        if (typeof pako === 'undefined') throw new Error('pako 라이브러리 로드 실패');
+        if (typeof pako === 'undefined') throw new Error('Failed to load pako library');
         inflator = new pako.Inflate({ chunkSize: 1024 * 1024 });
         inflator.onData = (chunk) => { if (!scanner.isDone()) scanner.append(chunk); };
       }
@@ -240,22 +240,22 @@
         const buf = new Uint8Array(await file.slice(offset, end).arrayBuffer());
         if (isGzip) {
           inflator.push(buf, end >= total);
-          if (inflator.err) throw new Error('gunzip 실패: ' + inflator.msg);
+          if (inflator.err) throw new Error('gunzip failed: ' + inflator.msg);
         } else {
           scanner.append(buf);
         }
         offset = end;
         const ratio = offset / total;
         showProgress(
-          `스캔 중... ${(offset / 1024 / 1024).toFixed(0)} / ${(total / 1024 / 1024).toFixed(0)} MB` +
-          (foundText ? ` — 발견: ${foundText.name.split('/').pop()}` : ''),
+          `Scanning... ${(offset / 1024 / 1024).toFixed(0)} / ${(total / 1024 / 1024).toFixed(0)} MB` +
+          (foundText ? ` — found: ${foundText.name.split('/').pop()}` : ''),
           ratio * 0.85
         );
         await new Promise(r => setTimeout(r, 0));
         if (scanner.isDone()) break;
       }
 
-      if (!foundText) throw new Error('번들 내에서 show_tech_output.txt 를 찾을 수 없습니다.');
+      if (!foundText) throw new Error('show_tech_output.txt not found in bundle.');
       await runParseAndRender(foundText.text, foundText.name);
     } catch (e) {
       showError(e.message || String(e));
@@ -263,12 +263,12 @@
   }
 
   async function runParseAndRender(text, sourceName) {
-    showProgress(`파싱 중... (${(text.length / 1024).toFixed(0)} KB)`, 0.9);
+    showProgress(`Parsing... (${(text.length / 1024).toFixed(0)} KB)`, 0.9);
     await new Promise(r => setTimeout(r, 0));
     const data = window.FPRParser.parseAll(text);
     data._sourceFile = sourceName;
 
-    showProgress('리포트 렌더링 중...', 0.97);
+    showProgress('Rendering report...', 0.97);
     await new Promise(r => setTimeout(r, 0));
     window.FPRRenderer.renderReport(data);
 

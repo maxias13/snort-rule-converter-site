@@ -89,10 +89,10 @@ function evaluateHealth(data) {
     if (c.min5 >= 90) sev = SEVERITY.CRIT;
     else if (c.min5 >= 70) sev = SEVERITY.WARN;
     findings.push(findingCard(sev,
-      `CPU 사용률 — 5초 ${c.sec5}% / 1분 ${c.min1}% / 5분 ${c.min5}%`,
-      sev === SEVERITY.OK ? '정상 범위' :
-        sev === SEVERITY.WARN ? '주의: 지속 고부하 시 트래픽 처리 지연 가능' :
-        '위험: 트래픽 드롭 가능성 매우 높음'));
+      `CPU usage — 5s ${c.sec5}% / 1min ${c.min1}% / 5min ${c.min5}%`,
+      sev === SEVERITY.OK ? 'Within normal range' :
+        sev === SEVERITY.WARN ? 'Warning: sustained high load may delay traffic processing' :
+        'Critical: traffic drop highly likely'));
   }
 
   if (data.memory) {
@@ -101,7 +101,7 @@ function evaluateHealth(data) {
     if (m.usedPct >= 90) sev = SEVERITY.CRIT;
     else if (m.usedPct >= 80) sev = SEVERITY.WARN;
     findings.push(findingCard(sev,
-      `메모리 사용률 ${m.usedPct}% (${fmtBytes(m.usedBytes)} / ${fmtBytes(m.totalBytes)})`,
+      `Memory usage ${m.usedPct}% (${fmtBytes(m.usedBytes)} / ${fmtBytes(m.totalBytes)})`,
       `Free: ${fmtBytes(m.freeBytes)} (${m.freePct}%)`));
   }
 
@@ -109,25 +109,25 @@ function evaluateHealth(data) {
     const c = data.connCount;
     const pct = c.mostUsed ? (c.inUse / c.mostUsed * 100).toFixed(1) : 0;
     findings.push(findingCard(SEVERITY.INFO,
-      `연결 수 — 현재 ${fmtInt(c.inUse)} / 최대 ${fmtInt(c.mostUsed)}`,
-      `최대 사용량 대비 현재 ${pct}%`));
+      `Connections — current ${fmtInt(c.inUse)} / peak ${fmtInt(c.mostUsed)}`,
+      `Current vs peak: ${pct}%`));
   }
 
   if (data.xlateCount) {
     const x = data.xlateCount;
     findings.push(findingCard(SEVERITY.INFO,
-      `NAT 변환 — 현재 ${fmtInt(x.inUse)} / 최대 ${fmtInt(x.mostUsed)}`, ''));
+      `NAT translations — current ${fmtInt(x.inUse)} / peak ${fmtInt(x.mostUsed)}`, ''));
   }
 
   if (data.blocks && data.blocks.length) {
     const failed = data.blocks.filter(b => b.failed > 0);
     if (failed.length) {
-      findings.push(findingCard(SEVERITY.WARN, `Block 할당 실패 발생`,
+      findings.push(findingCard(SEVERITY.WARN, `Block allocation failures detected`,
         table(['Size', 'Max', 'Low', 'Cnt', 'Failed'],
           failed.map(b => [b.size, fmtInt(b.max), fmtInt(b.low), fmtInt(b.cnt), fmtInt(b.failed)]))));
     } else {
-      findings.push(findingCard(SEVERITY.OK, `Block 할당 실패 없음`,
-        `${data.blocks.length}개 풀 정상`));
+      findings.push(findingCard(SEVERITY.OK, `No block allocation failures`,
+        `${data.blocks.length} pools healthy`));
     }
   }
 
@@ -143,13 +143,13 @@ function evaluateHealth(data) {
   if (data.interfaces && data.interfaces.length) {
     const down = data.interfaces.filter(i => !i.lineUp || !i.adminUp);
     if (down.length) {
-      findings.push(findingCard(SEVERITY.WARN, `Down 인터페이스 ${down.length}개`,
+      findings.push(findingCard(SEVERITY.WARN, `${down.length} interface(s) down`,
         table(['Interface', 'Nameif', 'Admin', 'Line'],
           down.map(i => [i.name, i.nameif, i.adminUp ? 'up' : 'down', i.lineUp ? 'up' : 'down']))));
     }
     const errs = data.interfaces.filter(i => i.inputErrors > 0 || i.outputErrors > 0 || i.overruns > 0);
     if (errs.length) {
-      findings.push(findingCard(SEVERITY.WARN, `인터페이스 에러 발생 (${errs.length}개)`,
+      findings.push(findingCard(SEVERITY.WARN, `Interface errors detected (${errs.length})`,
         table(['Interface', 'In Err', 'Out Err', 'Overrun', 'Drops'],
           errs.map(i => [i.name, fmtInt(i.inputErrors), fmtInt(i.outputErrors), fmtInt(i.overruns), fmtInt(i.drops)]))));
     }
@@ -164,7 +164,7 @@ function evaluateHealth(data) {
     if (s.bypassedBusy > 0) sev = SEVERITY.WARN;
     if (s.bypassedDown > 0) sev = SEVERITY.CRIT;
     findings.push(findingCard(sev,
-      `Snort 통계 — 차단률 ${blockPct}%, Bypass ${fmtInt(bypassed)}`,
+      `Snort stats — block rate ${blockPct}%, Bypass ${fmtInt(bypassed)}`,
       `Passed ${fmtInt(s.passed)} · Blocked ${fmtInt(s.blocked)} · Bypassed Down ${fmtInt(s.bypassedDown)} · Bypassed Busy ${fmtInt(s.bypassedBusy)}`));
   }
 
@@ -173,7 +173,7 @@ function evaluateHealth(data) {
 
 function renderTrafficSection(traffic) {
   if (!traffic || (!traffic.interfaces.length && !traffic.aggregated.length)) {
-    return '<p style="color:var(--text-dim)">데이터 없음</p>';
+    return '<p style="color:var(--text-dim)">No data</p>';
   }
   const headers = ['Interface', 'RX Pkts', 'RX Bytes', 'RX 1m PPS', 'RX 1m bps',
                    'TX Pkts', 'TX Bytes', 'TX 1m PPS', 'TX 1m bps', 'Avg Pkt'];
@@ -207,7 +207,7 @@ function renderTrafficSection(traffic) {
 }
 
 function renderInterfacesSection(ifaces) {
-  if (!ifaces || !ifaces.length) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!ifaces || !ifaces.length) return '<p style="color:var(--text-dim)">No data</p>';
   const rows = ifaces.map(i => [
     i.name, i.nameif,
     (i.adminUp ? 'up' : 'DOWN') + '/' + (i.lineUp ? 'up' : 'DOWN'),
@@ -223,7 +223,7 @@ function renderInterfacesSection(ifaces) {
 }
 
 function renderAspDropSection(asp) {
-  if (!asp) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!asp) return '<p style="color:var(--text-dim)">No data</p>';
   let html = '';
   if (asp.frame.length) {
     html += '<h3 style="margin:8px 0;font-size:14px;color:var(--text-dim)">Frame Drops</h3>'
@@ -234,23 +234,23 @@ function renderAspDropSection(asp) {
       + table(['Reason', 'Code', 'Count'], asp.flow.map(d => [d.desc, d.reason, fmtInt(d.count)]));
   }
   html += '<div class="chart-wrap"><canvas id="chart-asp"></canvas></div>';
-  return html || '<p style="color:var(--text-dim)">Drop 없음</p>';
+  return html || '<p style="color:var(--text-dim)">No drops</p>';
 }
 
 function renderResourceSection(rows) {
-  if (!rows || !rows.length) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!rows || !rows.length) return '<p style="color:var(--text-dim)">No data</p>';
   return table(['Resource', 'Current', 'Peak', 'Limit', 'Denied', 'Context'],
     rows.map(r => [r.resource, r.current, r.peak, r.limit, r.denied, r.context]));
 }
 
 function renderBlocksSection(rows) {
-  if (!rows || !rows.length) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!rows || !rows.length) return '<p style="color:var(--text-dim)">No data</p>';
   return table(['Size', 'Max', 'Low', 'Cnt', 'Failed'],
     rows.map(r => [r.size, fmtInt(r.max), fmtInt(r.low), fmtInt(r.cnt), fmtInt(r.failed)]));
 }
 
 function renderSnortSection(s) {
-  if (!s) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!s) return '<p style="color:var(--text-dim)">No data</p>';
   return `<div class="summary-grid">
     ${statCard('Passed', fmtInt(s.passed))}
     ${statCard('Blocked', fmtInt(s.blocked))}
@@ -266,10 +266,10 @@ function renderSnortSection(s) {
 
 function renderConnXlateSection(data) {
   const c = data.connCount, x = data.xlateCount;
-  if (!c && !x) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!c && !x) return '<p style="color:var(--text-dim)">No data</p>';
   return `<div class="summary-grid">
-    ${c ? statCard('연결 in use', fmtInt(c.inUse)) : ''}
-    ${c ? statCard('연결 most used', fmtInt(c.mostUsed)) : ''}
+    ${c ? statCard('Connections in use', fmtInt(c.inUse)) : ''}
+    ${c ? statCard('Connections most used', fmtInt(c.mostUsed)) : ''}
     ${x ? statCard('Xlate in use', fmtInt(x.inUse)) : ''}
     ${x ? statCard('Xlate most used', fmtInt(x.mostUsed)) : ''}
   </div>`;
@@ -277,11 +277,11 @@ function renderConnXlateSection(data) {
 
 function renderCpuMemSection(data) {
   const c = data.cpu, m = data.memory;
-  if (!c && !m) return '<p style="color:var(--text-dim)">데이터 없음</p>';
+  if (!c && !m) return '<p style="color:var(--text-dim)">No data</p>';
   return `<div class="summary-grid">
-    ${c ? statCard('CPU 5초', c.sec5 + '%') : ''}
-    ${c ? statCard('CPU 1분', c.min1 + '%') : ''}
-    ${c ? statCard('CPU 5분', c.min5 + '%') : ''}
+    ${c ? statCard('CPU 5s', c.sec5 + '%') : ''}
+    ${c ? statCard('CPU 1min', c.min1 + '%') : ''}
+    ${c ? statCard('CPU 5min', c.min5 + '%') : ''}
     ${m ? statCard('Memory Used', m.usedPct + '%', fmtBytes(m.usedBytes)) : ''}
     ${m ? statCard('Memory Free', m.freePct + '%', fmtBytes(m.freeBytes)) : ''}
     ${m ? statCard('Memory Total', fmtBytes(m.totalBytes)) : ''}
@@ -336,14 +336,14 @@ function renderReport(data) {
   document.getElementById('health-findings').innerHTML = evaluateHealth(data);
 
   const sections = [
-    sectionBlock('cpumem', 'CPU & 메모리 (show cpu / show memory)', renderCpuMemSection(data)),
-    sectionBlock('connxlate', '연결 & NAT (show conn count / show xlate count)', renderConnXlateSection(data)),
-    sectionBlock('traffic', '트래픽 통계 (show traffic)', renderTrafficSection(data.traffic)),
-    sectionBlock('interfaces', '인터페이스 상태 (show interface)', renderInterfacesSection(data.interfaces)),
+    sectionBlock('cpumem', 'CPU & Memory (show cpu / show memory)', renderCpuMemSection(data)),
+    sectionBlock('connxlate', 'Connections & NAT (show conn count / show xlate count)', renderConnXlateSection(data)),
+    sectionBlock('traffic', 'Traffic statistics (show traffic)', renderTrafficSection(data.traffic)),
+    sectionBlock('interfaces', 'Interface status (show interface)', renderInterfacesSection(data.interfaces)),
     sectionBlock('asp', 'ASP Drop (show asp drop)', renderAspDropSection(data.aspDrop)),
-    sectionBlock('snort', 'Snort 통계 (show snort statistics)', renderSnortSection(data.snortStats)),
-    sectionBlock('blocks', 'Block 풀 (show blocks)', renderBlocksSection(data.blocks)),
-    sectionBlock('resource', '리소스 사용량 (show resource usage)', renderResourceSection(data.resourceUsage)),
+    sectionBlock('snort', 'Snort statistics (show snort statistics)', renderSnortSection(data.snortStats)),
+    sectionBlock('blocks', 'Block pools (show blocks)', renderBlocksSection(data.blocks)),
+    sectionBlock('resource', 'Resource usage (show resource usage)', renderResourceSection(data.resourceUsage)),
   ].join('');
   document.getElementById('sections').innerHTML = sections;
 

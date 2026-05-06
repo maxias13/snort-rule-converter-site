@@ -1994,22 +1994,22 @@ python3 trigger_rules.py --delay 1
           <div>
             <h3 style="margin:0;">🔬 Analysis TS File</h3>
             <p style="margin:6px 0 0; color:var(--text-dim, #8a93a6); font-size:0.82rem;">
-              Cisco Firepower (FPR / FTD) troubleshoot 번들(<code>.tar.gz</code>) 또는 <code>show_tech_output.txt</code> 직접 업로드 → 종합 헬스 리포트 생성. 모든 처리는 브라우저 내에서 수행됩니다.
+              Upload a Cisco Firepower (FPR / FTD) troubleshoot bundle (<code>.tar.gz</code>) or <code>show_tech_output.txt</code> directly → generates a comprehensive health report. All processing is performed entirely in your browser.
             </p>
           </div>
         </div>
 
         <div id="upload-zone" class="ts-upload">
           <div class="ts-icon">⬆</div>
-          <h4>Troubleshoot 번들을 여기에 드롭하세요</h4>
-          <p>또는 <code>.tar.gz</code> / <code>.txt</code> 파일 선택</p>
-          <button type="button" class="btn" onclick="document.getElementById('file-input').click()">파일 선택</button>
+          <h4>Drop your troubleshoot bundle here</h4>
+          <p>or select a <code>.tar.gz</code> / <code>.txt</code> file</p>
+          <button type="button" class="btn" onclick="document.getElementById('file-input').click()">Select file</button>
           <input type="file" id="file-input" accept=".gz,.tgz,.tar.gz,.txt">
-          <p style="margin-top:14px; font-size:0.72rem;">파일은 브라우저 내에서만 처리됩니다. 서버 업로드 없음.</p>
+          <p style="margin-top:14px; font-size:0.72rem;">Files are processed entirely in your browser. No server upload.</p>
         </div>
 
         <div id="progress" class="ts-progress hidden">
-          <div class="ts-progress-msg" id="progress-msg">초기화 중...</div>
+          <div class="ts-progress-msg" id="progress-msg">Initializing...</div>
           <div class="ts-progress-bar"><div id="progress-fill"></div></div>
         </div>
 
@@ -2017,9 +2017,9 @@ python3 trigger_rules.py --delay 1
 
         <div id="report" class="ts-report hidden">
           <div class="ts-toolbar">
-            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.remove('collapsed'))">모두 펼치기</button>
-            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.add('collapsed'))">모두 접기</button>
-            <button class="btn secondary" onclick="window.print()">인쇄 / PDF 저장</button>
+            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.remove('collapsed'))">Expand all</button>
+            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.add('collapsed'))">Collapse all</button>
+            <button class="btn secondary" onclick="window.print()">Print / Save as PDF</button>
           </div>
           <div id="device-summary"></div>
           <div id="health-findings"></div>
