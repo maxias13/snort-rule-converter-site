@@ -61,13 +61,29 @@
    * Long-path handling: a typeflag 'L' header is followed by a data block containing
    * the next entry's full name; we capture it and apply it when the *real* header arrives.
    */
-  function makeTarScanner(targetSuffixRegex, onFound) {
+  /**
+   * Multi-target streaming tar scanner.
+   * targets: Array<{ regex: RegExp, required?: boolean, onFound: (name, bytes) => void }>.
+   * Scanner runs until ALL `required` targets are captured (or stream ends).
+   * Each target fires its onFound at most once. Non-required targets are
+   * opportunistic — captured if seen, ignored otherwise.
+   */
+  function makeTarScanner(targets, onAllRequiredFound) {
+    if (!Array.isArray(targets)) {
+      const cb = onAllRequiredFound;
+      targets = [{ regex: targets, required: true, onFound: cb }];
+      onAllRequiredFound = null;
+    }
+    targets.forEach(t => { t._fired = false; t.required = t.required !== false; });
+    const allRequiredFired = () => targets.every(t => !t.required || t._fired);
+
     let buf = new Uint8Array(0);
     let mode = 'header';
     let remaining = 0;
     let pad = 0;
     let captured = [];
     let capturedName = '';
+    let activeTarget = null;
     let pendingLongName = '';
     let longNameChunks = [];
     let done = false;
@@ -121,7 +137,13 @@
           const fullName = pendingLongName || (prefix ? (prefix + '/' + name) : name);
           pendingLongName = '';
 
-          if (size > 0 && targetSuffixRegex.test(fullName)) {
+          activeTarget = null;
+          if (size > 0) {
+            for (const t of targets) {
+              if (!t._fired && t.regex.test(fullName)) { activeTarget = t; break; }
+            }
+          }
+          if (activeTarget) {
             mode = 'capture';
             capturedName = fullName;
             captured = [];
@@ -183,11 +205,21 @@
             const out = new Uint8Array(total);
             let off = 0;
             for (const c of captured) { out.set(c, off); off += c.length; }
-            done = true;
-            mode = 'done';
-            buf = new Uint8Array(0);
-            try { onFound(capturedName, out); } catch (e) { console.error(e); }
-            return;
+            if (activeTarget) {
+              activeTarget._fired = true;
+              try { activeTarget.onFound(capturedName, out); } catch (e) { console.error(e); }
+            }
+            activeTarget = null;
+            captured = [];
+            if (allRequiredFired()) {
+              done = true;
+              mode = 'done';
+              buf = new Uint8Array(0);
+              try { onAllRequiredFound && onAllRequiredFound(); } catch (e) { console.error(e); }
+              return;
+            }
+            mode = 'header';
+            continue;
           }
           mode = 'header';
           continue;
@@ -214,16 +246,31 @@
       if (isPlainText) {
         showProgress('Processing show_tech_output.txt directly...', 0.5);
         const text = await file.text();
-        await runParseAndRender(text, file.name);
+        await runParseAndRender(text, file.name, {});
         return;
       }
 
-      const targetRe = /show_tech_output\.txt$|show.tech.*\.txt$/i;
       let foundText = null;
-      const scanner = makeTarScanner(targetRe, (name, bytes) => {
-        console.log(`[scanner] captured ${name} (${bytes.length} bytes)`);
-        foundText = { name, text: new TextDecoder('utf-8').decode(bytes) };
-      });
+      const extras = { iprep: null, sidns: null, siurl: null };
+      const decodeVer = (bytes) => {
+        const s = new TextDecoder('utf-8').decode(bytes).trim();
+        const m = s.match(/VERSION\s*=\s*(\S+)/i);
+        return m ? m[1] : (s || null);
+      };
+      const targets = [
+        { regex: /show_tech_output\.txt$|show.tech.*\.txt$/i, required: true,
+          onFound: (name, bytes) => {
+            console.log(`[scanner] captured ${name} (${bytes.length} bytes)`);
+            foundText = { name, text: new TextDecoder('utf-8').decode(bytes) };
+          } },
+        { regex: /iprep_download\/IPRVersion\.dat$/, required: false,
+          onFound: (_n, b) => { extras.iprep = decodeVer(b); } },
+        { regex: /sidns_download\/IPRVersion\.dat$/, required: false,
+          onFound: (_n, b) => { extras.sidns = decodeVer(b); } },
+        { regex: /siurl_download\/IPRVersion\.dat$/, required: false,
+          onFound: (_n, b) => { extras.siurl = decodeVer(b); } },
+      ];
+      const scanner = makeTarScanner(targets);
 
       let inflator = null;
       if (isGzip) {
@@ -256,17 +303,20 @@
       }
 
       if (!foundText) throw new Error('show_tech_output.txt not found in bundle.');
-      await runParseAndRender(foundText.text, foundText.name);
+      await runParseAndRender(foundText.text, foundText.name, extras);
     } catch (e) {
       showError(e.message || String(e));
     }
   }
 
-  async function runParseAndRender(text, sourceName) {
+  async function runParseAndRender(text, sourceName, extras) {
     showProgress(`Parsing... (${(text.length / 1024).toFixed(0)} KB)`, 0.9);
     await new Promise(r => setTimeout(r, 0));
     const data = window.FPRParser.parseAll(text);
     data._sourceFile = sourceName;
+    if (window.FPRParser.parseSoftwareVersions) {
+      data.versions = window.FPRParser.parseSoftwareVersions(text, extras || {});
+    }
 
     showProgress('Rendering report...', 0.97);
     await new Promise(r => setTimeout(r, 0));

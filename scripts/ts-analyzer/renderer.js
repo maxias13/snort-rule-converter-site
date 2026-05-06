@@ -49,7 +49,7 @@ function findingCard(sev, title, body) {
 function table(headers, rows) {
   return `<table>
     <thead><tr>${headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c === undefined || c === null ? '-' : escapeHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+    <tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c === undefined || c === null ? '-' : (typeof c === 'object' && c && c.html ? c.html : escapeHtml(c))}</td>`).join('')}</tr>`).join('')}</tbody>
   </table>`;
 }
 
@@ -331,11 +331,29 @@ function renderCharts(data) {
   }
 }
 
+function renderSoftwareVersions(v) {
+  if (!v) return '<p style="color:var(--text-dim)">No data</p>';
+  const NA = { html: '<span style="color:var(--text-dim)">Not available in this bundle</span>' };
+  const cell = (val) => (val ? String(val) : NA);
+  const rows = [
+    ['SRU (Rules update)', cell(v.sru)],
+    ['VDB (Vulnerability DB)', cell(v.vdb)],
+    ['Security Intelligence — IP Reputation', cell(v.iprep)],
+    ['Security Intelligence — DNS', cell(v.sidns)],
+    ['Security Intelligence — URL', cell(v.siurl)],
+    ['LSP (Snort 3 Lightweight Security Package)', cell(v.lsp)],
+    ['GeoDB', cell(v.geodb)],
+    ['Snort engine version', cell(v.snortEngine)],
+  ];
+  return table(['Component', 'Version'], rows);
+}
+
 function renderReport(data) {
   document.getElementById('device-summary').innerHTML = renderDeviceSummary(data);
   document.getElementById('health-findings').innerHTML = evaluateHealth(data);
 
   const sections = [
+    sectionBlock('versions', 'Software Versions (SRU / VDB / Security Intelligence)', renderSoftwareVersions(data.versions)),
     sectionBlock('cpumem', 'CPU & Memory (show cpu / show memory)', renderCpuMemSection(data)),
     sectionBlock('connxlate', 'Connections & NAT (show conn count / show xlate count)', renderConnXlateSection(data)),
     sectionBlock('traffic', 'Traffic statistics (show traffic)', renderTrafficSection(data.traffic)),

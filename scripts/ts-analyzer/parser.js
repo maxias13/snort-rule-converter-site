@@ -280,6 +280,25 @@ function parseShowMode(text) {
   return m ? m[1] : text.trim();
 }
 
+/* parseSoftwareVersions: extracts SRU/VDB from show-tech text and merges
+ * Security Intelligence versions captured opportunistically from
+ * IPRVersion.dat files (passed via `extras`). LSP/GeoDB/Snort engine are not
+ * exposed in standard FTD troubleshoot bundles -> reported as null. */
+function parseSoftwareVersions(text, extras) {
+  extras = extras || {};
+  const grab = (re) => { const m = (text || '').match(re); return m ? m[1].trim() : null; };
+  return {
+    sru:         grab(/^Rules update version\s*:\s*(\S+)/m),
+    vdb:         grab(/^VDB version\s*:\s*(\S+)/m),
+    iprep:       extras.iprep || null,
+    sidns:       extras.sidns || null,
+    siurl:       extras.siurl || null,
+    lsp:         null,
+    geodb:       null,
+    snortEngine: null,
+  };
+}
+
 function parseAll(showTechText) {
   const sections = splitShowTechSections(showTechText);
   return {
@@ -312,5 +331,6 @@ function findShowTechFile(files) {
 window.FPRParser = {
   splitShowTechSections,
   parseAll,
+  parseSoftwareVersions,
   findShowTechFile,
 };
