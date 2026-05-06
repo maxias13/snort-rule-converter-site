@@ -55,9 +55,8 @@ function table(headers, rows) {
 
 function sectionBlock(id, title, body) {
   return `<div class="section" id="sec-${id}">
-    <div class="section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+    <div class="section-header">
       <h2>${escapeHtml(title)}</h2>
-      <span class="toggle"></span>
     </div>
     <div class="section-body">${body}</div>
   </div>`;
