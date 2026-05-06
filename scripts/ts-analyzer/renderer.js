@@ -333,18 +333,37 @@ function renderCharts(data) {
 function renderSoftwareVersions(v) {
   if (!v) return '<p style="color:var(--text-dim)">No data</p>';
   const NA = { html: '<span style="color:var(--text-dim)">Not available in this bundle</span>' };
+  const NONE = { html: '<span style="color:var(--text-dim)">Not configured</span>' };
   const cell = (val) => (val ? String(val) : NA);
+  const siCell = (cat) => {
+    if (!cat) return NONE;
+    const lines = [];
+    const push = (label, arr) => {
+      if (!arr || !arr.length) return;
+      const items = arr.map(n => `<li>${escapeHtml(n)}</li>`).join('');
+      lines.push(`<div style="margin-bottom:4px"><strong>${label}</strong><ul style="margin:2px 0 0 18px;padding:0">${items}</ul></div>`);
+    };
+    if (Array.isArray(cat)) {
+      push('Policy', cat);
+    } else {
+      push('Block', cat.block);
+      push('Monitor', cat.monitor);
+      push('Do-Not-Block', cat.whitelist);
+    }
+    return lines.length ? { html: lines.join('') } : NONE;
+  };
+  const si = v.siActive || null;
   const rows = [
     ['SRU (Rules update)', cell(v.sru)],
     ['VDB (Vulnerability DB)', cell(v.vdb)],
-    ['Security Intelligence — IP Reputation', cell(v.iprep)],
-    ['Security Intelligence — DNS', cell(v.sidns)],
-    ['Security Intelligence — URL', cell(v.siurl)],
+    ['Security Intelligence — IP Reputation (Network)', siCell(si && si.network)],
+    ['Security Intelligence — DNS', siCell(si && si.dns)],
+    ['Security Intelligence — URL', siCell(si && si.url)],
     ['LSP (Snort 3 Lightweight Security Package)', cell(v.lsp)],
     ['GeoDB', cell(v.geodb)],
     ['Snort engine version', cell(v.snortEngine)],
   ];
-  return table(['Component', 'Version'], rows);
+  return table(['Component', 'Active feeds / lists'], rows);
 }
 
 function renderCPUHistory(h) {

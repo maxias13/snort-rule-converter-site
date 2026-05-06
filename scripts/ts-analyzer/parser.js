@@ -310,13 +310,83 @@ function parseSoftwareVersions(text, extras) {
   return {
     sru:         grab(/^Rules update version\s*:\s*(\S+)/m),
     vdb:         grab(/^VDB version\s*:\s*(\S+)/m),
-    iprep:       extras.iprep || null,
-    sidns:       extras.sidns || null,
-    siurl:       extras.siurl || null,
+    siActive:    parseSecurityIntelligenceActive(main),
     lsp:         grab(/^LSP version\s*:\s*(\S+)/m),
     geodb:       grab(/^(?:GeoDB version|Geolocation Update Version)\s*:\s*(\S+)/m),
     snortEngine: snortEngine,
   };
+}
+
+/* parseSecurityIntelligenceActive: walks the LINA show-tech "Security
+ * Intelligence - {Network|URL} {Whitelist|Blacklist}" and "DNS Policy"
+ * blocks and returns the list of configured Feed/List entry names per
+ * category. Returns { network: {whitelist:[], block:[], monitor:[]},
+ * url: {...}, dns: [policyName,...] } with empty arrays when nothing
+ * is configured (so the renderer can clearly say "Not configured"). */
+function parseSecurityIntelligenceActive(text) {
+  const out = {
+    network: { whitelist: [], block: [], monitor: [] },
+    url:     { whitelist: [], block: [], monitor: [] },
+    dns:     [],
+  };
+  if (!text) return out;
+
+  // Find the SI super-section bounds. Each block header looks like:
+  //   ===[ Security Intelligence - Network Whitelist ]====
+  //   =====[ Security Intelligence - URL Blacklist ]======
+  //   =======[ Security Intelligence - DNS Policy ]=======
+  const headerRe = /=+\[\s*Security Intelligence\s*-\s*(Network|URL)\s+(Whitelist|Blacklist)\s*\]=+|=+\[\s*Security Intelligence\s*-\s*DNS Policy\s*\]=+/gi;
+  const matches = [];
+  let m;
+  while ((m = headerRe.exec(text)) !== null) {
+    matches.push({ idx: m.index + m[0].length, kind: m[1] || 'DNS', list: m[2] || 'Policy', headerEnd: m.index + m[0].length });
+  }
+  if (!matches.length) return out;
+
+  // Stop body at the next "===[ ...]===" heading (any) or a blank "Rule Set"
+  const STOP_RE = /=+\[[^\]]+\]=+|^\s*Rule Set\s*:/m;
+
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].idx;
+    const next = matches[i + 1] ? matches[i + 1].headerEnd - matches[i + 1][0]?.length || text.length : text.length;
+    // Simpler: just scan from start until the next "===[" boundary.
+    const rest = text.slice(start);
+    const stop = rest.search(/=+\[[^\]]+\]=+|^Rule Set/m);
+    const body = stop === -1 ? rest : rest.slice(0, stop);
+
+    // Within Blacklist bodies there are sub-sections "[ Monitor ]" and "[ Block ]".
+    const subSections = [];
+    const subRe = /-+\[\s*(Monitor|Block)\s*\]-+/gi;
+    let sm; let lastIdx = 0; let lastLabel = matches[i].list === 'Whitelist' ? 'whitelist' : 'block';
+    const segments = [];
+    while ((sm = subRe.exec(body)) !== null) {
+      segments.push({ label: lastLabel, text: body.slice(lastIdx, sm.index) });
+      lastLabel = sm[1].toLowerCase();
+      lastIdx = sm.index + sm[0].length;
+    }
+    segments.push({ label: lastLabel, text: body.slice(lastIdx) });
+
+    const namesIn = (chunk) => {
+      const names = [];
+      const nameRe = /^\s*Name\s*:\s*(.+?)\s*$/gm;
+      let nm;
+      while ((nm = nameRe.exec(chunk)) !== null) names.push(nm[1].trim());
+      return names;
+    };
+
+    if (matches[i].kind === 'DNS') {
+      const names = namesIn(body);
+      for (const n of names) if (!out.dns.includes(n)) out.dns.push(n);
+      continue;
+    }
+
+    const cat = matches[i].kind === 'Network' ? out.network : out.url;
+    for (const seg of segments) {
+      const target = cat[seg.label] || cat.block;
+      for (const n of namesIn(seg.text)) if (!target.includes(n)) target.push(n);
+    }
+  }
+  return out;
 }
 
 function parseCPUHistory(extras) {
