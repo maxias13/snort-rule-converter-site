@@ -1504,7 +1504,56 @@
     .snortval-tbl tr.sev-error td { background:rgba(239,68,68,0.06); }
     .snortval-tbl tr.sev-warn  td { background:rgba(245,158,11,0.05); }
     .sv-sug { font-size:0.78rem; color:var(--muted); margin-top:3px; font-style:italic; }
+
+    /* ── TS Analyzer (Cisco show-tech / FPR troubleshoot) ─────────────── */
+    #tsAnalyzerView .ts-upload {
+      border: 2px dashed var(--border, #334);
+      border-radius: 10px;
+      padding: 40px 24px;
+      text-align: center;
+      background: var(--surface, #0f1830);
+      transition: border-color .15s, background .15s;
+      cursor: pointer;
+    }
+    #tsAnalyzerView .ts-upload.dragging { border-color: var(--cyan, #00bceb); background: rgba(0,188,235,0.06); }
+    #tsAnalyzerView .ts-upload .ts-icon { font-size: 38px; opacity: 0.7; margin-bottom: 10px; }
+    #tsAnalyzerView .ts-upload h4 { margin: 0 0 6px; font-size: 1.05rem; }
+    #tsAnalyzerView .ts-upload p { margin: 4px 0; color: var(--text-dim, #8a93a6); font-size: 0.85rem; }
+    #tsAnalyzerView .ts-upload input[type=file] { display: none; }
+    #tsAnalyzerView .ts-progress { margin-top: 18px; background: var(--surface, #0f1830); border-radius: 8px; padding: 14px 16px; }
+    #tsAnalyzerView .ts-progress.hidden { display: none; }
+    #tsAnalyzerView .ts-progress-msg { font-size: 0.85rem; color: var(--text-dim, #8a93a6); }
+    #tsAnalyzerView .ts-progress-bar { height: 6px; background: var(--border, #334); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    #tsAnalyzerView .ts-progress-bar > div { height: 100%; background: var(--cyan, #00bceb); width: 0%; transition: width .3s; }
+    #tsAnalyzerView .ts-error { margin-top: 14px; padding: 12px 14px; background: rgba(220,38,38,0.1); border: 1px solid rgba(220,38,38,0.4); color: #fca5a5; border-radius: 8px; font-size: 0.85rem; }
+    #tsAnalyzerView .ts-error.hidden { display: none; }
+    #tsAnalyzerView .ts-report { margin-top: 20px; }
+    #tsAnalyzerView .ts-report.hidden { display: none; }
+    #tsAnalyzerView .ts-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    #tsAnalyzerView .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    #tsAnalyzerView .stat-card { background: var(--surface, #0f1830); border: 1px solid var(--border, #334); border-radius: 8px; padding: 14px 16px; }
+    #tsAnalyzerView .stat-card .label { font-size: 0.75rem; color: var(--text-dim, #8a93a6); text-transform: uppercase; letter-spacing: 0.05em; }
+    #tsAnalyzerView .stat-card .value { font-size: 1.1rem; font-weight: 600; margin-top: 4px; word-break: break-word; }
+    #tsAnalyzerView .findings { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    #tsAnalyzerView .finding { padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border, #334); background: var(--surface, #0f1830); font-size: 0.85rem; }
+    #tsAnalyzerView .finding .sev { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; margin-right: 6px; }
+    #tsAnalyzerView .finding .sev.ok   { background: rgba(34,197,94,0.18); color: #86efac; }
+    #tsAnalyzerView .finding .sev.warn { background: rgba(245,158,11,0.18); color: #fcd34d; }
+    #tsAnalyzerView .finding .sev.crit { background: rgba(220,38,38,0.18); color: #fca5a5; }
+    #tsAnalyzerView .finding .sev.info { background: rgba(59,130,246,0.18); color: #93c5fd; }
+    #tsAnalyzerView .section { margin-top: 18px; border: 1px solid var(--border, #334); border-radius: 8px; background: var(--surface, #0f1830); overflow: hidden; }
+    #tsAnalyzerView .section-head { padding: 10px 14px; background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border, #334); cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+    #tsAnalyzerView .section-head h3 { margin: 0; font-size: 0.95rem; }
+    #tsAnalyzerView .section-body { padding: 14px; font-size: 0.85rem; }
+    #tsAnalyzerView .section.collapsed .section-body { display: none; }
+    #tsAnalyzerView table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    #tsAnalyzerView th, #tsAnalyzerView td { padding: 6px 8px; border-bottom: 1px solid var(--border, #334); text-align: left; }
+    #tsAnalyzerView th { background: rgba(255,255,255,0.03); font-weight: 600; color: var(--text-dim, #8a93a6); }
+    #tsAnalyzerView canvas { max-width: 100%; }
   </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -1532,6 +1581,7 @@
 
       <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort 2 SRU Updates</span></button>
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort 3 LSP Updates</span></button>
+      <button class="tab-btn" data-view="tsAnalyzerView"><span class="icon" aria-hidden="true">🔬</span><span class="label">Analysis TS File</span></button>
 
       <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
 
@@ -1934,6 +1984,46 @@ python3 trigger_rules.py --delay 1
         </div>
         <div id="lspResults" class="result-card muted" style="min-height:120px;">
           Click <b>Load Latest</b> to fetch this week's LSP release notes (Snort 3 rules: new / modified / deleted).
+        </div>
+      </div>
+    </section>
+
+    <section id="tsAnalyzerView" class="view">
+      <div class="panel">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">🔬 Analysis TS File</h3>
+            <p style="margin:6px 0 0; color:var(--text-dim, #8a93a6); font-size:0.82rem;">
+              Cisco Firepower (FPR / FTD) troubleshoot 번들(<code>.tar.gz</code>) 또는 <code>show_tech_output.txt</code> 직접 업로드 → 종합 헬스 리포트 생성. 모든 처리는 브라우저 내에서 수행됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div id="upload-zone" class="ts-upload">
+          <div class="ts-icon">⬆</div>
+          <h4>Troubleshoot 번들을 여기에 드롭하세요</h4>
+          <p>또는 <code>.tar.gz</code> / <code>.txt</code> 파일 선택</p>
+          <button type="button" class="btn" onclick="document.getElementById('file-input').click()">파일 선택</button>
+          <input type="file" id="file-input" accept=".gz,.tgz,.tar.gz,.txt">
+          <p style="margin-top:14px; font-size:0.72rem;">파일은 브라우저 내에서만 처리됩니다. 서버 업로드 없음.</p>
+        </div>
+
+        <div id="progress" class="ts-progress hidden">
+          <div class="ts-progress-msg" id="progress-msg">초기화 중...</div>
+          <div class="ts-progress-bar"><div id="progress-fill"></div></div>
+        </div>
+
+        <div id="error-box" class="ts-error hidden"></div>
+
+        <div id="report" class="ts-report hidden">
+          <div class="ts-toolbar">
+            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.remove('collapsed'))">모두 펼치기</button>
+            <button class="btn secondary" onclick="document.querySelectorAll('#tsAnalyzerView .section').forEach(s=>s.classList.add('collapsed'))">모두 접기</button>
+            <button class="btn secondary" onclick="window.print()">인쇄 / PDF 저장</button>
+          </div>
+          <div id="device-summary"></div>
+          <div id="health-findings"></div>
+          <div id="sections"></div>
         </div>
       </div>
     </section>
@@ -7488,5 +7578,10 @@ ${optRules.join("\n")}
       });
     })();
   </script>
+
+  <!-- TS Analyzer (FPR troubleshoot bundle) - must load AFTER its DOM (#tsAnalyzerView) is in the document -->
+  <script src="scripts/ts-analyzer/parser.js"></script>
+  <script src="scripts/ts-analyzer/renderer.js"></script>
+  <script src="scripts/ts-analyzer/app.js"></script>
 </body>
 </html>
