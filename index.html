@@ -21,7 +21,7 @@
       };
 
       window.__fbSubmit = async (type, title, author, content) => {
-        const body   = `**유형**: ${type}\n**작성자**: ${author || "Anonymous"}\n\n---\n${content}`;
+        const body   = `**Type**: ${type}\n**Author**: ${author || "Anonymous"}\n\n---\n${content}`;
         const labels = ["feedback"];
         if (LABEL_MAP[type]) labels.push(LABEL_MAP[type]);
 
@@ -48,8 +48,8 @@
         if (!res.ok) throw new Error(`GitHub API error: ${res.status}`);
         const issues = await res.json();
         return issues.map(i => {
-          const typeMatch   = i.body?.match(/\*\*유형[^:]*:\*\*\s*(.+)/);
-          const authorMatch = i.body?.match(/\*\*작성자[^:]*:\*\*\s*(.+)/);
+          const typeMatch   = i.body?.match(/\*\*Type[^:]*:\*\*\s*(.+)/);
+          const authorMatch = i.body?.match(/\*\*Author[^:]*:\*\*\s*(.+)/);
           const content     = i.body?.replace(/[\s\S]*?---\n/, "").trim() || "";
           const labelNames  = i.labels.map(l => l.name);
           let type = "Suggestion";
@@ -5526,7 +5526,7 @@ ${optRules.join("\n")}
             </table>
           </div>
           <div style="font-size:0.78rem; color:var(--muted); margin-top:8px;">
-            ↳ 행을 클릭하면 그 아래에 어떤 룰끼리 어떤 부분이 정확히 일치하는지 펼쳐집니다.
+            ↳ Click a row to expand an inline detail panel showing exactly which rules match and on which fields.
           </div>`;
 
         return header + summary + tableHtml;
@@ -5599,23 +5599,23 @@ ${optRules.join("\n")}
           const pcresMatch    = arraysEqualSorted(myParsed.pcres,    p.parsed.pcres);
           const flowMatch     = myParsed.flow     === p.parsed.flow;
           const matchKinds = [];
-          if (p.sameSid)  matchKinds.push(`<span style="color:#f87171;">SID 동일</span>`);
-          if (p.sameBody) matchKinds.push(`<span style="color:#fbbf24;">BODY 동일</span>`);
+          if (p.sameSid)  matchKinds.push(`<span style="color:#f87171;">Same SID</span>`);
+          if (p.sameBody) matchKinds.push(`<span style="color:#fbbf24;">Same BODY</span>`);
 
           return `
             <div style="margin-top:14px; padding-top:10px; border-top:1px dashed var(--border);">
               <div style="font-size:0.82rem; font-weight:600; color:var(--primary); margin-bottom:6px;">
-                ↔ 매칭 #${p.idx + 1} · SID ${p.rule.sid}
+                ↔ Match #${p.idx + 1} · SID ${p.rule.sid}
                 <span style="font-weight:400; color:var(--muted); margin-left:6px;">(${matchKinds.join(" + ")})</span>
               </div>
               <div style="font-size:0.78rem; color:var(--fg); margin-bottom:6px;">${escapeHtml(p.rule.msg || "(no msg)")}</div>
               <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
                 <thead>
                   <tr style="background:rgba(0,212,255,0.04);">
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:80px;">필드</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">현재 룰 (#${rowIdx + 1})</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">매칭 룰 (#${p.idx + 1})</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:70px;">결과</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:80px;">Field</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">Current Rule (#${rowIdx + 1})</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">Matched Rule (#${p.idx + 1})</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:70px;">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -5633,11 +5633,11 @@ ${optRules.join("\n")}
           ? `<div style="color:var(--muted); padding:10px;">No matching partners found.</div>`
           : `
             <div style="font-size:0.86rem; font-weight:600; color:var(--primary); margin-bottom:6px;">
-              🔍 #${rowIdx + 1} · SID ${me.sid} 의 중복 매칭 상세
+              🔍 Duplicate match details for #${rowIdx + 1} · SID ${me.sid}
             </div>
             <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
-              매칭 유형: ${[...matchTypes].map(t => `<b style="color:#fbbf24;">${t}</b>`).join(" + ") || "n/a"}
-              · 매칭 룰 수: <b>${partners.length}</b>
+              Match type: ${[...matchTypes].map(t => `<b style="color:#fbbf24;">${t}</b>`).join(" + ") || "n/a"}
+              · Matched rules: <b>${partners.length}</b>
             </div>
             ${partnerBlocks}`;
 
@@ -6785,7 +6785,7 @@ ${optRules.join("\n")}
                     <tr style="background:rgba(239,68,68,0.06);">
                       <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;white-space:nowrap;">SID</th>
                       <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">msg</th>
-                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">변환된 Snort 3 Rule</th>
+                      <th style="padding:7px 12px;text-align:left;font-size:0.8rem;color:var(--muted);font-weight:600;">Converted Snort 3 Rule</th>
                     </tr>
                   </thead>
                   <tbody>${rows}</tbody>
