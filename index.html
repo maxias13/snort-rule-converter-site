@@ -2125,7 +2125,7 @@ python3 trigger_rules.py --delay 1
           • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: msg token Jaccard similarity ≥ 0.7 (possible false positive — review recommended)<br>
           <b style="color:var(--primary); font-size:0.76rem; display:inline-block; margin-top:6px;">▸ Among your input rules (internal duplicates):</b><br>
           • <b style="color:#f87171;">DUP_SID</b>: Same SID appears more than once in your input<br>
-          • <b style="color:#fbbf24;">DUP_BODY</b>: Same normalized header + detection options (content/pcre/flow) appear more than once
+          • <b style="color:#fbbf24;">DUP_BODY</b>: Same detection options (content/pcre/flow) appear more than once
         </div>
        </div>
      </section>
@@ -5377,7 +5377,6 @@ ${optRules.join("\n")}
         const pcres    = [...t.matchAll(/\bpcre\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
         const flow     = (t.match(/\bflow\s*:\s*([^;]+);/i) || [,""])[1].trim().toLowerCase();
         const bodyFp = JSON.stringify({
-          h: headerNorm,
           c: [...contents].sort(),
           p: [...pcres].sort(),
           f: flow.split(/\s*,\s*/).sort().join(",")
@@ -5432,7 +5431,7 @@ ${optRules.join("\n")}
               const f = ensure(i);
               f.kinds.add("DUP_BODY");
               f.partners.push(...idxs.filter(j => j !== i));
-              f.reasons.push(`Same header + detection options as ${idxs.filter(j => j !== i).map(j => "SID " + userRules[j].sid).join(", ")}`);
+              f.reasons.push(`Same detection options as ${idxs.filter(j => j !== i).map(j => "SID " + userRules[j].sid).join(", ")}`);
             }
           }
         }
