@@ -2220,13 +2220,13 @@ python3 trigger_rules.py --delay 1
           <div id="migPerRuleWrap" style="margin-top:18px; display:none;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
               <div>
-                <h4 style="margin:0; font-size:15px;">📋 룰별 변환 내역</h4>
-                <div id="migPerRuleSummary" class="muted" style="margin-top:4px; font-size:12px;"></div>
+                <h4 style="margin:0; font-size:17px;">Per-Rule Migration Details</h4>
+                <div id="migPerRuleSummary" class="muted" style="margin-top:4px; font-size:14px;"></div>
               </div>
               <div class="row" style="gap:6px; flex-wrap:wrap;" id="migPerRuleFilters">
-                <button class="btn secondary mig-filter-btn active" data-filter="all" style="padding:4px 10px; font-size:12px;">전체</button>
-                <button class="btn secondary mig-filter-btn" data-filter="changed" style="padding:4px 10px; font-size:12px;">변경됨만</button>
-                <button class="btn secondary mig-filter-btn" data-filter="warned" style="padding:4px 10px; font-size:12px;">경고있음만</button>
+                <button class="btn secondary mig-filter-btn active" data-filter="all" style="padding:4px 10px; font-size:14px;">All</button>
+                <button class="btn secondary mig-filter-btn" data-filter="changed" style="padding:4px 10px; font-size:14px;">Changed Only</button>
+                <button class="btn secondary mig-filter-btn" data-filter="warned" style="padding:4px 10px; font-size:14px;">With Warnings</button>
               </div>
             </div>
             <div id="migPerRulePanel" style="display:flex; flex-direction:column; gap:10px;"></div>
@@ -5246,7 +5246,7 @@ ${optRules.join("\n")}
         const totalTransforms = rules.reduce((acc, r) => acc + ((r.transforms || []).length), 0);
         const totalWarnings = rules.reduce((acc, r) => acc + ((r.warnings || []).length), 0);
         if (summary) {
-          summary.textContent = `총 ${totalRules}개 룰, ${totalTransforms}개 변환, ${totalWarnings}개 경고`;
+          summary.textContent = `${totalRules} rules, ${totalTransforms} transforms, ${totalWarnings} warnings`;
         }
 
         const filtered = rules.filter((r) => {
@@ -5256,7 +5256,7 @@ ${optRules.join("\n")}
         });
 
         if (filtered.length === 0) {
-          panel.innerHTML = `<div class="muted" style="padding:12px; text-align:center; border:1px dashed var(--border); border-radius:8px;">필터 조건에 해당하는 룰이 없습니다.</div>`;
+          panel.innerHTML = `<div class="muted" style="padding:12px; text-align:center; border:1px dashed var(--border); border-radius:8px;">No rules match the current filter.</div>`;
           return;
         }
 
@@ -5267,28 +5267,28 @@ ${optRules.join("\n")}
           const warnCount = (r.warnings || []).length;
           const transforms = r.transforms || [];
           const headerBadges = [
-            `<span class="badge" style="font-size:11px;">#${idx}</span>`,
-            `<span class="badge" style="font-size:11px;">${sid}</span>`,
-            changes > 0 ? `<span class="badge" style="font-size:11px; background:#1e3a8a; color:#dbeafe;">${changes} 변환</span>` : "",
-            warnCount > 0 ? `<span class="badge" style="font-size:11px; background:#7c2d12; color:#fed7aa;">${warnCount} 경고</span>` : ""
+            `<span class="badge" style="font-size:13px;">#${idx}</span>`,
+            `<span class="badge" style="font-size:13px;">${sid}</span>`,
+            changes > 0 ? `<span class="badge" style="font-size:13px; background:#1e3a8a; color:#dbeafe;">${changes} changes</span>` : "",
+            warnCount > 0 ? `<span class="badge" style="font-size:13px; background:#7c2d12; color:#fed7aa;">${warnCount} warnings</span>` : ""
           ].filter(Boolean).join(" ");
 
           const transformItems = transforms.map((t) => {
             const sev = __SEVERITY_META[t.severity] || __SEVERITY_META.info;
-            const before = t.before ? `<div style="margin-top:4px;"><span class="muted" style="font-size:11px;">before:</span> <code style="background:#3f1d1d; color:#fecaca; padding:2px 6px; border-radius:4px; font-size:12px;">${escapeHtml(t.before)}</code></div>` : "";
-            const after  = t.after  ? `<div style="margin-top:2px;"><span class="muted" style="font-size:11px;">after:</span>  <code style="background:#14532d; color:#bbf7d0; padding:2px 6px; border-radius:4px; font-size:12px;">${escapeHtml(t.after)}</code></div>` : "";
+            const before = t.before ? `<div style="margin-top:4px;"><span class="muted" style="font-size:13px;">before:</span> <code style="background:#3f1d1d; color:#fecaca; padding:2px 6px; border-radius:4px; font-size:14px;">${escapeHtml(t.before)}</code></div>` : "";
+            const after  = t.after  ? `<div style="margin-top:2px;"><span class="muted" style="font-size:13px;">after:</span>  <code style="background:#14532d; color:#bbf7d0; padding:2px 6px; border-radius:4px; font-size:14px;">${escapeHtml(t.after)}</code></div>` : "";
             return `
               <li style="margin-bottom:8px; padding:8px 10px; background:var(--bg-elev); border-left:3px solid ${sev.color}; border-radius:4px;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span style="font-weight:600; color:${sev.color}; font-size:12px;">[${escapeHtml(t.id)}]</span>
-                  <span style="font-size:13px;">${escapeHtml(t.label)}</span>
-                  <span class="badge" style="font-size:10px; background:${sev.color}22; color:${sev.color}; border:1px solid ${sev.color}55;">${sev.label}</span>
+                  <span style="font-weight:600; color:${sev.color}; font-size:14px;">[${escapeHtml(t.id)}]</span>
+                  <span style="font-size:15px;">${escapeHtml(t.label)}</span>
+                  <span class="badge" style="font-size:12px; background:${sev.color}22; color:${sev.color}; border:1px solid ${sev.color}55;">${sev.label}</span>
                 </div>
                 ${before}${after}
               </li>`;
           }).join("");
 
-          const warningItems = (r.warnings || []).map((w) => `<li style="font-size:12px; color:#fb923c;">⚠ ${escapeHtml(w)}</li>`).join("");
+          const warningItems = (r.warnings || []).map((w) => `<li style="font-size:14px; color:#fb923c;">⚠ ${escapeHtml(w)}</li>`).join("");
 
           const original = r.originalLine || "";
           const converted = r.convertedRule || "";
@@ -5298,21 +5298,21 @@ ${optRules.join("\n")}
             <details class="rule-explain" style="border:1px solid var(--border); border-radius:8px; background:var(--bg-card); padding:8px 12px;" ${noChange ? "" : "open"}>
               <summary style="cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                 ${headerBadges}
-                ${noChange ? `<span class="muted" style="font-size:11px;">변경 없음</span>` : ""}
+                ${noChange ? `<span class="muted" style="font-size:13px;">No changes</span>` : ""}
               </summary>
               <div style="margin-top:10px;">
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                   <div>
-                    <div class="muted" style="font-size:11px; margin-bottom:4px;">Snort 2 (input)</div>
-                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(original)}</pre>
+                    <div class="muted" style="font-size:13px; margin-bottom:4px;">Snort 2 (input)</div>
+                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:13px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(original)}</pre>
                   </div>
                   <div>
-                    <div class="muted" style="font-size:11px; margin-bottom:4px;">Snort 3 (output)</div>
-                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(converted)}</pre>
+                    <div class="muted" style="font-size:13px; margin-bottom:4px;">Snort 3 (output)</div>
+                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:13px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(converted)}</pre>
                   </div>
                 </div>
-                ${transformItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:11px; margin-bottom:4px;">적용된 변환 (${transforms.length})</div><ul style="list-style:none; padding:0; margin:0;">${transformItems}</ul></div>` : ""}
-                ${warningItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:11px; margin-bottom:4px;">경고 (${warnCount})</div><ul style="margin:0; padding-left:18px;">${warningItems}</ul></div>` : ""}
+                ${transformItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:13px; margin-bottom:4px;">Applied transforms (${transforms.length})</div><ul style="list-style:none; padding:0; margin:0;">${transformItems}</ul></div>` : ""}
+                ${warningItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:13px; margin-bottom:4px;">Warnings (${warnCount})</div><ul style="margin:0; padding-left:18px;">${warningItems}</ul></div>` : ""}
               </div>
             </details>`;
         }).join("");
