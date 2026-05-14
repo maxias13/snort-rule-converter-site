@@ -2126,9 +2126,7 @@ python3 trigger_rules.py --delay 1
           • <b style="color:#4ade80;">UNIQUE</b>: No duplicate found among built-in rules<br>
           <b style="color:var(--primary); font-size:0.76rem; display:inline-block; margin-top:6px;">▸ Among your input rules (internal duplicates):</b><br>
           • <b style="color:#f87171;">DUP_SID</b>: Same SID appears more than once in your input<br>
-          • <b style="color:#fb923c;">DUP_MSG</b>: Same msg string appears more than once in your input<br>
-          • <b style="color:#fbbf24;">DUP_BODY</b>: Same normalized header + detection options (content/pcre/flow) appear more than once<br>
-          • <b style="color:#fbbf24;">NEAR_DUP</b>: Two input rules share msg Jaccard similarity ≥ 0.7
+          • <b style="color:#fbbf24;">DUP_BODY</b>: Same normalized header + detection options (content/pcre/flow) appear more than once
         </div>
        </div>
      </section>
@@ -5421,25 +5419,6 @@ ${optRules.join("\n")}
           }
         }
 
-        // Group by msg (case-insensitive, trimmed)
-        const byMsg = new Map();
-        userRules.forEach((r, i) => {
-          const k = (r.msg || "").trim().toLowerCase();
-          if (!k) return;
-          if (!byMsg.has(k)) byMsg.set(k, []);
-          byMsg.get(k).push(i);
-        });
-        for (const [msg, idxs] of byMsg) {
-          if (idxs.length > 1) {
-            for (const i of idxs) {
-              const f = ensure(i);
-              f.kinds.add("DUP_MSG");
-              f.partners.push(...idxs.filter(j => j !== i));
-              f.reasons.push(`Identical msg appears ${idxs.length}× (lines: ${idxs.map(j => "#" + (j + 1)).join(", ")})`);
-            }
-          }
-        }
-
         // Group by body fingerprint (header + content + pcre + flow)
         const byBody = new Map();
         userRules.forEach((r, i) => {
@@ -5459,35 +5438,11 @@ ${optRules.join("\n")}
           }
         }
 
-        // Pairwise NEAR_DUP (msg Jaccard ≥ 0.7), skip pairs already flagged as exact
-        const tokens = userRules.map(r => tokenizeMsg(r.msg));
-        for (let i = 0; i < userRules.length; i++) {
-          if (tokens[i].size < 2) continue;
-          for (let j = i + 1; j < userRules.length; j++) {
-            if (tokens[j].size < 2) continue;
-            const sim = jaccardSim(tokens[i], tokens[j]);
-            if (sim >= 0.7) {
-              const fi = ensure(i), fj = ensure(j);
-              // Skip noise if already flagged exact duplicate with same partner
-              if (!fi.partners.includes(j)) {
-                fi.kinds.add("NEAR_DUP");
-                fi.partners.push(j);
-                fi.reasons.push(`msg ~${(sim * 100).toFixed(0)}% similar to #${j + 1}`);
-              }
-              if (!fj.partners.includes(i)) {
-                fj.kinds.add("NEAR_DUP");
-                fj.partners.push(i);
-                fj.reasons.push(`msg ~${(sim * 100).toFixed(0)}% similar to #${i + 1}`);
-              }
-            }
-          }
-        }
-
         return flags;
       }
 
       function renderInternalDuplicates(userRules, flags) {
-        const counts = { DUP_SID: 0, DUP_MSG: 0, DUP_BODY: 0, NEAR_DUP: 0 };
+        const counts = { DUP_SID: 0, DUP_BODY: 0 };
         const flagged = [];
         userRules.forEach((r, i) => {
           const f = flags.get(i);
@@ -5498,9 +5453,7 @@ ${optRules.join("\n")}
 
         const palette = {
           DUP_SID:  { color: "#f87171", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.3)",  label: "DUP_SID"  },
-          DUP_MSG:  { color: "#fb923c", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.3)", label: "DUP_MSG"  },
-          DUP_BODY: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "DUP_BODY" },
-          NEAR_DUP: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "NEAR_DUP" }
+          DUP_BODY: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "DUP_BODY" }
         };
 
         const header = `
