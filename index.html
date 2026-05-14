@@ -5578,29 +5578,57 @@ ${optRules.join("\n")}
           if (p.sameBody) matchTypes.add("BODY");
         });
 
-        const sectionRow = (label, mineVal, theirVal, isMatch) => {
-          const tickColor = isMatch ? "#fbbf24" : "var(--muted)";
-          const tick = isMatch ? "● MATCH" : "○ differs";
-          const pre = (v) => `<pre style="margin:0; padding:6px 8px; background:rgba(0,0,0,0.25);
-                border:1px solid var(--border); border-radius:6px; font-size:0.74rem;
-                color:${isMatch ? "#fde68a" : "var(--muted)"}; white-space:pre-wrap; word-break:break-all;">${escapeHtml(v || "(none)")}</pre>`;
-          return `
-            <tr style="border-top:1px solid var(--border);">
-              <td style="padding:6px 8px; font-size:0.74rem; color:var(--muted); white-space:nowrap; vertical-align:top; font-weight:600;">${label}</td>
-              <td style="padding:6px 8px; vertical-align:top;">${pre(mineVal)}</td>
-              <td style="padding:6px 8px; vertical-align:top;">${pre(theirVal)}</td>
-              <td style="padding:6px 8px; font-size:0.72rem; color:${tickColor}; white-space:nowrap; vertical-align:top; font-weight:700;">${tick}</td>
-            </tr>`;
+        // Token-level highlight: split rule into option tokens (between ; or whitespace at top level)
+        // and mark tokens that appear in BOTH rules with a bright background.
+        const HL_BG = "background:#fde047; color:#1a1a1a; padding:1px 3px; border-radius:3px; font-weight:600;";
+        const tokenizeRule = (line) => {
+          // Split on `;` to get individual options, plus split header part on whitespace
+          const t = (line || "").trim();
+          const parenIdx = t.indexOf("(");
+          const header = parenIdx > 0 ? t.slice(0, parenIdx).trim() : t;
+          const body   = parenIdx > 0 ? t.slice(parenIdx + 1, t.lastIndexOf(")")).trim() : "";
+          const headerTokens = header.split(/(\s+)/).filter(s => s.length);
+          const bodyTokens   = body.split(/(\s*;\s*)/).filter(s => s.length);
+          return { headerTokens, bodyTokens, hasParen: parenIdx > 0 };
+        };
+        const normalizeForCompare = (s) => s.trim().toLowerCase().replace(/\s+/g, " ");
+        const renderDiffRule = (line, otherLine) => {
+          const me    = tokenizeRule(line);
+          const other = tokenizeRule(otherLine);
+          const otherSet = new Set([
+            ...other.headerTokens.map(normalizeForCompare),
+            ...other.bodyTokens.map(normalizeForCompare),
+          ].filter(s => s && !/^\s*;?\s*$/.test(s)));
+          const wrap = (tok) => {
+            const norm = normalizeForCompare(tok);
+            const isWhitespaceOrSep = !norm || /^;?$/.test(norm);
+            if (isWhitespaceOrSep) return escapeHtml(tok);
+            if (otherSet.has(norm)) {
+              return `<span style="${HL_BG}">${escapeHtml(tok)}</span>`;
+            }
+            return escapeHtml(tok);
+          };
+          const hdr = me.headerTokens.map(wrap).join("");
+          const bdy = me.bodyTokens.map(wrap).join("");
+          return me.hasParen ? `${hdr} (${bdy})` : hdr;
         };
 
         const partnerBlocks = partners.map(p => {
-          const headerMatch   = myParsed.header   === p.parsed.header;
-          const contentsMatch = arraysEqualSorted(myParsed.contents, p.parsed.contents);
-          const pcresMatch    = arraysEqualSorted(myParsed.pcres,    p.parsed.pcres);
-          const flowMatch     = myParsed.flow     === p.parsed.flow;
           const matchKinds = [];
           if (p.sameSid)  matchKinds.push(`<span style="color:#f87171;">Same SID</span>`);
           if (p.sameBody) matchKinds.push(`<span style="color:#fbbf24;">Same BODY</span>`);
+
+          const mineRendered  = renderDiffRule(me.rule, p.rule.rule);
+          const theirRendered = renderDiffRule(p.rule.rule, me.rule);
+
+          const ruleBox = (label, html, accent) => `
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:0.72rem; color:var(--muted); margin-bottom:4px; font-weight:600; letter-spacing:0.3px;">${label}</div>
+              <pre style="margin:0; padding:10px 12px; background:rgba(0,0,0,0.35);
+                  border:1px solid var(--border); border-left:3px solid ${accent}; border-radius:6px;
+                  font-size:0.78rem; line-height:1.55; color:var(--fg);
+                  white-space:pre-wrap; word-break:break-word; font-family:'SF Mono', Menlo, Consolas, monospace;">${html}</pre>
+            </div>`;
 
           return `
             <div style="margin-top:14px; padding-top:10px; border-top:1px dashed var(--border);">
@@ -5608,23 +5636,11 @@ ${optRules.join("\n")}
                 ↔ Match #${p.idx + 1} · SID ${p.rule.sid}
                 <span style="font-weight:400; color:var(--muted); margin-left:6px;">(${matchKinds.join(" + ")})</span>
               </div>
-              <div style="font-size:0.78rem; color:var(--fg); margin-bottom:6px;">${escapeHtml(p.rule.msg || "(no msg)")}</div>
-              <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
-                <thead>
-                  <tr style="background:rgba(0,212,255,0.04);">
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:80px;">Field</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">Current Rule (#${rowIdx + 1})</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">Matched Rule (#${p.idx + 1})</th>
-                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:70px;">Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${sectionRow("Header",   myParsed.header,             p.parsed.header,             headerMatch)}
-                  ${sectionRow("Contents", myParsed.contents.join("\n"), p.parsed.contents.join("\n"), contentsMatch)}
-                  ${sectionRow("PCRE",     myParsed.pcres.join("\n"),    p.parsed.pcres.join("\n"),    pcresMatch)}
-                  ${sectionRow("Flow",     myParsed.flow,                p.parsed.flow,                flowMatch)}
-                </tbody>
-              </table>
+              <div style="font-size:0.78rem; color:var(--fg); margin-bottom:10px;">${escapeHtml(p.rule.msg || "(no msg)")}</div>
+              <div style="display:flex; gap:14px; flex-wrap:wrap;">
+                ${ruleBox(`Original Rule (#${rowIdx + 1} · SID ${me.sid})`, mineRendered, "var(--primary)")}
+                ${ruleBox(`Duplicate Rule (#${p.idx + 1} · SID ${p.rule.sid})`, theirRendered, "#fbbf24")}
+              </div>
             </div>`;
         }).join("");
 
@@ -5638,6 +5654,7 @@ ${optRules.join("\n")}
             <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
               Match type: ${[...matchTypes].map(t => `<b style="color:#fbbf24;">${t}</b>`).join(" + ") || "n/a"}
               · Matched rules: <b>${partners.length}</b>
+              · <span style="color:var(--fg);">Tokens with <span style="${HL_BG}">yellow background</span> are duplicated between rules.</span>
             </div>
             ${partnerBlocks}`;
 
