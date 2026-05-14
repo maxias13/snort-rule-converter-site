@@ -5432,7 +5432,7 @@ ${optRules.join("\n")}
               const f = ensure(i);
               f.kinds.add("DUP_BODY");
               f.partners.push(...idxs.filter(j => j !== i));
-              f.reasons.push(`Same header + detection options as ${idxs.filter(j => j !== i).map(j => "#" + (j + 1)).join(", ")}`);
+              f.reasons.push(`Same header + detection options as ${idxs.filter(j => j !== i).map(j => "SID " + userRules[j].sid).join(", ")}`);
             }
           }
         }
