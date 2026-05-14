@@ -5302,7 +5302,11 @@ ${optRules.join("\n")}
       // ── Snort 3 community rules body fingerprint helpers ───────────────
       // Path is relative so it works on github pages (https://maxias13.github.io/snort-rule-converter-site/data/...)
       // and during local file:// preview alike.
-      const COMMUNITY_RULES_URL = "data/snort3-community.rules";
+      // Bump COMMUNITY_RULES_VERSION whenever data/snort3-community.rules is updated
+      // to bust the GitHub Pages CDN / browser cache without forcing every visitor
+      // to hard-refresh.
+      const COMMUNITY_RULES_VERSION = "2026-05-14";
+      const COMMUNITY_RULES_URL = `data/snort3-community.rules?v=${COMMUNITY_RULES_VERSION}`;
 
       // Build a stable body fingerprint from a single Snort rule line.
       // Mirrors the user-rule fingerprint logic in parseUserRuleLine() so
