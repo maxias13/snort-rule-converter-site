@@ -5305,7 +5305,7 @@ ${optRules.join("\n")}
       // Bump COMMUNITY_RULES_VERSION whenever data/snort3-community.rules is updated
       // to bust the GitHub Pages CDN / browser cache without forcing every visitor
       // to hard-refresh.
-      const COMMUNITY_RULES_VERSION = "2026-05-14";
+      const COMMUNITY_RULES_VERSION = "2026-05-14b";
       const COMMUNITY_RULES_URL = `data/snort3-community.rules?v=${COMMUNITY_RULES_VERSION}`;
 
       // Build a stable body fingerprint from a single Snort rule line.
@@ -6193,19 +6193,45 @@ ${optRules.join("\n")}
         let options = splitOptions(parsed.options);
         let changeCount = 0;
         const warnings = [];
-        const originalHasActivates = options.some((o) => optionKeyword(o) === "activates") || options.some((o) => optionKeyword(o) === "activated_by");
+
+        // Pre-scan for activate/activated_by SID (M021/M022) — used to build flowbits.
+        // Per spec: flowbit name is `activator_<sid>` deterministic on the numeric ID.
+        let activatesSid = null;     // value of `activates:N;` (this rule activates rule N)
+        let activatedBySid = null;   // value of `activated_by:N;` (this rule is activated by rule N)
+        for (const o of options) {
+          const k = optionKeyword(o).toLowerCase();
+          if (k === "activates") {
+            const v = o.slice(o.indexOf(":") + 1).trim().replace(/;$/, "").trim();
+            if (/^\d+$/.test(v)) activatesSid = v;
+          } else if (k === "activated_by") {
+            const v = o.slice(o.indexOf(":") + 1).trim().replace(/;$/, "").trim();
+            if (/^\d+$/.test(v)) activatedBySid = v;
+          }
+        }
+        const originalHasActivates = activatesSid !== null || activatedBySid !== null;
 
         // ── PASS 0a: Header transformations ──
-        // - action mapping: drop/sdrop → block
+        // M019: sdrop  → drop  (Snort 3 inline always logs the drop)
+        //       drop   → drop  (kept as-is; Snort 3 supports drop natively)
+        // M021: activate → alert (flowbits:set added below)
+        // M022: dynamic  → alert (flowbits:isset added below)
         // NOTE: Snort 3 supports negated IP variables in headers (per docs.snort.org/rules/headers/ips),
         //       so !$VAR is preserved as-is.
         let header = parsed.header;
         const headerParts = header.split(/\s+/);
         if (headerParts.length === 7) {
           const actionLower = headerParts[0].toLowerCase();
-          if (actionLower === "drop" || actionLower === "sdrop") {
-            warnings.push(`action '${headerParts[0]}' converted to 'block' (Snort 3 action model)`);
-            headerParts[0] = "block";
+          if (actionLower === "sdrop") {
+            warnings.push("M019: action 'sdrop' converted to 'drop' (Snort 3 inline always logs)");
+            headerParts[0] = "drop";
+            changeCount += 1;
+          } else if (actionLower === "activate") {
+            warnings.push("M021: action 'activate' converted to 'alert'; activates:N → flowbits:set,activator_N");
+            headerParts[0] = "alert";
+            changeCount += 1;
+          } else if (actionLower === "dynamic") {
+            warnings.push("M022: action 'dynamic' converted to 'alert'; activated_by:N → flowbits:isset,activator_N");
+            headerParts[0] = "alert";
             changeCount += 1;
           }
           header = headerParts.join(" ");
@@ -6366,8 +6392,30 @@ ${optRules.join("\n")}
             return;
           }
           if (lower === "threshold") {
-            warnings.push("threshold removed from rule; use detection_filter (inline rate-limit) or event_filter (global) in Snort 3");
-            changeCount += 1;
+            // M016: threshold:type X, track Y, count N, seconds S; → detection_filter:track Y, count N, seconds S;
+            // For type=limit/both, an event_filter block in snort.lua is also needed (advisory only).
+            const val = opt.slice(opt.indexOf(":") + 1).trim().replace(/;\s*$/, "");
+            const parts = val.split(",").map((s) => s.trim()).filter(Boolean);
+            const kv = {};
+            let typeVal = null;
+            for (const p of parts) {
+              const tokens = p.split(/\s+/);
+              const k = tokens[0].toLowerCase();
+              const v = tokens.slice(1).join(" ");
+              if (k === "type") typeVal = (v || "").toLowerCase();
+              else kv[k] = v;
+            }
+            if (kv.track && kv.count && kv.seconds) {
+              transformed.push(`detection_filter:track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`);
+              warnings.push(`M016: threshold → detection_filter (type=${typeVal || "n/a"})`);
+              if (typeVal === "limit" || typeVal === "both") {
+                warnings.push("M016: type=limit/both also requires an event_filter{} block in snort.lua (Snort 3 does not allow event_filter inside rules)");
+              }
+              changeCount += 1;
+            } else {
+              warnings.push("M016: threshold could not be auto-converted (missing track/count/seconds); removed — review manually");
+              changeCount += 1;
+            }
             return;
           }
           if (lower === "resp") {
@@ -6381,17 +6429,24 @@ ${optRules.join("\n")}
             return;
           }
           if (lower === "activates") {
-            warnings.push("activates removed in Snort 3");
+            // M021: activates:N → flowbits:set,activator_<sid> (paired with activate→alert in header)
+            const sidTag = activatesSid || "unknown";
+            transformed.push(`flowbits:set,activator_${sidTag}`);
+            warnings.push(`M021: activates → flowbits:set,activator_${sidTag} (header action converted to alert)`);
             changeCount += 1;
             return;
           }
           if (lower === "activated_by") {
-            warnings.push("activated_by removed in Snort 3");
+            // M022: activated_by:N → flowbits:isset,activator_<sid> (paired with dynamic→alert in header)
+            const sidTag = activatedBySid || "unknown";
+            transformed.push(`flowbits:isset,activator_${sidTag}`);
+            warnings.push(`M022: activated_by → flowbits:isset,activator_${sidTag} (header action converted to alert)`);
             changeCount += 1;
             return;
           }
           if (lower === "count" && originalHasActivates) {
-            warnings.push("count with activates/activated_by removed in Snort 3");
+            // M022: 'count' modifier on dynamic rules has no Snort 3 equivalent — flowbits:isset fires every match
+            warnings.push("M022: count modifier removed (Snort 3 flowbits:isset has no count limit; use detection_filter if rate-limiting is needed)");
             changeCount += 1;
             return;
           }
@@ -6607,39 +6662,35 @@ ${optRules.join("\n")}
         // Snort 2 PCRE HTTP flags are UPPERCASE only.
         // Lowercase letters (i, s, m, x, g) are standard PCRE regex flags and must be kept.
         const flagMap = {
-          U: "http_uri",       // normalized URI buffer
+          U: "http_uri",       // M002: normalized URI buffer
           I: "http_raw_uri",   // raw/unnormalized URI buffer
-          H: "http_header",    // HTTP request header
-          B: null,             // rawbytes (unnormalized) — no direct Snort 3 equiv; drop
-          D: "http_client_body", // HTTP client request body raw
-          P: "http_client_body", // HTTP client request body
-          C: "http_cookie",    // HTTP cookie
-          M: "http_method",    // HTTP request method
-          S: "http_stat_code", // HTTP response status code
-          Y: "http_stat_msg",  // HTTP response status message
-          K: "http_raw_cookie" // HTTP raw cookie
+          H: "http_header",    // M003: HTTP request header (normalized)
+          D: "http_raw_header",  // M004: HTTP raw (unnormalized) header buffer
+          M: "http_method",    // M005: HTTP request method
+          C: "http_cookie",    // M006: HTTP cookie (normalized)
+          K: "http_raw_cookie",// M007: HTTP raw cookie
+          S: "http_stat_code", // M008: HTTP response status code
+          Y: "http_stat_msg",  // M009: HTTP response status message
+          P: "http_client_body", // M010: HTTP client request body
+          B: "pkt_data"        // M011: rawbytes → pkt_data sticky buffer in Snort 3
         };
 
         const sticky = [];
         let keptFlags = "";
-        let droppedRawbytes = false;
         for (const ch of parsed.flags) {
           // Only UPPERCASE letters are Snort-specific HTTP buffer flags.
           // Lowercase letters (i, s, m, x, g, etc.) are standard PCRE modifiers — always keep them.
           if (/[A-Z]/.test(ch) && flagMap[ch] !== undefined) {
             if (flagMap[ch] && !sticky.includes(flagMap[ch])) sticky.push(flagMap[ch]);
-            else if (!flagMap[ch]) droppedRawbytes = true; // B (rawbytes) — drop and warn
           } else {
             keptFlags += ch;
           }
         }
 
         // Return early only when nothing actually changed.
-        // If keptFlags !== parsed.flags, a flag was dropped (e.g. B) even with no sticky buffer.
         if (!sticky.length && keptFlags === parsed.flags) return { changed: false, option: opt, sticky: [], warnings: [] };
 
         const pcreWarnings = [];
-        if (droppedRawbytes) pcreWarnings.push("pcre: B (rawbytes) flag removed in Snort 3; verify regex matches normalized data");
 
         const rebuilt = `/${parsed.body}/${keptFlags}`;
         return {
