@@ -2216,6 +2216,21 @@ python3 trigger_rules.py --delay 1
             </div>
           </div>
           <div id="migNotice" class="muted" style="margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elev);"></div>
+
+          <div id="migPerRuleWrap" style="margin-top:18px; display:none;">
+            <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+              <div>
+                <h4 style="margin:0; font-size:15px;">📋 룰별 변환 내역</h4>
+                <div id="migPerRuleSummary" class="muted" style="margin-top:4px; font-size:12px;"></div>
+              </div>
+              <div class="row" style="gap:6px; flex-wrap:wrap;" id="migPerRuleFilters">
+                <button class="btn secondary mig-filter-btn active" data-filter="all" style="padding:4px 10px; font-size:12px;">전체</button>
+                <button class="btn secondary mig-filter-btn" data-filter="changed" style="padding:4px 10px; font-size:12px;">변경됨만</button>
+                <button class="btn secondary mig-filter-btn" data-filter="warned" style="padding:4px 10px; font-size:12px;">경고있음만</button>
+              </div>
+            </div>
+            <div id="migPerRulePanel" style="display:flex; flex-direction:column; gap:10px;"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -5172,22 +5187,135 @@ ${optRules.join("\n")}
         const badge = document.getElementById("migCountBadge");
         if (!input || !output) return;
         const text = String(input.value || "");
-        if (!text.trim()) { output.value = ""; if (badge) badge.textContent = "0 rules"; return; }
+        if (!text.trim()) {
+          output.value = "";
+          if (badge) badge.textContent = "0 rules";
+          renderPerRulePanel(null);
+          return;
+        }
         try {
           const result = (typeof convertAll === "function") ? convertAll(text, 1000000) : null;
           if (result && typeof result === "object") {
             output.value = result.output || result.text || result.rules || String(result);
             const n = (result.output || result.text || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
             if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
+            renderPerRulePanel(Array.isArray(result.rules) ? result.rules : null);
           } else {
             output.value = String(result || "");
             const n = String(result || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
             if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
+            renderPerRulePanel(null);
           }
         } catch (e) {
           output.value = "# Conversion error: " + (e && e.message ? e.message : String(e));
           if (badge) badge.textContent = "0 rules";
+          renderPerRulePanel(null);
         }
+      }
+
+      const __SEVERITY_META = {
+        critical: { color: "#ef4444", label: "Critical" },
+        warn:     { color: "#fb923c", label: "Warning"  },
+        auto:     { color: "#60a5fa", label: "Auto"     },
+        info:     { color: "#22c55e", label: "Info"     }
+      };
+      let __migPerRuleCache = [];
+      let __migPerRuleFilter = "all";
+
+      function escapeHtml(s) {
+        return String(s == null ? "" : s)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+
+      function renderPerRulePanel(rules) {
+        const wrap = document.getElementById("migPerRuleWrap");
+        const panel = document.getElementById("migPerRulePanel");
+        const summary = document.getElementById("migPerRuleSummary");
+        if (!wrap || !panel) return;
+        if (!Array.isArray(rules) || rules.length === 0) {
+          wrap.style.display = "none";
+          panel.innerHTML = "";
+          __migPerRuleCache = [];
+          return;
+        }
+        __migPerRuleCache = rules;
+        wrap.style.display = "block";
+
+        const totalRules = rules.length;
+        const totalTransforms = rules.reduce((acc, r) => acc + ((r.transforms || []).length), 0);
+        const totalWarnings = rules.reduce((acc, r) => acc + ((r.warnings || []).length), 0);
+        if (summary) {
+          summary.textContent = `총 ${totalRules}개 룰, ${totalTransforms}개 변환, ${totalWarnings}개 경고`;
+        }
+
+        const filtered = rules.filter((r) => {
+          if (__migPerRuleFilter === "changed") return (r.transforms || []).length > 0 || (r.changeCount || 0) > 0;
+          if (__migPerRuleFilter === "warned")  return (r.warnings || []).length > 0;
+          return true;
+        });
+
+        if (filtered.length === 0) {
+          panel.innerHTML = `<div class="muted" style="padding:12px; text-align:center; border:1px dashed var(--border); border-radius:8px;">필터 조건에 해당하는 룰이 없습니다.</div>`;
+          return;
+        }
+
+        panel.innerHTML = filtered.map((r) => {
+          const idx = (typeof r.index === "number") ? r.index + 1 : "?";
+          const sid = r.sid ? `SID ${escapeHtml(r.sid)}` : "(no sid)";
+          const changes = r.changeCount || 0;
+          const warnCount = (r.warnings || []).length;
+          const transforms = r.transforms || [];
+          const headerBadges = [
+            `<span class="badge" style="font-size:11px;">#${idx}</span>`,
+            `<span class="badge" style="font-size:11px;">${sid}</span>`,
+            changes > 0 ? `<span class="badge" style="font-size:11px; background:#1e3a8a; color:#dbeafe;">${changes} 변환</span>` : "",
+            warnCount > 0 ? `<span class="badge" style="font-size:11px; background:#7c2d12; color:#fed7aa;">${warnCount} 경고</span>` : ""
+          ].filter(Boolean).join(" ");
+
+          const transformItems = transforms.map((t) => {
+            const sev = __SEVERITY_META[t.severity] || __SEVERITY_META.info;
+            const before = t.before ? `<div style="margin-top:4px;"><span class="muted" style="font-size:11px;">before:</span> <code style="background:#3f1d1d; color:#fecaca; padding:2px 6px; border-radius:4px; font-size:12px;">${escapeHtml(t.before)}</code></div>` : "";
+            const after  = t.after  ? `<div style="margin-top:2px;"><span class="muted" style="font-size:11px;">after:</span>  <code style="background:#14532d; color:#bbf7d0; padding:2px 6px; border-radius:4px; font-size:12px;">${escapeHtml(t.after)}</code></div>` : "";
+            return `
+              <li style="margin-bottom:8px; padding:8px 10px; background:var(--bg-elev); border-left:3px solid ${sev.color}; border-radius:4px;">
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span style="font-weight:600; color:${sev.color}; font-size:12px;">[${escapeHtml(t.id)}]</span>
+                  <span style="font-size:13px;">${escapeHtml(t.label)}</span>
+                  <span class="badge" style="font-size:10px; background:${sev.color}22; color:${sev.color}; border:1px solid ${sev.color}55;">${sev.label}</span>
+                </div>
+                ${before}${after}
+              </li>`;
+          }).join("");
+
+          const warningItems = (r.warnings || []).map((w) => `<li style="font-size:12px; color:#fb923c;">⚠ ${escapeHtml(w)}</li>`).join("");
+
+          const original = r.originalLine || "";
+          const converted = r.convertedRule || "";
+          const noChange = transforms.length === 0 && warnCount === 0;
+
+          return `
+            <details class="rule-explain" style="border:1px solid var(--border); border-radius:8px; background:var(--bg-card); padding:8px 12px;" ${noChange ? "" : "open"}>
+              <summary style="cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                ${headerBadges}
+                ${noChange ? `<span class="muted" style="font-size:11px;">변경 없음</span>` : ""}
+              </summary>
+              <div style="margin-top:10px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                  <div>
+                    <div class="muted" style="font-size:11px; margin-bottom:4px;">Snort 2 (input)</div>
+                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(original)}</pre>
+                  </div>
+                  <div>
+                    <div class="muted" style="font-size:11px; margin-bottom:4px;">Snort 3 (output)</div>
+                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:11px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(converted)}</pre>
+                  </div>
+                </div>
+                ${transformItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:11px; margin-bottom:4px;">적용된 변환 (${transforms.length})</div><ul style="list-style:none; padding:0; margin:0;">${transformItems}</ul></div>` : ""}
+                ${warningItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:11px; margin-bottom:4px;">경고 (${warnCount})</div><ul style="margin:0; padding-left:18px;">${warningItems}</ul></div>` : ""}
+              </div>
+            </details>`;
+        }).join("");
       }
 
       function bindMigrationHandlers() {
@@ -5203,6 +5331,15 @@ ${optRules.join("\n")}
         convertBtn.addEventListener("click", runMigrationConvert);
         if (clearBtn) clearBtn.addEventListener("click", () => {
           input.value = ""; output.value = ""; if (badge) badge.textContent = "0 rules";
+          renderPerRulePanel(null);
+        });
+        const filterBtns = document.querySelectorAll("#migPerRuleFilters .mig-filter-btn");
+        filterBtns.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            __migPerRuleFilter = btn.getAttribute("data-filter") || "all";
+            filterBtns.forEach((b) => b.classList.toggle("active", b === btn));
+            renderPerRulePanel(__migPerRuleCache);
+          });
         });
         if (fileInput) fileInput.addEventListener("change", (ev) => {
           const file = ev.target.files && ev.target.files[0];
@@ -5305,7 +5442,7 @@ ${optRules.join("\n")}
       // Bump COMMUNITY_RULES_VERSION whenever data/snort3-community.rules is updated
       // to bust the GitHub Pages CDN / browser cache without forcing every visitor
       // to hard-refresh.
-      const COMMUNITY_RULES_VERSION = "2026-05-14b";
+      const COMMUNITY_RULES_VERSION = "2026-05-14c";
       const COMMUNITY_RULES_URL = `data/snort3-community.rules?v=${COMMUNITY_RULES_VERSION}`;
 
       // Build a stable body fingerprint from a single Snort rule line.
@@ -6154,10 +6291,11 @@ ${optRules.join("\n")}
         const lines = splitLines(inputText);
         const out = [];
         const sidMap = {};
+        const rules = []; // per-rule rich data for the explanation panel
         let totalChanges = 0;
         let sidCounter = startSid || null;
 
-        lines.forEach((line) => {
+        lines.forEach((line, idx) => {
           const trimmed = line.trim();
           if (!trimmed || trimmed.startsWith("#")) {
             out.push(line);
@@ -6169,6 +6307,22 @@ ${optRules.join("\n")}
             out.push(`# PARSE ERROR: Could not parse line`);
             out.push(line);
             totalChanges += 1;
+            rules.push({
+              index: idx,
+              originalLine: line,
+              convertedRule: "",
+              sid: null,
+              changeCount: 1,
+              warnings: ["M038: rule could not be parsed; line passed through unchanged"],
+              transforms: [{
+                id: "M038",
+                label: "Parse error — rule passed through unchanged",
+                severity: "critical",
+                skillRef: "M038",
+                before: line,
+                after: "(unchanged)"
+              }]
+            });
             return;
           }
 
@@ -6179,20 +6333,89 @@ ${optRules.join("\n")}
           out.push(converted.rule);
 
           if (converted.sid) sidMap[converted.sid] = converted.rule;
+
+          rules.push({
+            index: idx,
+            originalLine: line,
+            convertedRule: converted.rule,
+            sid: converted.sid,
+            changeCount: converted.changeCount,
+            warnings: converted.warnings,
+            transforms: converted.transforms || []
+          });
         });
 
         return {
           output: out.join("\n"),
           outputNoSummary: out.join("\n"),
           totalChanges,
-          sidMap
+          sidMap,
+          rules
         };
       }
+
+      // ── M-ID transform catalogue ──────────────────────────────────
+      // Authoritative metadata for every transformation the migrator can apply.
+      // Each entry: { label, severity, skillRef }
+      //   severity: "critical" (semantics may shift), "warn" (advisory),
+      //             "info" (mechanical/safe), "auto" (auto-injection)
+      //   skillRef: anchor in /Users/kaishin/.config/opencode/skills/snort_2_to_3_migration/SKILL.md
+      const MIGRATION_CATALOGUE = {
+        M002: { label: "pcre /U flag → http_uri sticky buffer", severity: "info", skillRef: "M002" },
+        M003: { label: "pcre /H flag → http_header sticky buffer", severity: "info", skillRef: "M003" },
+        M004: { label: "pcre /D flag → http_raw_header sticky buffer", severity: "info", skillRef: "M004" },
+        M005: { label: "pcre /M flag → http_method sticky buffer", severity: "info", skillRef: "M005" },
+        M006: { label: "pcre /C flag → http_cookie sticky buffer", severity: "info", skillRef: "M006" },
+        M007: { label: "pcre /K flag → http_raw_cookie sticky buffer", severity: "info", skillRef: "M007" },
+        M008: { label: "pcre /S flag → http_stat_code sticky buffer", severity: "info", skillRef: "M008" },
+        M009: { label: "pcre /Y flag → http_stat_msg sticky buffer", severity: "info", skillRef: "M009" },
+        M010: { label: "pcre /P flag → http_client_body sticky buffer", severity: "info", skillRef: "M010" },
+        M011: { label: "pcre /B flag → pkt_data sticky buffer (rawbytes)", severity: "info", skillRef: "M011" },
+        M012: { label: "uricontent → http_uri + content", severity: "info", skillRef: "M012" },
+        M013: { label: "content modifiers merged inline (Snort 3 syntax)", severity: "info", skillRef: "M013" },
+        M014: { label: "sticky buffer reordered before content/pcre", severity: "info", skillRef: "M014" },
+        M015: { label: "service:http auto-added for HTTP buffer rule", severity: "auto", skillRef: "M015" },
+        M016: { label: "threshold → detection_filter", severity: "warn", skillRef: "M016" },
+        M017: { label: "metadata 'service' promoted to service: option", severity: "info", skillRef: "M017" },
+        M018: { label: "metadata retained (review Snort 3 compatibility)", severity: "warn", skillRef: "M018" },
+        M019: { label: "sdrop → drop (Snort 3 inline always logs)", severity: "warn", skillRef: "M019" },
+        M020: { label: "sameip → same_ip", severity: "info", skillRef: "M020" },
+        M021: { label: "activate → alert + flowbits:set,activator_<sid>", severity: "critical", skillRef: "M021" },
+        M022: { label: "dynamic → alert + flowbits:isset,activator_<sid>", severity: "critical", skillRef: "M022" },
+        M023: { label: "flowbits:noalert → noalert keyword", severity: "info", skillRef: "M023" },
+        M024: { label: "flowbits:reset removed (no Snort 3 equivalent)", severity: "warn", skillRef: "M024" },
+        M025: { label: "isdataat: rawbytes parameter removed", severity: "info", skillRef: "M025" },
+        M026: { label: "stream_reassemble removed (configure in snort.lua)", severity: "warn", skillRef: "M026" },
+        M027: { label: "replace removed (use rewrite action / DAQ)", severity: "warn", skillRef: "M027" },
+        M028: { label: "byte_test/byte_jump compatibility advisory", severity: "warn", skillRef: "M028" },
+        M029: { label: "file_data:mime → plain file_data", severity: "info", skillRef: "M029" },
+        M030: { label: "dce_stub_data inspector advisory", severity: "warn", skillRef: "M030" },
+        M031: { label: "rawbytes → raw_data sticky buffer", severity: "info", skillRef: "M031" },
+        M032: { label: "resp removed in Snort 3", severity: "warn", skillRef: "M032" },
+        M033: { label: "tag behavior changed (review)", severity: "warn", skillRef: "M033" },
+        M034: { label: "M022 'count' modifier removed (no isset count limit)", severity: "warn", skillRef: "M022" },
+        M035: { label: "logto removed in Snort 3", severity: "warn", skillRef: "M035" },
+        M036: { label: "session removed in Snort 3", severity: "warn", skillRef: "M036" },
+        M037: { label: "fast_pattern:only qualifier removed", severity: "info", skillRef: "M037" },
+        M038: { label: "Snort 3 parse error (line could not be parsed)", severity: "critical", skillRef: "M038" }
+      };
 
       function convertParsedRule(parsed, newSid) {
         let options = splitOptions(parsed.options);
         let changeCount = 0;
         const warnings = [];
+        const transforms = [];
+        function pushT(id, before, after, detailOverride) {
+          const meta = MIGRATION_CATALOGUE[id] || { label: id, severity: "info", skillRef: id };
+          transforms.push({
+            id,
+            label: detailOverride || meta.label,
+            severity: meta.severity,
+            skillRef: meta.skillRef,
+            before: before || "",
+            after: after || ""
+          });
+        }
 
         // Pre-scan for activate/activated_by SID (M021/M022) — used to build flowbits.
         // Per spec: flowbit name is `activator_<sid>` deterministic on the numeric ID.
@@ -6223,14 +6446,17 @@ ${optRules.join("\n")}
           const actionLower = headerParts[0].toLowerCase();
           if (actionLower === "sdrop") {
             warnings.push("M019: action 'sdrop' converted to 'drop' (Snort 3 inline always logs)");
+            pushT("M019", "sdrop", "drop");
             headerParts[0] = "drop";
             changeCount += 1;
           } else if (actionLower === "activate") {
             warnings.push("M021: action 'activate' converted to 'alert'; activates:N → flowbits:set,activator_N");
+            pushT("M021", "activate", "alert");
             headerParts[0] = "alert";
             changeCount += 1;
           } else if (actionLower === "dynamic") {
             warnings.push("M022: action 'dynamic' converted to 'alert'; activated_by:N → flowbits:isset,activator_N");
+            pushT("M022", "dynamic", "alert");
             headerParts[0] = "alert";
             changeCount += 1;
           }
@@ -6247,12 +6473,14 @@ ${optRules.join("\n")}
             const value = opt.slice(opt.indexOf(":") + 1).trim();
             transformed.push("http_uri");
             transformed.push(`content:${value}`);
+            pushT("M013", opt, `http_uri; content:${value}`);
             changeCount += 1;
             return;
           }
 
           if (lower === "sameip") {
             transformed.push("same_ip");
+            pushT("M020", opt, "same_ip");
             changeCount += 1;
             return;
           }
@@ -6275,6 +6503,7 @@ ${optRules.join("\n")}
             }
             if (serviceParts.length > 0) {
               serviceParts.forEach((svc) => transformed.push(`service:${svc}`));
+              pushT("M015", opt, serviceParts.map((s) => `service:${s}`).join("; "));
               changeCount += 1;
             }
             if (otherParts.length > 0) {
@@ -6297,11 +6526,13 @@ ${optRules.join("\n")}
             if (action === "noalert") {
               // flowbits:noalert → standalone noalert keyword in Snort 3
               transformed.push("noalert");
+              pushT("M025", opt, "noalert");
               changeCount += 1;
               return;
             }
             if (action === "reset") {
               warnings.push("flowbits:reset has no equivalent in Snort 3; removed");
+              pushT("M026", opt, "(removed)");
               changeCount += 1;
               return;
             }
@@ -6315,6 +6546,7 @@ ${optRules.join("\n")}
             if (/,\s*rawbytes/i.test(opt)) {
               const cleaned = opt.replace(/,\s*rawbytes/i, "").trim();
               warnings.push("isdataat: rawbytes parameter removed in Snort 3");
+              pushT("M027", opt, cleaned);
               transformed.push(cleaned);
               changeCount += 1;
               return;
@@ -6326,6 +6558,7 @@ ${optRules.join("\n")}
           // ── stream_reassemble removed ────────────────────────────────
           if (lower === "stream_reassemble") {
             warnings.push("stream_reassemble removed in Snort 3; configure stream reassembly in snort.lua instead");
+            pushT("M028", opt, "(removed)");
             changeCount += 1;
             return;
           }
@@ -6333,6 +6566,7 @@ ${optRules.join("\n")}
           // ── replace removed ──────────────────────────────────────────
           if (lower === "replace") {
             warnings.push("replace removed in Snort 3; use Snort 3 rewrite action or DAQ module instead");
+            pushT("M029", opt, "(removed)");
             changeCount += 1;
             return;
           }
@@ -6368,6 +6602,7 @@ ${optRules.join("\n")}
             // file_data:mime was Snort 2 only; Snort 3 uses file_data with no params
             if (/:\s*mime/i.test(opt)) {
               warnings.push("file_data:mime not supported in Snort 3; using plain file_data");
+              pushT("M030", opt, "file_data");
               transformed.push("file_data");
               changeCount += 1;
               return;
@@ -6387,6 +6622,7 @@ ${optRules.join("\n")}
           if (lower === "rawbytes") {
             // Manual §7.1.16: raw_data sticky buffer replaces the old rawbytes keyword
             warnings.push("rawbytes converted to raw_data sticky buffer (Manual §7.1.16)");
+            pushT("M031", opt, "raw_data");
             transformed.push("raw_data");
             changeCount += 1;
             return;
@@ -6406,57 +6642,69 @@ ${optRules.join("\n")}
               else kv[k] = v;
             }
             if (kv.track && kv.count && kv.seconds) {
-              transformed.push(`detection_filter:track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`);
+              const after = `detection_filter:track ${kv.track}, count ${kv.count}, seconds ${kv.seconds}`;
+              transformed.push(after);
               warnings.push(`M016: threshold → detection_filter (type=${typeVal || "n/a"})`);
+              pushT("M016", opt, after);
               if (typeVal === "limit" || typeVal === "both") {
                 warnings.push("M016: type=limit/both also requires an event_filter{} block in snort.lua (Snort 3 does not allow event_filter inside rules)");
               }
               changeCount += 1;
             } else {
               warnings.push("M016: threshold could not be auto-converted (missing track/count/seconds); removed — review manually");
+              pushT("M016", opt, "(removed — review manually)");
               changeCount += 1;
             }
             return;
           }
           if (lower === "resp") {
             warnings.push("resp removed in Snort 3");
+            pushT("M032", opt, "(removed)");
             changeCount += 1;
             return;
           }
           if (lower === "tag") {
             warnings.push("tag support changed in Snort 3; review behavior in the target deployment");
+            pushT("M033", opt, "(removed — review)");
             changeCount += 1;
             return;
           }
           if (lower === "activates") {
             // M021: activates:N → flowbits:set,activator_<sid> (paired with activate→alert in header)
             const sidTag = activatesSid || "unknown";
-            transformed.push(`flowbits:set,activator_${sidTag}`);
+            const after = `flowbits:set,activator_${sidTag}`;
+            transformed.push(after);
             warnings.push(`M021: activates → flowbits:set,activator_${sidTag} (header action converted to alert)`);
+            pushT("M021", opt, after);
             changeCount += 1;
             return;
           }
           if (lower === "activated_by") {
             // M022: activated_by:N → flowbits:isset,activator_<sid> (paired with dynamic→alert in header)
             const sidTag = activatedBySid || "unknown";
-            transformed.push(`flowbits:isset,activator_${sidTag}`);
+            const after = `flowbits:isset,activator_${sidTag}`;
+            transformed.push(after);
             warnings.push(`M022: activated_by → flowbits:isset,activator_${sidTag} (header action converted to alert)`);
+            pushT("M022", opt, after);
             changeCount += 1;
             return;
           }
           if (lower === "count" && originalHasActivates) {
             // M022: 'count' modifier on dynamic rules has no Snort 3 equivalent — flowbits:isset fires every match
             warnings.push("M022: count modifier removed (Snort 3 flowbits:isset has no count limit; use detection_filter if rate-limiting is needed)");
+            pushT("M022", opt, "(removed)");
             changeCount += 1;
             return;
           }
           if (lower === "logto") {
             warnings.push("logto removed in Snort 3");
+            pushT("M034", opt, "(removed)");
             changeCount += 1;
             return;
           }
           if (lower === "session") {
             warnings.push("session removed in Snort 3");
+            pushT("M035", opt, "(removed)");
             changeCount += 1;
             return;
           }
@@ -6466,7 +6714,10 @@ ${optRules.join("\n")}
             // Plain fast_pattern is still valid as a standalone option.
             const hasOnly = /^fast_pattern\s*:\s*only\s*$/i.test(opt);
             transformed.push("fast_pattern");
-            if (hasOnly) changeCount += 1;
+            if (hasOnly) {
+              pushT("M036", opt, "fast_pattern");
+              changeCount += 1;
+            }
             return;
           }
 
@@ -6523,6 +6774,7 @@ ${optRules.join("\n")}
         if (hasHttpBuffer && !hasService && !isHttpServiceRule) {
           merged.push("service:http");
           warnings.push("service:http; auto-added for a traditional rule using HTTP sticky buffers");
+          pushT("M037", "(none)", "service:http");
           changeCount += 1;
         }
 
@@ -6553,7 +6805,8 @@ ${optRules.join("\n")}
           rule: outputRule,
           warnings,
           changeCount,
-          sid
+          sid,
+          transforms
         };
       }
 
