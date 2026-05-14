@@ -5297,7 +5297,7 @@ ${optRules.join("\n")}
 
 
       // ── Duplicate Rules Checker (4-week SRU+LSP built-in index) ───────
-      const __dupBuiltinCache = { sids: null, msgs: null, bodies: null, rules: [], packs: [], communityCount: 0, builtAt: 0 };
+      const __dupBuiltinCache = { sids: null, bodies: null, rules: [], packs: [], communityCount: 0, builtAt: 0 };
 
       // ── Snort 3 community rules body fingerprint helpers ───────────────
       // Path is relative so it works on github pages (https://maxias13.github.io/snort-rule-converter-site/data/...)
@@ -5386,7 +5386,6 @@ ${optRules.join("\n")}
         const fetched = await Promise.all(dates.map(d => fetchAdvisoryHtml(d)));
         const advisories = fetched.filter(f => f.html.trim().length > 500);
         const sids = new Map();
-        const msgs = new Map();
         const rules = [];
         const packs = new Set();
         for (const a of advisories) {
@@ -5397,14 +5396,11 @@ ${optRules.join("\n")}
             for (const r of [...parsed.newRules, ...parsed.modRules]) {
               const sidNum = parseInt(String(r.sid).split(":").pop(), 10);
               if (Number.isFinite(sidNum)) sids.set(sidNum, { msg: r.msg, type, date: a.date, packVer: parsed.packVer });
-              const msgKey = (r.msg || "").trim().toLowerCase();
-              if (msgKey) msgs.set(msgKey, { sid: sidNum, msg: r.msg, type, date: a.date, packVer: parsed.packVer });
               rules.push({ sid: sidNum, msg: r.msg, type, date: a.date, packVer: parsed.packVer });
             }
           }
         }
         __dupBuiltinCache.sids = sids;
-        __dupBuiltinCache.msgs = msgs;
         __dupBuiltinCache.rules = rules;
         __dupBuiltinCache.packs = Array.from(packs);
 
@@ -5431,14 +5427,6 @@ ${optRules.join("\n")}
         __dupBuiltinCache.communityCount = communityCount;
         __dupBuiltinCache.builtAt = Date.now();
         return __dupBuiltinCache;
-      }
-
-      function tokenizeMsg(msg) {
-        return new Set(
-          String(msg || "").toLowerCase()
-            .replace(/[^a-z0-9\u00a1-\uffff\s]/g, " ")
-            .split(/\s+/).filter(t => t.length >= 2)
-        );
       }
 
       function jaccardSim(a, b) {
