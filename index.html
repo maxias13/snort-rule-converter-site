@@ -5664,7 +5664,7 @@ ${optRules.join("\n")}
 
         // Token-level highlight: split rule into option tokens (between ; or whitespace at top level)
         // and mark tokens that appear in BOTH rules with a bright background.
-        const HL_BG = "color:#fde047; font-weight:700;";
+        const HL_BG = "color:#fb923c; font-weight:700;";
         const tokenizeRule = (line) => {
           // Split on `;` to get individual options, plus split header part on whitespace
           const t = (line || "").trim();
@@ -5738,7 +5738,7 @@ ${optRules.join("\n")}
             <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
               Match type: ${[...matchTypes].map(t => `<b style="color:#fbbf24;">${t}</b>`).join(" + ") || "n/a"}
               · Matched rules: <b>${partners.length}</b>
-              · <span style="color:var(--fg);">Tokens in <span style="${HL_BG}">yellow</span> are duplicated between rules.</span>
+              · <span style="color:var(--fg);">Tokens in <span style="${HL_BG}">orange</span> are duplicated between rules.</span>
             </div>
             ${partnerBlocks}`;
 
