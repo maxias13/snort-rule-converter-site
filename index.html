@@ -5372,15 +5372,24 @@ ${optRules.join("\n")}
         const header = parenIdx > 0 ? t.slice(0, parenIdx).trim() : "";
         // Normalize header: lowercase, collapse whitespace
         const headerNorm = header.toLowerCase().replace(/\s+/g, " ");
-        // Extract detection-relevant options for body fingerprint
+        // Extract detection-relevant options for body fingerprint (body only, header ignored)
         const contents = [...t.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
         const pcres    = [...t.matchAll(/\bpcre\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
         const flow     = (t.match(/\bflow\s*:\s*([^;]+);/i) || [,""])[1].trim().toLowerCase();
-        const bodyFp = JSON.stringify({
+        const flowbits = [...t.matchAll(/\bflowbits\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        const byteTests = [...t.matchAll(/\bbyte_test\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        const byteJumps = [...t.matchAll(/\bbyte_jump\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        // Only flag DUP_BODY when there is actual detection logic to compare.
+        // Rules with no content/pcre/flowbits/byte_* should NOT collide on an empty fingerprint.
+        const hasDetection = contents.length > 0 || pcres.length > 0 || flowbits.length > 0 || byteTests.length > 0 || byteJumps.length > 0;
+        const bodyFp = hasDetection ? JSON.stringify({
           c: [...contents].sort(),
           p: [...pcres].sort(),
-          f: flow.split(/\s*,\s*/).sort().join(",")
-        });
+          f: flow.split(/\s*,\s*/).sort().join(","),
+          fb: [...flowbits].sort(),
+          bt: [...byteTests].sort(),
+          bj: [...byteJumps].sort()
+        }) : null;
         return {
           sid: parseInt(sidMatch[1], 10),
           msg: msgMatch ? msgMatch[1] : "",
