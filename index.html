@@ -2119,10 +2119,10 @@ python3 trigger_rules.py --delay 1
                     border:1px solid rgba(0,212,255,0.2); border-radius:8px;
                     font-size:0.78rem; color:var(--muted); line-height:1.55;">
           <b style="color:var(--primary);">Classification Criteria</b><br>
-          <b style="color:var(--primary); font-size:0.76rem;">▸ Against built-in rules (last 4 weeks of SRU + LSP):</b><br>
-          • <b style="color:#f87171;">EXACT_SID</b>: SID conflict with built-in rules — uses Talos-managed range (1–999,999) or matches an existing SID<br>
-          • <b style="color:#fb923c;">EXACT_MSG</b>: msg string matches a built-in rule exactly<br>
-          • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: msg token Jaccard similarity ≥ 0.7 (possible false positive — review recommended)<br>
+          <b style="color:var(--primary); font-size:0.76rem;">▸ Against built-in rules (Talos advisories last 4 weeks + Snort 3 community ruleset):</b><br>
+          • <b style="color:#fb7185;">EXACT_BODY</b>: Identical detection body (content/pcre/flow/flowbits/byte_*) as a Snort 3 community rule — header is ignored<br>
+          • <b style="color:#f87171;">EXACT_SID</b>: SID conflict with built-in rules — uses Talos-managed range (1–999,999) or matches an existing built-in SID<br>
+          • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: content-token Jaccard similarity ≥ 0.7 with a community rule body (possible false positive — review recommended)<br>
           <b style="color:var(--primary); font-size:0.76rem; display:inline-block; margin-top:6px;">▸ Among your input rules (internal duplicates):</b><br>
           • <b style="color:#f87171;">DUP_SID</b>: Same SID appears more than once in your input<br>
           • <b style="color:#fbbf24;">DUP_BODY</b>: Same detection options (content/pcre/flow) appear more than once
@@ -5297,7 +5297,73 @@ ${optRules.join("\n")}
 
 
       // ── Duplicate Rules Checker (4-week SRU+LSP built-in index) ───────
-      const __dupBuiltinCache = { sids: null, msgs: null, rules: [], packs: [], builtAt: 0 };
+      const __dupBuiltinCache = { sids: null, msgs: null, bodies: null, rules: [], packs: [], communityCount: 0, builtAt: 0 };
+
+      // ── Snort 3 community rules body fingerprint helpers ───────────────
+      // Path is relative so it works on github pages (https://maxias13.github.io/snort-rule-converter-site/data/...)
+      // and during local file:// preview alike.
+      const COMMUNITY_RULES_URL = "data/snort3-community.rules";
+
+      // Build a stable body fingerprint from a single Snort rule line.
+      // Mirrors the user-rule fingerprint logic in parseUserRuleLine() so
+      // the two can be compared apples-to-apples. Header (action/proto/IPs/
+      // ports/direction) is intentionally ignored.
+      function builtinBodyFingerprint(line) {
+        const t = (line || "").trim();
+        if (!t || t.startsWith("#")) return null;
+        const contents = [...t.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const pcres    = [...t.matchAll(/\bpcre\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const flow     = (t.match(/\bflow\s*:\s*([^;]+);/i) || [,""])[1].trim().toLowerCase();
+        const flowbits = [...t.matchAll(/\bflowbits\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        const byteTests = [...t.matchAll(/\bbyte_test\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        const byteJumps = [...t.matchAll(/\bbyte_jump\s*:\s*([^;]+);/gi)].map(m => m[1].trim().toLowerCase());
+        const hasDetection = contents.length > 0 || pcres.length > 0 || flowbits.length > 0 || byteTests.length > 0 || byteJumps.length > 0;
+        if (!hasDetection) return null;
+        return JSON.stringify({
+          c: [...contents].sort(),
+          p: [...pcres].sort(),
+          f: flow.split(/\s*,\s*/).sort().join(","),
+          fb: [...flowbits].sort(),
+          bt: [...byteTests].sort(),
+          bj: [...byteJumps].sort()
+        });
+      }
+
+      // Loose fingerprint for "near match" suggestions when the strict body
+      // fingerprint does not match exactly. Uses content tokens only.
+      function builtinContentSet(line) {
+        const t = (line || "").trim();
+        const contents = [...t.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        return new Set(contents);
+      }
+
+      async function fetchCommunityRules(statusEl) {
+        try {
+          if (statusEl) statusEl.textContent = `Fetching Snort 3 community rules (body index)…`;
+          const res = await fetch(COMMUNITY_RULES_URL, { cache: "force-cache" });
+          if (!res.ok) return [];
+          const text = await res.text();
+          return text.split(/\r?\n/);
+        } catch (e) {
+          return [];
+        }
+      }
+
+      function parseCommunityRule(line) {
+        const t = (line || "").trim();
+        if (!t || t.startsWith("#")) return null;
+        const sidM = t.match(/\bsid\s*:\s*(\d+)/i);
+        const msgM = t.match(/\bmsg\s*:\s*"([^"]*)"/i);
+        if (!sidM) return null;
+        const fp = builtinBodyFingerprint(t);
+        return {
+          sid: parseInt(sidM[1], 10),
+          msg: msgM ? msgM[1] : "",
+          rule: t,
+          bodyFp: fp,
+          contents: builtinContentSet(t)
+        };
+      }
 
       function getRecentDates(weeks) {
         const out = [];
@@ -5341,6 +5407,28 @@ ${optRules.join("\n")}
         __dupBuiltinCache.msgs = msgs;
         __dupBuiltinCache.rules = rules;
         __dupBuiltinCache.packs = Array.from(packs);
+
+        // ── Snort 3 community rules body index (fetched once, cached) ─
+        // Talos advisories only expose {sid, msg}, not rule bodies.
+        // To enable body-vs-body comparison, we fetch the bundled Snort 3
+        // Community Rules file (data/snort3-community.rules) and index it
+        // by body fingerprint. This is a one-time per-session cost.
+        const bodies = new Map();          // bodyFp -> communityRule
+        const communityBySid = new Map();  // sid -> communityRule
+        let communityCount = 0;
+        try {
+          const lines = await fetchCommunityRules(statusEl);
+          for (const line of lines) {
+            const cr = parseCommunityRule(line);
+            if (!cr) continue;
+            communityCount++;
+            communityBySid.set(cr.sid, cr);
+            if (cr.bodyFp && !bodies.has(cr.bodyFp)) bodies.set(cr.bodyFp, cr);
+          }
+        } catch (e) { /* silent fallback - body comparison just becomes empty */ }
+        __dupBuiltinCache.bodies = bodies;
+        __dupBuiltinCache.communityBySid = communityBySid;
+        __dupBuiltinCache.communityCount = communityCount;
         __dupBuiltinCache.builtAt = Date.now();
         return __dupBuiltinCache;
       }
@@ -5703,41 +5791,72 @@ ${optRules.join("\n")}
       function classifyUserRule(userRule, builtin) {
         const TALOS_MAX = 999999;
         const sidInTalosRange = userRule.sid >= 1 && userRule.sid <= TALOS_MAX;
+
+        // PRIMARY signal: body-vs-body comparison against the Snort 3 community
+        // ruleset (the only built-in corpus we have full rule bodies for).
+        // Header (action/proto/IPs/ports/direction) is intentionally ignored.
+        if (userRule.bodyFp && builtin.bodies && builtin.bodies.size > 0) {
+          const bodyHit = builtin.bodies.get(userRule.bodyFp);
+          if (bodyHit) {
+            return {
+              kind: "EXACT_BODY",
+              reason: `Identical detection body (content/pcre/flow/flowbits/byte_*) as community SID ${bodyHit.sid}`,
+              match: { sid: bodyHit.sid, msg: bodyHit.msg, type: "community", packVer: "snort3-community", date: "" }
+            };
+          }
+        }
+
+        // SECONDARY signal: SID-range / SID-collision against Talos weekly advisories.
         const sidHit = builtin.sids.get(userRule.sid);
         if (sidHit) {
           return { kind: "EXACT_SID", reason: `Same SID exists in ${sidHit.type.toUpperCase()} pack ${sidHit.packVer}`, match: sidHit };
         }
+        // Also collide against community SIDs we just indexed.
+        if (builtin.communityBySid && builtin.communityBySid.has(userRule.sid)) {
+          const cr = builtin.communityBySid.get(userRule.sid);
+          return {
+            kind: "EXACT_SID",
+            reason: `Same SID exists in Snort 3 community ruleset`,
+            match: { sid: cr.sid, msg: cr.msg, type: "community", packVer: "snort3-community", date: "" }
+          };
+        }
         if (sidInTalosRange) {
           return { kind: "EXACT_SID", reason: `Uses Talos-managed SID range (1–999,999)`, match: null };
         }
-        const msgKey = (userRule.msg || "").trim().toLowerCase();
-        if (msgKey) {
-          const msgHit = builtin.msgs.get(msgKey);
-          if (msgHit) {
-            return { kind: "EXACT_MSG", reason: `Identical msg`, match: msgHit };
-          }
-          const userTokens = tokenizeMsg(userRule.msg);
-          if (userTokens.size >= 2) {
+
+        // TERTIARY signal: near-body match (shared content tokens) against community.
+        if (userRule.bodyFp && builtin.bodies && builtin.bodies.size > 0) {
+          const userContents = new Set([...userRule.rule.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]));
+          if (userContents.size >= 2) {
             let best = { sim: 0, rule: null };
-            for (const r of builtin.rules) {
-              const sim = jaccardSim(userTokens, tokenizeMsg(r.msg));
-              if (sim > best.sim) best = { sim, rule: r };
+            for (const cr of builtin.bodies.values()) {
+              if (!cr.contents || cr.contents.size === 0) continue;
+              const sim = jaccardSim(userContents, cr.contents);
+              if (sim > best.sim) best = { sim, rule: cr };
               if (best.sim >= 0.95) break;
             }
             if (best.sim >= 0.7) {
-              return { kind: "NEAR_DUPLICATE", reason: `msg similarity ${(best.sim * 100).toFixed(0)}%`, match: best.rule };
+              return {
+                kind: "NEAR_DUPLICATE",
+                reason: `content-token similarity ${(best.sim * 100).toFixed(0)}% with community SID ${best.rule.sid}`,
+                match: { sid: best.rule.sid, msg: best.rule.msg, type: "community", packVer: "snort3-community", date: "" }
+              };
             }
           }
         }
-        return { kind: "UNIQUE", reason: "No duplicate among built-in rules", match: null };
+
+        return { kind: "UNIQUE", reason: "No body-level duplicate among built-in rules", match: null };
       }
 
       function renderDupRulesResults(classified, builtin) {
-        const counts = { EXACT_SID: 0, EXACT_MSG: 0, NEAR_DUPLICATE: 0, UNIQUE: 0 };
-        for (const c of classified) counts[c.classification.kind]++;
+        const counts = { EXACT_BODY: 0, EXACT_SID: 0, NEAR_DUPLICATE: 0, UNIQUE: 0 };
+        for (const c of classified) {
+          if (counts[c.classification.kind] === undefined) counts[c.classification.kind] = 0;
+          counts[c.classification.kind]++;
+        }
         const palette = {
+          EXACT_BODY:     { color: "#fb7185", bg: "rgba(251,113,133,0.10)", border: "rgba(251,113,133,0.35)", label: "EXACT_BODY" },
           EXACT_SID:      { color: "#f87171", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.3)",  label: "EXACT_SID" },
-          EXACT_MSG:      { color: "#fb923c", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.3)", label: "EXACT_MSG" },
           NEAR_DUPLICATE: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "NEAR_DUP"  },
           UNIQUE:         { color: "#4ade80", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.3)",  label: "UNIQUE"    }
         };
@@ -5754,7 +5873,7 @@ ${optRules.join("\n")}
           <div style="margin:18px 0 10px; padding:8px 12px; border-radius:8px;
                       background:rgba(0,212,255,0.06); border:1px solid rgba(0,212,255,0.25);
                       font-size:0.88rem; font-weight:600; color:var(--primary);">
-            📊 Comparison Set: ${builtin.rules.length.toLocaleString()} Built-in Rules (Last 4 Weeks · Pack: ${builtin.packs.join(", ") || "N/A"})
+            📊 Comparison Set: ${builtin.rules.length.toLocaleString()} Talos advisory entries (Last 4 Weeks · Pack: ${builtin.packs.join(", ") || "N/A"}) · ${(builtin.communityCount || 0).toLocaleString()} Snort 3 community rules indexed by <b>body fingerprint</b> (content/pcre/flow/flowbits/byte_*)
           </div>`;
 
         const rows = classified.filter(c => c.classification.kind !== "UNIQUE").map((c, i) => {
