@@ -5481,7 +5481,10 @@ ${optRules.join("\n")}
             }).join("")}
           </div>`;
 
-        const rows = flagged.map(({ idx, rule, flag }) => {
+        // Stash data globally so the detail panel can read it on click
+        window.__intDupData = { userRules, flagged };
+
+        const rows = flagged.map(({ idx, rule, flag }, rowIdx) => {
           const kindBadges = [...flag.kinds].map(k => {
             const p = palette[k];
             return `<span style="display:inline-block; padding:3px 9px; border-radius:5px;
@@ -5490,7 +5493,10 @@ ${optRules.join("\n")}
           }).join("");
           const uniqReasons = [...new Set(flag.reasons)];
           return `
-            <tr style="border-top:1px solid var(--border);">
+            <tr data-intdup-row="${idx}" style="border-top:1px solid var(--border); cursor:pointer;"
+                onmouseover="this.style.background='rgba(0,212,255,0.04)'"
+                onmouseout="if(!this.classList.contains('intdup-active'))this.style.background=''"
+                onclick="window.__showIntDupDetail(${idx}, this)">
               <td style="padding:8px 10px; font-size:0.78rem; color:var(--muted); white-space:nowrap; vertical-align:top;">#${idx + 1}</td>
               <td style="padding:8px 10px; white-space:nowrap; vertical-align:top;">${kindBadges}</td>
               <td style="padding:8px 10px; font-family:monospace; font-size:0.82rem; color:var(--primary); white-space:nowrap; vertical-align:top;">SID ${rule.sid}</td>
@@ -5501,7 +5507,7 @@ ${optRules.join("\n")}
             </tr>`;
         }).join("");
 
-        return header + summary + `
+        const leftTable = `
           <div style="overflow-x:auto; border:1px solid var(--border); border-radius:10px;">
             <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
               <thead>
@@ -5515,6 +5521,149 @@ ${optRules.join("\n")}
               <tbody>${rows}</tbody>
             </table>
           </div>`;
+
+        const detailPanel = `
+          <div id="intDupDetail" style="border:1px solid var(--border); border-radius:10px;
+                background:rgba(0,212,255,0.02); padding:14px; min-height:240px;
+                font-size:0.85rem; color:var(--fg); overflow-x:auto;">
+            <div style="font-size:0.82rem; color:var(--muted);">
+              ← 왼쪽 표에서 행을 클릭하면 어떤 룰끼리 어떤 부분이 정확히 일치하는지 표시됩니다.
+            </div>
+          </div>`;
+
+        const layout = `
+          <div style="display:grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap:14px; align-items:start;">
+            ${leftTable}
+            ${detailPanel}
+          </div>`;
+
+        return header + summary + layout;
+      }
+
+      // Click handler: show match detail in the right pane
+      window.__showIntDupDetail = function (rowIdx, trEl) {
+        const data = window.__intDupData;
+        const detail = document.getElementById("intDupDetail");
+        if (!data || !detail) return;
+
+        // toggle row highlight
+        document.querySelectorAll('tr[data-intdup-row].intdup-active').forEach(el => {
+          el.classList.remove("intdup-active");
+          el.style.background = "";
+        });
+        if (trEl) {
+          trEl.classList.add("intdup-active");
+          trEl.style.background = "rgba(0,212,255,0.10)";
+        }
+
+        const me = data.userRules[rowIdx];
+        if (!me) { detail.innerHTML = ""; return; }
+        const myParsed = parseRuleParts(me.rule);
+
+        // Find partners: rules sharing SID OR bodyFp
+        const partners = [];
+        data.userRules.forEach((r, i) => {
+          if (i === rowIdx) return;
+          const sameSid  = r.sid === me.sid;
+          const sameBody = r.bodyFp && r.bodyFp === me.bodyFp;
+          if (sameSid || sameBody) {
+            partners.push({ idx: i, rule: r, sameSid, sameBody, parsed: parseRuleParts(r.rule) });
+          }
+        });
+
+        if (!partners.length) {
+          detail.innerHTML = `<div style="color:var(--muted);">No matching partners found.</div>`;
+          return;
+        }
+
+        const matchTypes = new Set();
+        partners.forEach(p => {
+          if (p.sameSid)  matchTypes.add("SID");
+          if (p.sameBody) matchTypes.add("BODY");
+        });
+
+        const sectionRow = (label, mineVal, theirVal, isMatch) => {
+          const tickColor = isMatch ? "#fbbf24" : "var(--muted)";
+          const tick = isMatch ? "● MATCH" : "○ differs";
+          const pre = (v) => `<pre style="margin:0; padding:6px 8px; background:rgba(0,0,0,0.25);
+                border:1px solid var(--border); border-radius:6px; font-size:0.74rem;
+                color:${isMatch ? "#fde68a" : "var(--muted)"}; white-space:pre-wrap; word-break:break-all;">${escapeHtml(v || "(none)")}</pre>`;
+          return `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:6px 8px; font-size:0.74rem; color:var(--muted); white-space:nowrap; vertical-align:top; font-weight:600;">${label}</td>
+              <td style="padding:6px 8px; vertical-align:top;">${pre(mineVal)}</td>
+              <td style="padding:6px 8px; vertical-align:top;">${pre(theirVal)}</td>
+              <td style="padding:6px 8px; font-size:0.72rem; color:${tickColor}; white-space:nowrap; vertical-align:top; font-weight:700;">${tick}</td>
+            </tr>`;
+        };
+
+        const partnerBlocks = partners.map(p => {
+          const headerMatch   = myParsed.header   === p.parsed.header;
+          const contentsMatch = arraysEqualSorted(myParsed.contents, p.parsed.contents);
+          const pcresMatch    = arraysEqualSorted(myParsed.pcres,    p.parsed.pcres);
+          const flowMatch     = myParsed.flow     === p.parsed.flow;
+          const matchKinds = [];
+          if (p.sameSid)  matchKinds.push(`<span style="color:#f87171;">SID 동일</span>`);
+          if (p.sameBody) matchKinds.push(`<span style="color:#fbbf24;">BODY 동일</span>`);
+
+          return `
+            <div style="margin-top:14px; padding-top:10px; border-top:1px dashed var(--border);">
+              <div style="font-size:0.82rem; font-weight:600; color:var(--primary); margin-bottom:6px;">
+                ↔ 매칭 #${p.idx + 1} · SID ${p.rule.sid}
+                <span style="font-weight:400; color:var(--muted); margin-left:6px;">(${matchKinds.join(" + ")})</span>
+              </div>
+              <div style="font-size:0.78rem; color:var(--fg); margin-bottom:6px;">${escapeHtml(p.rule.msg || "(no msg)")}</div>
+              <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                <thead>
+                  <tr style="background:rgba(0,212,255,0.04);">
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:80px;">필드</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">현재 룰 (#${rowIdx + 1})</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted);">매칭 룰 (#${p.idx + 1})</th>
+                    <th style="padding:5px 8px; text-align:left; font-size:0.72rem; color:var(--muted); width:70px;">결과</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${sectionRow("Header",   myParsed.header,             p.parsed.header,             headerMatch)}
+                  ${sectionRow("Contents", myParsed.contents.join("\n"), p.parsed.contents.join("\n"), contentsMatch)}
+                  ${sectionRow("PCRE",     myParsed.pcres.join("\n"),    p.parsed.pcres.join("\n"),    pcresMatch)}
+                  ${sectionRow("Flow",     myParsed.flow,                p.parsed.flow,                flowMatch)}
+                </tbody>
+              </table>
+            </div>`;
+        }).join("");
+
+        detail.innerHTML = `
+          <div style="font-size:0.86rem; font-weight:600; color:var(--primary); margin-bottom:6px;">
+            🔍 #${rowIdx + 1} · SID ${me.sid} 의 중복 매칭 상세
+          </div>
+          <div style="font-size:0.78rem; color:var(--muted); margin-bottom:10px;">
+            매칭 유형: ${[...matchTypes].map(t => `<b style="color:#fbbf24;">${t}</b>`).join(" + ") || "n/a"}
+            · 매칭 룰 수: <b>${partners.length}</b>
+          </div>
+          ${partnerBlocks}`;
+      };
+
+      // Helper: parse one rule line into the parts we actually compare
+      function parseRuleParts(line) {
+        const t = (line || "").trim();
+        const parenIdx = t.indexOf("(");
+        const header = (parenIdx > 0 ? t.slice(0, parenIdx).trim() : "")
+          .toLowerCase().replace(/\s+/g, " ");
+        const contents = [...t.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const pcres    = [...t.matchAll(/\bpcre\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const flow     = (t.match(/\bflow\s*:\s*([^;]+);/i) || [,""])[1].trim().toLowerCase();
+        return {
+          header,
+          contents: [...contents].sort(),
+          pcres:    [...pcres].sort(),
+          flow:     flow.split(/\s*,\s*/).sort().join(",")
+        };
+      }
+
+      function arraysEqualSorted(a, b) {
+        if (a.length !== b.length) return false;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+        return true;
       }
 
       function classifyUserRule(userRule, builtin) {
