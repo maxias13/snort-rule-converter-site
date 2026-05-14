@@ -2119,10 +2119,16 @@ python3 trigger_rules.py --delay 1
                     border:1px solid rgba(0,212,255,0.2); border-radius:8px;
                     font-size:0.78rem; color:var(--muted); line-height:1.55;">
           <b style="color:var(--primary);">Classification Criteria</b><br>
+          <b style="color:var(--primary); font-size:0.76rem;">▸ Against built-in rules (last 4 weeks of SRU + LSP):</b><br>
           • <b style="color:#f87171;">EXACT_SID</b>: SID conflict with built-in rules — uses Talos-managed range (1–999,999) or matches an existing SID<br>
           • <b style="color:#fb923c;">EXACT_MSG</b>: msg string matches a built-in rule exactly<br>
           • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: msg token Jaccard similarity ≥ 0.7 (possible false positive — review recommended)<br>
-          • <b style="color:#4ade80;">UNIQUE</b>: No duplicate found among built-in rules
+          • <b style="color:#4ade80;">UNIQUE</b>: No duplicate found among built-in rules<br>
+          <b style="color:var(--primary); font-size:0.76rem; display:inline-block; margin-top:6px;">▸ Among your input rules (internal duplicates):</b><br>
+          • <b style="color:#f87171;">DUP_SID</b>: Same SID appears more than once in your input<br>
+          • <b style="color:#fb923c;">DUP_MSG</b>: Same msg string appears more than once in your input<br>
+          • <b style="color:#fbbf24;">DUP_BODY</b>: Same normalized header + detection options (content/pcre/flow) appear more than once<br>
+          • <b style="color:#fbbf24;">NEAR_DUP</b>: Two input rules share msg Jaccard similarity ≥ 0.7
         </div>
        </div>
      </section>
@@ -5364,7 +5370,199 @@ ${optRules.join("\n")}
         const sidMatch = t.match(/\bsid\s*:\s*(\d+)/i);
         const msgMatch = t.match(/\bmsg\s*:\s*"([^"]*)"/i);
         if (!sidMatch) return null;
-        return { sid: parseInt(sidMatch[1], 10), msg: msgMatch ? msgMatch[1] : "", rule: t };
+        // Extract header (everything before the first '(')
+        const parenIdx = t.indexOf("(");
+        const header = parenIdx > 0 ? t.slice(0, parenIdx).trim() : "";
+        // Normalize header: lowercase, collapse whitespace
+        const headerNorm = header.toLowerCase().replace(/\s+/g, " ");
+        // Extract detection-relevant options for body fingerprint
+        const contents = [...t.matchAll(/\bcontent\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const pcres    = [...t.matchAll(/\bpcre\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+        const flow     = (t.match(/\bflow\s*:\s*([^;]+);/i) || [,""])[1].trim().toLowerCase();
+        const bodyFp = JSON.stringify({
+          h: headerNorm,
+          c: [...contents].sort(),
+          p: [...pcres].sort(),
+          f: flow.split(/\s*,\s*/).sort().join(",")
+        });
+        return {
+          sid: parseInt(sidMatch[1], 10),
+          msg: msgMatch ? msgMatch[1] : "",
+          rule: t,
+          header: headerNorm,
+          bodyFp
+        };
+      }
+
+      // Detect duplicates among user-input rules (no built-in comparison).
+      // Returns: Map<index, { kinds: Set<string>, partners: number[][], reasons: string[] }>
+      function findInternalDuplicates(userRules) {
+        const flags = new Map();
+        const ensure = (i) => {
+          if (!flags.has(i)) flags.set(i, { kinds: new Set(), partners: [], reasons: [] });
+          return flags.get(i);
+        };
+
+        // Group by SID
+        const bySid = new Map();
+        userRules.forEach((r, i) => {
+          const k = r.sid;
+          if (!bySid.has(k)) bySid.set(k, []);
+          bySid.get(k).push(i);
+        });
+        for (const [sid, idxs] of bySid) {
+          if (idxs.length > 1) {
+            for (const i of idxs) {
+              const f = ensure(i);
+              f.kinds.add("DUP_SID");
+              f.partners.push(...idxs.filter(j => j !== i));
+              f.reasons.push(`SID ${sid} appears ${idxs.length}× (lines: ${idxs.map(j => "#" + (j + 1)).join(", ")})`);
+            }
+          }
+        }
+
+        // Group by msg (case-insensitive, trimmed)
+        const byMsg = new Map();
+        userRules.forEach((r, i) => {
+          const k = (r.msg || "").trim().toLowerCase();
+          if (!k) return;
+          if (!byMsg.has(k)) byMsg.set(k, []);
+          byMsg.get(k).push(i);
+        });
+        for (const [msg, idxs] of byMsg) {
+          if (idxs.length > 1) {
+            for (const i of idxs) {
+              const f = ensure(i);
+              f.kinds.add("DUP_MSG");
+              f.partners.push(...idxs.filter(j => j !== i));
+              f.reasons.push(`Identical msg appears ${idxs.length}× (lines: ${idxs.map(j => "#" + (j + 1)).join(", ")})`);
+            }
+          }
+        }
+
+        // Group by body fingerprint (header + content + pcre + flow)
+        const byBody = new Map();
+        userRules.forEach((r, i) => {
+          const k = r.bodyFp;
+          if (!k) return;
+          if (!byBody.has(k)) byBody.set(k, []);
+          byBody.get(k).push(i);
+        });
+        for (const [, idxs] of byBody) {
+          if (idxs.length > 1) {
+            for (const i of idxs) {
+              const f = ensure(i);
+              f.kinds.add("DUP_BODY");
+              f.partners.push(...idxs.filter(j => j !== i));
+              f.reasons.push(`Same header + detection options as ${idxs.filter(j => j !== i).map(j => "#" + (j + 1)).join(", ")}`);
+            }
+          }
+        }
+
+        // Pairwise NEAR_DUP (msg Jaccard ≥ 0.7), skip pairs already flagged as exact
+        const tokens = userRules.map(r => tokenizeMsg(r.msg));
+        for (let i = 0; i < userRules.length; i++) {
+          if (tokens[i].size < 2) continue;
+          for (let j = i + 1; j < userRules.length; j++) {
+            if (tokens[j].size < 2) continue;
+            const sim = jaccardSim(tokens[i], tokens[j]);
+            if (sim >= 0.7) {
+              const fi = ensure(i), fj = ensure(j);
+              // Skip noise if already flagged exact duplicate with same partner
+              if (!fi.partners.includes(j)) {
+                fi.kinds.add("NEAR_DUP");
+                fi.partners.push(j);
+                fi.reasons.push(`msg ~${(sim * 100).toFixed(0)}% similar to #${j + 1}`);
+              }
+              if (!fj.partners.includes(i)) {
+                fj.kinds.add("NEAR_DUP");
+                fj.partners.push(i);
+                fj.reasons.push(`msg ~${(sim * 100).toFixed(0)}% similar to #${i + 1}`);
+              }
+            }
+          }
+        }
+
+        return flags;
+      }
+
+      function renderInternalDuplicates(userRules, flags) {
+        const counts = { DUP_SID: 0, DUP_MSG: 0, DUP_BODY: 0, NEAR_DUP: 0 };
+        const flagged = [];
+        userRules.forEach((r, i) => {
+          const f = flags.get(i);
+          if (!f || f.kinds.size === 0) return;
+          flagged.push({ idx: i, rule: r, flag: f });
+          for (const k of f.kinds) counts[k] = (counts[k] || 0) + 1;
+        });
+
+        const palette = {
+          DUP_SID:  { color: "#f87171", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.3)",  label: "DUP_SID"  },
+          DUP_MSG:  { color: "#fb923c", bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.3)", label: "DUP_MSG"  },
+          DUP_BODY: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "DUP_BODY" },
+          NEAR_DUP: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)", label: "NEAR_DUP" }
+        };
+
+        const header = `
+          <div style="margin:18px 0 10px; padding:8px 12px; border-radius:8px;
+                      background:rgba(0,212,255,0.06); border:1px solid rgba(0,212,255,0.25);
+                      font-size:0.88rem; font-weight:600; color:var(--primary);">
+            🔁 Internal Duplicates (Among Your Input)
+          </div>`;
+
+        if (!flagged.length) {
+          return header + `
+            <div style="padding:14px; border:1px solid var(--border); border-radius:10px;
+                        background:rgba(34,197,94,0.05); color:#4ade80; font-size:0.86rem;">
+              ✓ No internal duplicates found — all ${userRules.length} input rule(s) are unique to each other.
+            </div>`;
+        }
+
+        const summary = `
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+            ${Object.entries(counts).filter(([, n]) => n > 0).map(([k, n]) => {
+              const p = palette[k];
+              return `<span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
+                border-radius:6px; border:1px solid ${p.border}; background:${p.bg};
+                font-size:0.83rem; font-weight:600; color:${p.color};">
+                ${p.label}&nbsp;<b>${n}</b></span>`;
+            }).join("")}
+          </div>`;
+
+        const rows = flagged.map(({ idx, rule, flag }) => {
+          const kindBadges = [...flag.kinds].map(k => {
+            const p = palette[k];
+            return `<span style="display:inline-block; padding:3px 9px; border-radius:5px;
+              border:1px solid ${p.border}; background:${p.bg}; color:${p.color};
+              font-size:0.74rem; font-weight:700; margin-right:4px;">${p.label}</span>`;
+          }).join("");
+          const uniqReasons = [...new Set(flag.reasons)];
+          return `
+            <tr style="border-top:1px solid var(--border);">
+              <td style="padding:8px 10px; font-size:0.78rem; color:var(--muted); white-space:nowrap; vertical-align:top;">#${idx + 1}</td>
+              <td style="padding:8px 10px; white-space:nowrap; vertical-align:top;">${kindBadges}</td>
+              <td style="padding:8px 10px; font-family:monospace; font-size:0.82rem; color:var(--primary); white-space:nowrap; vertical-align:top;">SID ${rule.sid}</td>
+              <td style="padding:8px 10px; font-size:0.82rem; color:var(--fg);">
+                ${escapeHtml(rule.msg || "(no msg)")}
+                ${uniqReasons.map(r => `<div style="font-size:0.76rem; color:var(--muted); margin-top:3px;">↳ ${escapeHtml(r)}</div>`).join("")}
+              </td>
+            </tr>`;
+        }).join("");
+
+        return header + summary + `
+          <div style="overflow-x:auto; border:1px solid var(--border); border-radius:10px;">
+            <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+              <thead>
+                <tr style="background:rgba(0,212,255,0.04);">
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">#</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">Class</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">SID</th>
+                  <th style="padding:7px 10px; text-align:left; font-size:0.78rem; color:var(--muted); font-weight:600;">msg / Reason</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
       }
 
       function classifyUserRule(userRule, builtin) {
@@ -5485,9 +5683,12 @@ ${optRules.join("\n")}
             return;
           }
           if (statusEl) statusEl.textContent = `Checking ${userRules.length} rule(s)…`;
+          const internalFlags = findInternalDuplicates(userRules);
           const classified = userRules.map(r => ({ rule: r, classification: classifyUserRule(r, builtin) }));
-          resultsEl.innerHTML = renderDupRulesResults(classified, builtin);
-          if (statusEl) statusEl.textContent = `Check complete (${userRules.length} rule(s), ${builtin.rules.length} built-in)`;
+          const internalHtml = renderInternalDuplicates(userRules, internalFlags);
+          const builtinHtml  = renderDupRulesResults(classified, builtin);
+          resultsEl.innerHTML = internalHtml + builtinHtml;
+          if (statusEl) statusEl.textContent = `Check complete (${userRules.length} rule(s), ${internalFlags.size} internal dup(s), ${builtin.rules.length} built-in)`;
         } catch (err) {
           resultsEl.innerHTML = `<div style="color:var(--error); padding:10px;">⚠ Error: ${escapeHtml(err.message || String(err))}</div>`;
         } finally {
