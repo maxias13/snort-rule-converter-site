@@ -2123,7 +2123,6 @@ python3 trigger_rules.py --delay 1
           • <b style="color:#f87171;">EXACT_SID</b>: SID conflict with built-in rules — uses Talos-managed range (1–999,999) or matches an existing SID<br>
           • <b style="color:#fb923c;">EXACT_MSG</b>: msg string matches a built-in rule exactly<br>
           • <b style="color:#fbbf24;">NEAR_DUPLICATE</b>: msg token Jaccard similarity ≥ 0.7 (possible false positive — review recommended)<br>
-          • <b style="color:#4ade80;">UNIQUE</b>: No duplicate found among built-in rules<br>
           <b style="color:var(--primary); font-size:0.76rem; display:inline-block; margin-top:6px;">▸ Among your input rules (internal duplicates):</b><br>
           • <b style="color:#f87171;">DUP_SID</b>: Same SID appears more than once in your input<br>
           • <b style="color:#fbbf24;">DUP_BODY</b>: Same normalized header + detection options (content/pcre/flow) appear more than once
@@ -5561,7 +5560,7 @@ ${optRules.join("\n")}
         };
         const summary = `
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
-            ${Object.entries(counts).map(([k, n]) => {
+            ${Object.entries(counts).filter(([k]) => k !== "UNIQUE").map(([k, n]) => {
               const p = palette[k];
               return `<span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px;
                 border-radius:6px; border:1px solid ${p.border}; background:${p.bg};
@@ -5575,7 +5574,7 @@ ${optRules.join("\n")}
             Comparison set: ${builtin.rules.length.toLocaleString()} built-in rules from the last 4 weeks (Pack: ${builtin.packs.join(", ") || "N/A"})
           </div>`;
 
-        const rows = classified.map((c, i) => {
+        const rows = classified.filter(c => c.classification.kind !== "UNIQUE").map((c, i) => {
           const p = palette[c.classification.kind];
           const matchInfo = c.classification.match
             ? `<div style="font-family:monospace; font-size:0.78rem; color:var(--muted);">↳ matched ${c.classification.match.type.toUpperCase()} SID ${c.classification.match.sid}: ${escapeHtml(c.classification.match.msg)}</div>`
