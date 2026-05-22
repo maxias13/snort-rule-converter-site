@@ -189,7 +189,12 @@
     html, body {
       margin: 0;
       padding: 0;
-      background: radial-gradient(circle at top right, #15151b 0%, var(--bg) 55%);
+      background:
+        radial-gradient(ellipse 80% 60% at 75% 95%, rgba(139, 58, 175, 0.55) 0%, rgba(139, 58, 175, 0) 60%),
+        radial-gradient(ellipse 70% 55% at 15% 100%, rgba(88, 42, 140, 0.40) 0%, rgba(88, 42, 140, 0) 65%),
+        radial-gradient(ellipse 90% 70% at 100% 0%, rgba(96, 70, 130, 0.30) 0%, rgba(96, 70, 130, 0) 60%),
+        linear-gradient(180deg, #0a0a14 0%, #0d0a1c 50%, #120a22 100%);
+      background-attachment: fixed;
       color: var(--text);
       font-family: "Inter", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       min-height: 100%;
