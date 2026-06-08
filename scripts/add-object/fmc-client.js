@@ -4,15 +4,36 @@
 
   async function fmcLogin(host, user, pass) {
     const url = 'https://' + host + '/api/fmc_platform/v1/auth/generatetoken';
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) }
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + r.statusText);
+    let r;
+    try {
+      r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Authorization': 'Basic ' + btoa(user + ':' + pass) }
+      });
+    } catch (netErr) {
+      /* TypeError "NetworkError when attempting to fetch resource" is thrown when:
+         1) self-signed cert not trusted by browser
+         2) CORS preflight blocked (no Access-Control-Allow-Origin header from FMC)
+         3) FMC unreachable / wrong IP / firewall block
+         4) FMC refusing file:// origin */
+      throw new Error(
+        'Network error reaching ' + url + '. Likely causes: ' +
+        '(a) FMC self-signed cert NOT pre-trusted in this browser — open ' +
+        'https://' + host + '/api/api-explorer/ in a NEW tab, accept the cert warning, ' +
+        'then retry; ' +
+        '(b) FMC did not return CORS headers (Access-Control-Allow-Origin); ' +
+        '(c) FMC unreachable from this machine. Original: ' + netErr.message
+      );
+    }
+    if (!r.ok) throw new Error('Login HTTP ' + r.status + ' ' + r.statusText);
     const token = r.headers.get('X-auth-access-token');
     const domainUuid = r.headers.get('DOMAIN_UUID');
     if (!token || !domainUuid) {
-      throw new Error('응답 헤더에 X-auth-access-token / DOMAIN_UUID 없음 (CORS 차단 가능성)');
+      throw new Error(
+        'Auth response missing X-auth-access-token or DOMAIN_UUID header. ' +
+        'Likely a CORS issue: the browser blocked access to custom response headers ' +
+        'because FMC did not send Access-Control-Expose-Headers.'
+      );
     }
     return { token: token, domainUuid: domainUuid };
   }
@@ -27,7 +48,7 @@
       const r = await fetch(url, {
         headers: { 'X-auth-access-token': token, 'Accept': 'application/json' }
       });
-      if (!r.ok) throw new Error('조회 실패 ' + endpoint + ': HTTP ' + r.status);
+      if (!r.ok) throw new Error('List failed for ' + endpoint + ': HTTP ' + r.status);
       const data = await r.json();
       (data.items || []).forEach(function (it) { names.add(it.name); });
       const total = (data.paging && data.paging.count) || 0;
