@@ -1,4 +1,4 @@
-/* Add Object - Snort parser and FMC default variable list
+/* Variable Set - Snort parser and FMC default variable list
    FMC 7.4 predefined variables already exist in the system */
 (function () {
   'use strict';

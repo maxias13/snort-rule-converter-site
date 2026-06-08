@@ -1,4 +1,4 @@
-/* Add Object - UI controller. Wires file input + preview + FMC import flow */
+/* Variable Set - UI controller. Wires file input + preview + FMC import flow */
 (function () {
   'use strict';
 

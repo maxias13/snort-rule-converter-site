@@ -1,4 +1,4 @@
-/* Add Object - Python script generator
+/* Variable Set - Python script generator
    Builds a self-contained Python script that the user runs locally.
    FMC connection details (IP/user/password) are prompted at runtime —
    the script only embeds the object definitions extracted from the rule file. */

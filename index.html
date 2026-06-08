@@ -1601,7 +1601,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
 
-      <button class="tab-btn" data-view="addObjectView"><span class="icon" aria-hidden="true">➕</span><span class="label">Add Object</span></button>
+      <button class="tab-btn" data-view="variableSetView"><span class="icon" aria-hidden="true">➕</span><span class="label">Variable Set</span></button>
 
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rules Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
@@ -1795,11 +1795,11 @@
     </section>
 
 
-    <section id="addObjectView" class="view">
+    <section id="variableSetView" class="view">
       <div class="panel">
         <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
           <div>
-            <h3 style="margin:0;">➕ Add Object — Snort Variables to FMC</h3>
+            <h3 style="margin:0;">➕ Variable Set — Snort Variables to FMC</h3>
             <p style="margin:6px 0 0; color:var(--muted, #9aa);">
               Extracts user-defined variables ($AD_Servers, $Openvpn, etc.) from a Snort 2 local rule file
               and bulk-creates them as Network/Port objects on Cisco FMC 7.4.x.

@@ -1,4 +1,4 @@
-/* Add Object - Random value generator and FMC payload builder */
+/* Variable Set - Random value generator and FMC payload builder */
 (function () {
   'use strict';
 
