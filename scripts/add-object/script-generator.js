@@ -1,14 +1,11 @@
 /* Add Object - Python script generator
-   Builds a self-contained Python script that the user runs locally
-   to call FMC REST API directly (bypassing browser CORS/cert limitations) */
+   Builds a self-contained Python script that the user runs locally.
+   FMC connection details (IP/user/password) are prompted at runtime —
+   the script only embeds the object definitions extracted from the rule file. */
 (function () {
   'use strict';
 
-  function pyStr(s) {
-    return JSON.stringify(String(s));
-  }
-
-  function buildPythonScript(fmcHost, fmcUser, payloads) {
+  function buildPythonScript(payloads) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const hostsJson = JSON.stringify(payloads.hosts, null, 2);
     const networksJson = JSON.stringify(payloads.networks, null, 2);
@@ -20,9 +17,7 @@
       '"""',
       'FMC Object Importer (auto-generated)',
       '====================================',
-      'Generated at: ' + ts,
-      'Target FMC:   ' + fmcHost,
-      'API user:     ' + fmcUser,
+      'Generated at:  ' + ts,
       'Total objects: ' + total + ' (' +
         payloads.hosts.length + ' hosts, ' +
         payloads.networks.length + ' networks, ' +
@@ -34,6 +29,8 @@
       '',
       'Run this script from a host that has direct network access to the FMC',
       '(typically inside the same management network).',
+      '',
+      'The script will prompt you for FMC IP, username, and password at runtime.',
       '',
       'Usage:',
       '    pip install requests',
@@ -55,14 +52,19 @@
       '',
       'urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)',
       '',
-      'FMC_HOST = ' + pyStr(fmcHost),
-      'FMC_USER = ' + pyStr(fmcUser),
-      '',
       'HOSTS = ' + hostsJson,
       '',
       'NETWORKS = ' + networksJson,
       '',
       'PORTS = ' + portsJson,
+      '',
+      '',
+      'def prompt_required(question):',
+      '    while True:',
+      '        ans = input(question).strip()',
+      '        if ans:',
+      '            return ans',
+      '        print("  Input required. Try again.")',
       '',
       '',
       'def login(host, user, password):',
@@ -110,24 +112,32 @@
       '',
       '',
       'def main():',
-      '    print(f"FMC Object Importer  (target: {FMC_HOST})")',
-      '    print(f"  Hosts:    {len(HOSTS)}")',
-      '    print(f"  Networks: {len(NETWORKS)}")',
-      '    print(f"  Ports:    {len(PORTS)}")',
+      '    print("=" * 60)',
+      '    print("FMC Object Importer")',
+      '    print("=" * 60)',
+      '    print(f"  Objects to create:  {len(HOSTS) + len(NETWORKS) + len(PORTS)}")',
+      '    print(f"    Hosts:    {len(HOSTS)}")',
+      '    print(f"    Networks: {len(NETWORKS)}")',
+      '    print(f"    Ports:    {len(PORTS)}")',
       '    print()',
-      '    password = getpass.getpass(f"Password for {FMC_USER}@{FMC_HOST}: ")',
+      '    print("Enter FMC connection details:")',
+      '    fmc_host = prompt_required("  FMC IP or FQDN:  ")',
+      '    fmc_user = prompt_required("  Username:        ")',
+      '    fmc_pass = getpass.getpass("  Password:        ")',
+      '    if not fmc_pass:',
+      '        sys.exit("[!] Password is required.")',
       '',
-      '    print(f"\\n[+] Logging in to {FMC_HOST}...")',
+      '    print(f"\\n[+] Logging in to {fmc_host}...")',
       '    try:',
-      '        token, domain = login(FMC_HOST, FMC_USER, password)',
+      '        token, domain = login(fmc_host, fmc_user, fmc_pass)',
       '    except Exception as e:',
       '        sys.exit(f"[!] Login failed: {e}")',
       '    print(f"    OK (domain={domain})")',
       '',
       '    print("[+] Listing existing objects...")',
-      '    existing_hosts = list_existing(FMC_HOST, token, domain, "hosts")',
-      '    existing_networks = list_existing(FMC_HOST, token, domain, "networks")',
-      '    existing_ports = list_existing(FMC_HOST, token, domain, "protocolportobjects")',
+      '    existing_hosts = list_existing(fmc_host, token, domain, "hosts")',
+      '    existing_networks = list_existing(fmc_host, token, domain, "networks")',
+      '    existing_ports = list_existing(fmc_host, token, domain, "protocolportobjects")',
       '    print(f"    existing: hosts={len(existing_hosts)}, "',
       '          f"networks={len(existing_networks)}, ports={len(existing_ports)}")',
       '',
@@ -142,9 +152,9 @@
       '',
       '    print(f"\\n[+] Creating: hosts={len(hosts_new)}, "',
       '          f"networks={len(nets_new)}, ports={len(ports_new)}")',
-      '    h_ok, h_fail = bulk_create(FMC_HOST, token, domain, "hosts", hosts_new)',
-      '    n_ok, n_fail = bulk_create(FMC_HOST, token, domain, "networks", nets_new)',
-      '    p_ok, p_fail = bulk_create(FMC_HOST, token, domain,',
+      '    h_ok, h_fail = bulk_create(fmc_host, token, domain, "hosts", hosts_new)',
+      '    n_ok, n_fail = bulk_create(fmc_host, token, domain, "networks", nets_new)',
+      '    p_ok, p_fail = bulk_create(fmc_host, token, domain,',
       '                               "protocolportobjects", ports_new)',
       '',
       '    print(f"\\n=== Results ===")',
@@ -156,16 +166,16 @@
       '    if failures:',
       '        print("\\n=== Failures ===")',
       '        for f in failures:',
-      '            print(f"  {f[\'name\']}: {f[\'error\']}")',
+      '            print(f"  {f[\u0027name\u0027]}: {f[\u0027error\u0027]}")',
       '        sys.exit(1)',
       '',
       '    report = {',
       '        "timestamp": datetime.now().isoformat(),',
-      '        "fmc_host": FMC_HOST,',
+      '        "fmc_host": fmc_host,',
       '        "skipped": skipped,',
       '        "created": {"hosts": h_ok, "networks": n_ok, "ports": p_ok},',
       '    }',
-      '    out = f"fmc_import_report_{datetime.now().strftime(\'%Y%m%d_%H%M%S\')}.json"',
+      '    out = f"fmc_import_report_{datetime.now().strftime(\u0027%Y%m%d_%H%M%S\u0027)}.json"',
       '    with open(out, "w", encoding="utf-8") as f:',
       '        json.dump(report, f, indent=2, ensure_ascii=False)',
       '    print(f"\\n[+] Report saved to {out}")',

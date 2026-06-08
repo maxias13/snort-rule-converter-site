@@ -82,37 +82,29 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  async function runFmcImport() {
-    const host = $('aoFmcHost').value.trim();
-    const user = $('aoFmcUser').value.trim();
-    if (!host || !user) {
-      alert('Please enter FMC IP and username.');
-      return;
-    }
+  async function generateScript() {
     $('aoStep8').style.display = 'block';
     $('aoProgress').innerHTML = '';
 
-    log('Generating self-contained Python script...');
     const total = currentPayloads.hosts.length + currentPayloads.networks.length + currentPayloads.ports.length;
-    log('  Target FMC: ' + host);
-    log('  API user:   ' + user);
-    log('  Objects:    ' + total + ' (' +
+    log('Generating self-contained Python script...');
+    log('  Objects: ' + total + ' (' +
         currentPayloads.hosts.length + ' hosts, ' +
         currentPayloads.networks.length + ' networks, ' +
         currentPayloads.ports.length + ' ports)');
 
-    const pyCode = window.AddObjectScriptGen.buildPythonScript(host, user, currentPayloads);
+    const pyCode = window.AddObjectScriptGen.buildPythonScript(currentPayloads);
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = 'fmc_import_' + host.replace(/[^a-z0-9]/gi, '_') + '_' + ts + '.py';
+    const filename = 'fmc_import_' + ts + '.py';
     window.AddObjectScriptGen.downloadScript(pyCode, filename);
 
     log('✓ Downloaded: ' + filename, 'ok');
     log('', 'info');
     log('Next steps:', 'ok');
-    log('  1) Copy the file to a machine that can reach ' + host + ' on the network', 'info');
+    log('  1) Copy the file to a machine with network access to your FMC', 'info');
     log('  2) Install dependency:  pip install requests', 'info');
     log('  3) Run the script:      python3 ' + filename, 'info');
-    log('  4) Enter password when prompted', 'info');
+    log('  4) Enter FMC IP, username, and password when prompted', 'info');
     log('', 'info');
     log('The script preserves all object names and bulk-creates them via', 'info');
     log('FMC REST API. Already-existing objects are skipped automatically.', 'info');
@@ -133,7 +125,6 @@
       } else {
         $('aoStep4').style.display = 'none';
       }
-      $('aoStep5').style.display = 'none';
       $('aoStep8').style.display = 'none';
     };
     reader.onerror = function () { alert('Failed to read file'); };
@@ -145,10 +136,7 @@
     if (!fileInput) return;
     fileInput.addEventListener('change', handleFileSelect);
     $('aoRegenBtn').addEventListener('click', generateAndPreview);
-    $('aoConfirmBtn').addEventListener('click', function () {
-      $('aoStep5').style.display = 'block';
-    });
-    $('aoLoginBtn').addEventListener('click', runFmcImport);
+    $('aoConfirmBtn').addEventListener('click', generateScript);
   }
 
   if (document.readyState === 'loading') {

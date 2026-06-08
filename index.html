@@ -1846,35 +1846,13 @@
           <div id="aoPreviewTable"></div>
           <div style="margin-top:10px; display:flex; gap:8px;">
             <button class="btn secondary" id="aoRegenBtn">🔄 Regenerate with different random values</button>
-            <button class="btn" id="aoConfirmBtn">✅ Proceed to FMC details</button>
+            <button class="btn" id="aoConfirmBtn">📥 STEP 5: Generate &amp; Download Python Script</button>
           </div>
         </div>
 
-        <!-- STEP 5-6: FMC connection info (no password — collected at runtime) -->
-        <div class="ao-step" id="aoStep5" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 5-6: FMC connection details</h4>
-          <p style="margin:0 0 10px; color:var(--muted); font-size:0.9em;">
-            The password is <strong>NOT</strong> collected here — the generated script will prompt you
-            for it securely when you run it.
-          </p>
-          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
-            <div>
-              <label for="aoFmcHost" style="display:block; margin-bottom:4px;">FMC IP or FQDN <span style="color:var(--error);">*</span></label>
-              <input type="text" id="aoFmcHost" placeholder="e.g. 10.0.0.15" style="width:100%;" />
-            </div>
-            <div>
-              <label for="aoFmcUser" style="display:block; margin-bottom:4px;">API Username <span style="color:var(--error);">*</span></label>
-              <input type="text" id="aoFmcUser" placeholder="e.g. apiadmin" style="width:100%;" />
-            </div>
-          </div>
-          <div style="margin-top:12px;">
-            <button class="btn" id="aoLoginBtn">📥 STEP 7: Generate &amp; Download Python Script</button>
-          </div>
-        </div>
-
-        <!-- STEP 7-8: Progress / results -->
+        <!-- STEP 6-7: Progress / results -->
         <div class="ao-step" id="aoStep8" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 7-8: Generated script &amp; next steps</h4>
+          <h4 style="margin:14px 0 8px;">STEP 6-7: Generated script &amp; next steps</h4>
           <div id="aoProgress" style="font-family:monospace; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; max-height:400px; overflow-y:auto; font-size:0.9em; white-space:pre-wrap;"></div>
         </div>
       </div>
