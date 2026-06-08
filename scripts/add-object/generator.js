@@ -1,6 +1,14 @@
-/* Variable Set - Random value generator and FMC NetworkVariable/PortVariable payload builder
-   Builds entries for the variables[] array inside a Variable Set body
-   (FMC schema: type=NetworkVariable | PortVariable, included.literals[]) */
+/* Variable Set - Random value generator and FMC payload builder
+   Builds BOTH:
+   (1) Network/Host/Port Objects that live in Object Management
+   (2) Variable Set entries (NetworkVariable / PortVariable) that REFERENCE
+       those objects via included.referenceObjects[]
+
+   Workflow at runtime:
+     a) POST each Network/Host Object  -> capture {id, type}
+     b) POST each Port Object          -> capture {id, type}
+     c) PUT  the Variable Set body with variables[] entries whose
+        included.referenceObjects[] = [{ id, type, name }] */
 (function () {
   'use strict';
 
@@ -38,7 +46,7 @@
     throw new Error('Port pool exhausted');
   };
 
-  /* FMC variable name regex: ^[a-zA-Z0-9_.+-]{1,64}$ */
+  /* FMC name regex (Object + Variable):  ^[a-zA-Z0-9_.+-]{1,64}$ */
   function sanitize(name) {
     return name.replace(/[^A-Za-z0-9_.+\-]/g, '_').substring(0, 64);
   }
@@ -47,49 +55,128 @@
     return { literals: [], variables: [], referenceObjects: [], empty: true };
   }
 
-  function includedWith(literals) {
-    return { literals: literals, variables: [], referenceObjects: [], empty: literals.length === 0 };
+  function includedWithRef(refName, refType) {
+    return {
+      literals: [],
+      variables: [],
+      referenceObjects: [{ name: refName, type: refType }],
+      empty: false
+    };
   }
 
-  function buildNetworkVariable(name, usage, rng) {
+  /* Heuristic to decide whether a Snort IP variable looks like a network
+     (CIDR) or a single host based on common naming hints. */
+  function looksLikeNetwork(name) {
     const lower = name.toLowerCase();
-    const hints = ['_servers', '_net', 'network', 'subnet', '_range'];
-    const isNetwork = hints.some(function (kw) { return lower.indexOf(kw) >= 0; });
-    const literal = isNetwork ? rng.networkCidr() : rng.hostIp();
+    const hints = ['_servers', '_net', 'network', 'subnet', '_range', '_nets'];
+    return hints.some(function (kw) { return lower.indexOf(kw) >= 0; });
+  }
+
+  /* Build an FMC Network / Host Object payload (POST body for
+     /object/networks  or  /object/hosts). */
+  function buildNetworkObject(name, usage, rng) {
+    const safeName = sanitize(name);
+    const isNet = looksLikeNetwork(name);
+    const desc = 'Auto-created from Snort variable $' + name +
+      ' (src=' + usage.src + ', dst=' + usage.dst + ')';
+    if (isNet) {
+      return {
+        endpoint: 'networks',
+        objType: 'Network',
+        body: { name: safeName, type: 'Network', value: rng.networkCidr(), description: desc }
+      };
+    }
     return {
-      name: sanitize(name),
+      endpoint: 'hosts',
+      objType: 'Host',
+      body: { name: safeName, type: 'Host', value: rng.hostIp(), description: desc }
+    };
+  }
+
+  /* Build an FMC Port Object payload (POST body for
+     /object/protocolportobjects). */
+  function buildPortObject(name, usage, rng) {
+    const safeName = sanitize(name);
+    const lower = name.toLowerCase();
+    const udpHints = ['udp', 'dns', 'syslog', 'openvpn', 'snmp', 'ntp', 'dhcp', 'ipsec'];
+    const protocol = udpHints.some(function (h) { return lower.indexOf(h) >= 0; }) ? 'UDP' : 'TCP';
+    return {
+      endpoint: 'protocolportobjects',
+      objType: 'ProtocolPortObject',
+      body: {
+        name: safeName,
+        type: 'ProtocolPortObject',
+        protocol: protocol,
+        port: String(rng.port()),
+        description: 'Auto-created from Snort variable $' + name +
+          ' (src=' + usage.src + ', dst=' + usage.dst + ')'
+      }
+    };
+  }
+
+  /* Build a Variable Set entry that REFERENCES a Network/Host Object.
+     Note: Variable name is the ORIGINAL Snort variable name (sanitized);
+     the referenceObjects[] entry uses the same sanitized name to bind to
+     the just-created Object at runtime (Python script resolves id). */
+  function buildNetworkVariableEntry(varName, objType) {
+    const safeName = sanitize(varName);
+    return {
+      name: safeName,
       type: 'NetworkVariable',
-      included: includedWith([literal]),
+      included: includedWithRef(safeName, objType),
       excluded: emptySide()
     };
   }
 
-  function buildPortVariable(name, usage, rng) {
+  function buildPortVariableEntry(varName) {
+    const safeName = sanitize(varName);
     return {
-      name: sanitize(name),
+      name: safeName,
       type: 'PortVariable',
-      included: includedWith([String(rng.port())]),
+      included: includedWithRef(safeName, 'ProtocolPortObject'),
       excluded: emptySide()
     };
   }
 
+  /* Top-level generator. Returns the full plan for the Python script:
+     {
+       networkObjects: [ { endpoint, objType, body } ],
+       portObjects:    [ { endpoint, objType, body } ],
+       ipVariables:    [ { name, type:'NetworkVariable', included:{ referenceObjects:[{name,type}] } } ],
+       portVariables:  [ { name, type:'PortVariable',    included:{ referenceObjects:[{name,type:'ProtocolPortObject'}] } } ]
+     } */
   function generateAllPayloads(userIpVars, userPortVars) {
     const rng = new RandomGen();
+    const networkObjects = [];
+    const portObjects = [];
     const ipVariables = [];
     const portVariables = [];
+
     Object.keys(userIpVars).sort().forEach(function (name) {
-      ipVariables.push(buildNetworkVariable(name, userIpVars[name], rng));
+      const obj = buildNetworkObject(name, userIpVars[name], rng);
+      networkObjects.push(obj);
+      ipVariables.push(buildNetworkVariableEntry(name, obj.objType));
     });
     Object.keys(userPortVars).sort().forEach(function (name) {
-      portVariables.push(buildPortVariable(name, userPortVars[name], rng));
+      const obj = buildPortObject(name, userPortVars[name], rng);
+      portObjects.push(obj);
+      portVariables.push(buildPortVariableEntry(name));
     });
-    return { ipVariables: ipVariables, portVariables: portVariables };
+
+    return {
+      networkObjects: networkObjects,
+      portObjects: portObjects,
+      ipVariables: ipVariables,
+      portVariables: portVariables
+    };
   }
 
   window.AddObjectGenerator = {
     RandomGen: RandomGen,
-    buildNetworkVariable: buildNetworkVariable,
-    buildPortVariable: buildPortVariable,
+    buildNetworkObject: buildNetworkObject,
+    buildPortObject: buildPortObject,
+    buildNetworkVariableEntry: buildNetworkVariableEntry,
+    buildPortVariableEntry: buildPortVariableEntry,
     generateAllPayloads: generateAllPayloads
   };
 })();

@@ -4,7 +4,7 @@
 
   let parsedUserIpVars = {};
   let parsedUserPortVars = {};
-  let currentPayloads = { ipVariables: [], portVariables: [] };
+  let currentPayloads = { networkObjects: [], portObjects: [], ipVariables: [], portVariables: [] };
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -58,19 +58,26 @@
 
   function generateAndPreview() {
     currentPayloads = window.AddObjectGenerator.generateAllPayloads(parsedUserIpVars, parsedUserPortVars);
-    const all = currentPayloads.ipVariables.concat(currentPayloads.portVariables);
-    const rows = all.map(function (p) {
-      const literals = (p.included && p.included.literals) || [];
-      const valueStr = literals.join(', ');
-      const tlabel = p.type === 'NetworkVariable' ? 'Network' : 'Port';
-      return '<tr><td>' + escapeHtml(tlabel) + '</td><td><code>$' + escapeHtml(p.name) +
-        '</code></td><td><code>' + escapeHtml(valueStr) + '</code></td></tr>';
+    const objects = currentPayloads.networkObjects.concat(currentPayloads.portObjects);
+    const rows = objects.map(function (o) {
+      const b = o.body;
+      const val = b.type === 'ProtocolPortObject' ? (b.protocol + ' ' + b.port) : b.value;
+      const tlabel = b.type === 'ProtocolPortObject' ? 'Port Object'
+                   : b.type === 'Network' ? 'Network Object'
+                   : 'Host Object';
+      return '<tr><td>' + escapeHtml(tlabel) + '</td><td><code>' + escapeHtml(b.name) +
+        '</code></td><td><code>$' + escapeHtml(b.name) + '</code></td><td><code>' + escapeHtml(val) + '</code></td></tr>';
     }).join('');
     $('aoPreviewTable').innerHTML =
+      '<div style="margin-bottom:8px; padding:8px; background:rgba(0,188,235,0.08); border-radius:4px; font-size:0.88em;">' +
+        'For each variable, the script creates a <strong>Network/Port Object</strong> AND a matching ' +
+        '<strong>Variable Set entry</strong> that references that object.' +
+      '</div>' +
       '<table style="width:100%; border-collapse:collapse;">' +
         '<thead><tr style="border-bottom:1px solid var(--border);">' +
-          '<th style="text-align:left; padding:6px;">Type</th>' +
-          '<th style="text-align:left; padding:6px;">Variable (preserved)</th>' +
+          '<th style="text-align:left; padding:6px;">Object Type</th>' +
+          '<th style="text-align:left; padding:6px;">Object Name</th>' +
+          '<th style="text-align:left; padding:6px;">Variable</th>' +
           '<th style="text-align:left; padding:6px;">Random Value</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -87,9 +94,13 @@
     $('aoStep8').style.display = 'block';
     $('aoProgress').innerHTML = '';
 
-    const total = currentPayloads.ipVariables.length + currentPayloads.portVariables.length;
+    const objTotal = currentPayloads.networkObjects.length + currentPayloads.portObjects.length;
+    const varTotal = currentPayloads.ipVariables.length + currentPayloads.portVariables.length;
     log('Generating self-contained Python script...');
-    log('  Variables: ' + total + ' (' +
+    log('  Objects:   ' + objTotal + ' (' +
+        currentPayloads.networkObjects.length + ' network/host, ' +
+        currentPayloads.portObjects.length + ' port)');
+    log('  Variables: ' + varTotal + ' (' +
         currentPayloads.ipVariables.length + ' network, ' +
         currentPayloads.portVariables.length + ' port)');
 
@@ -106,9 +117,12 @@
     log('  3) Run the script:      python3 ' + filename, 'info');
     log('  4) Enter FMC IP, username, password, and Variable Set name when prompted', 'info');
     log('', 'info');
-    log('The script GETs the named Variable Set, appends new variables to its', 'info');
-    log('variables[] array, and PUTs the full body back. Already-present', 'info');
-    log('variable names are skipped automatically.', 'info');
+    log('Script workflow:', 'ok');
+    log('  Step A: POST Network/Host Objects to Object Management', 'info');
+    log('  Step B: POST Port Objects to Object Management', 'info');
+    log('  Step C: GET target Variable Set, append entries that REFERENCE', 'info');
+    log('          the just-created objects, then PUT the Variable Set back.', 'info');
+    log('  Already-existing objects and variables are skipped automatically.', 'info');
   }
 
   function handleFileSelect(e) {
