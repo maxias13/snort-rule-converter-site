@@ -4,7 +4,7 @@
 
   let parsedUserIpVars = {};
   let parsedUserPortVars = {};
-  let currentPayloads = { hosts: [], networks: [], ports: [] };
+  let currentPayloads = { ipVariables: [], portVariables: [] };
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
@@ -58,18 +58,19 @@
 
   function generateAndPreview() {
     currentPayloads = window.AddObjectGenerator.generateAllPayloads(parsedUserIpVars, parsedUserPortVars);
-    const all = currentPayloads.networks.concat(currentPayloads.hosts).concat(currentPayloads.ports);
+    const all = currentPayloads.ipVariables.concat(currentPayloads.portVariables);
     const rows = all.map(function (p) {
-      const val = p.type === 'ProtocolPortObject' ? (p.protocol + ' ' + p.port) : p.value;
-      const tlabel = p.type === 'ProtocolPortObject' ? 'Port' : p.type;
-      return '<tr><td>' + escapeHtml(tlabel) + '</td><td><code>' + escapeHtml(p.name) +
-        '</code></td><td><code>' + escapeHtml(val) + '</code></td></tr>';
+      const literals = (p.included && p.included.literals) || [];
+      const valueStr = literals.join(', ');
+      const tlabel = p.type === 'NetworkVariable' ? 'Network' : 'Port';
+      return '<tr><td>' + escapeHtml(tlabel) + '</td><td><code>$' + escapeHtml(p.name) +
+        '</code></td><td><code>' + escapeHtml(valueStr) + '</code></td></tr>';
     }).join('');
     $('aoPreviewTable').innerHTML =
       '<table style="width:100%; border-collapse:collapse;">' +
         '<thead><tr style="border-bottom:1px solid var(--border);">' +
           '<th style="text-align:left; padding:6px;">Type</th>' +
-          '<th style="text-align:left; padding:6px;">Name (preserved)</th>' +
+          '<th style="text-align:left; padding:6px;">Variable (preserved)</th>' +
           '<th style="text-align:left; padding:6px;">Random Value</th>' +
         '</tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -86,16 +87,15 @@
     $('aoStep8').style.display = 'block';
     $('aoProgress').innerHTML = '';
 
-    const total = currentPayloads.hosts.length + currentPayloads.networks.length + currentPayloads.ports.length;
+    const total = currentPayloads.ipVariables.length + currentPayloads.portVariables.length;
     log('Generating self-contained Python script...');
-    log('  Objects: ' + total + ' (' +
-        currentPayloads.hosts.length + ' hosts, ' +
-        currentPayloads.networks.length + ' networks, ' +
-        currentPayloads.ports.length + ' ports)');
+    log('  Variables: ' + total + ' (' +
+        currentPayloads.ipVariables.length + ' network, ' +
+        currentPayloads.portVariables.length + ' port)');
 
     const pyCode = window.AddObjectScriptGen.buildPythonScript(currentPayloads);
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const filename = 'fmc_import_' + ts + '.py';
+    const filename = 'fmc_variableset_' + ts + '.py';
     window.AddObjectScriptGen.downloadScript(pyCode, filename);
 
     log('✓ Downloaded: ' + filename, 'ok');
@@ -104,10 +104,11 @@
     log('  1) Copy the file to a machine with network access to your FMC', 'info');
     log('  2) Install dependency:  pip install requests', 'info');
     log('  3) Run the script:      python3 ' + filename, 'info');
-    log('  4) Enter FMC IP, username, and password when prompted', 'info');
+    log('  4) Enter FMC IP, username, password, and Variable Set name when prompted', 'info');
     log('', 'info');
-    log('The script preserves all object names and bulk-creates them via', 'info');
-    log('FMC REST API. Already-existing objects are skipped automatically.', 'info');
+    log('The script GETs the named Variable Set, appends new variables to its', 'info');
+    log('variables[] array, and PUTs the full body back. Already-present', 'info');
+    log('variable names are skipped automatically.', 'info');
   }
 
   function handleFileSelect(e) {

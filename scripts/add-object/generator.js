@@ -1,4 +1,6 @@
-/* Variable Set - Random value generator and FMC payload builder */
+/* Variable Set - Random value generator and FMC NetworkVariable/PortVariable payload builder
+   Builds entries for the variables[] array inside a Variable Set body
+   (FMC schema: type=NetworkVariable | PortVariable, included.literals[]) */
 (function () {
   'use strict';
 
@@ -36,52 +38,58 @@
     throw new Error('Port pool exhausted');
   };
 
-  function buildNetworkPayload(name, usage, rng) {
-    /* FMC API constraint: alphanumeric/_/- only, max 64 chars */
-    const sanitized = name.replace(/[^A-Za-z0-9_\-]/g, '_').substring(0, 64);
+  /* FMC variable name regex: ^[a-zA-Z0-9_.+-]{1,64}$ */
+  function sanitize(name) {
+    return name.replace(/[^A-Za-z0-9_.+\-]/g, '_').substring(0, 64);
+  }
+
+  function emptySide() {
+    return { literals: [], variables: [], referenceObjects: [], empty: true };
+  }
+
+  function includedWith(literals) {
+    return { literals: literals, variables: [], referenceObjects: [], empty: literals.length === 0 };
+  }
+
+  function buildNetworkVariable(name, usage, rng) {
     const lower = name.toLowerCase();
     const hints = ['_servers', '_net', 'network', 'subnet', '_range'];
     const isNetwork = hints.some(function (kw) { return lower.indexOf(kw) >= 0; });
-    const desc = 'Auto-created from Snort variable $' + name +
-      ' (src=' + usage.src + ', dst=' + usage.dst + ')';
-    if (isNetwork) {
-      return { name: sanitized, type: 'Network', value: rng.networkCidr(), description: desc };
-    }
-    return { name: sanitized, type: 'Host', value: rng.hostIp(), description: desc };
+    const literal = isNetwork ? rng.networkCidr() : rng.hostIp();
+    return {
+      name: sanitize(name),
+      type: 'NetworkVariable',
+      included: includedWith([literal]),
+      excluded: emptySide()
+    };
   }
 
-  function buildPortPayload(name, usage, rng) {
-    const sanitized = name.replace(/[^A-Za-z0-9_\-]/g, '_').substring(0, 64);
-    const lower = name.toLowerCase();
-    const udpHints = ['udp', 'dns', 'syslog', 'openvpn', 'snmp', 'ntp', 'dhcp', 'ipsec'];
-    const protocol = udpHints.some(function (h) { return lower.indexOf(h) >= 0; }) ? 'UDP' : 'TCP';
+  function buildPortVariable(name, usage, rng) {
     return {
-      name: sanitized,
-      type: 'ProtocolPortObject',
-      protocol: protocol,
-      port: String(rng.port()),
-      description: 'Auto-created from Snort variable $' + name +
-        ' (src=' + usage.src + ', dst=' + usage.dst + ')'
+      name: sanitize(name),
+      type: 'PortVariable',
+      included: includedWith([String(rng.port())]),
+      excluded: emptySide()
     };
   }
 
   function generateAllPayloads(userIpVars, userPortVars) {
     const rng = new RandomGen();
-    const hosts = [], networks = [], ports = [];
+    const ipVariables = [];
+    const portVariables = [];
     Object.keys(userIpVars).sort().forEach(function (name) {
-      const p = buildNetworkPayload(name, userIpVars[name], rng);
-      if (p.type === 'Network') networks.push(p); else hosts.push(p);
+      ipVariables.push(buildNetworkVariable(name, userIpVars[name], rng));
     });
     Object.keys(userPortVars).sort().forEach(function (name) {
-      ports.push(buildPortPayload(name, userPortVars[name], rng));
+      portVariables.push(buildPortVariable(name, userPortVars[name], rng));
     });
-    return { hosts: hosts, networks: networks, ports: ports };
+    return { ipVariables: ipVariables, portVariables: portVariables };
   }
 
   window.AddObjectGenerator = {
     RandomGen: RandomGen,
-    buildNetworkPayload: buildNetworkPayload,
-    buildPortPayload: buildPortPayload,
+    buildNetworkVariable: buildNetworkVariable,
+    buildPortVariable: buildPortVariable,
     generateAllPayloads: generateAllPayloads
   };
 })();
