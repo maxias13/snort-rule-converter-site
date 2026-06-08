@@ -1601,6 +1601,8 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
 
+      <button class="tab-btn" data-view="addObjectView"><span class="icon" aria-hidden="true">➕</span><span class="label">Add Object</span></button>
+
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rules Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
@@ -1790,6 +1792,83 @@
 
       </div>
 
+    </section>
+
+
+    <section id="addObjectView" class="view">
+      <div class="panel">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">➕ Add Object — Snort Variables to FMC</h3>
+            <p style="margin:6px 0 0; color:var(--muted, #9aa);">
+              Snort 2 local rule 파일에서 사용자 정의 변수($AD_Servers, $Openvpn 등)를 추출하여
+              Cisco FMC 7.4.x에 Network/Port 객체로 일괄 생성합니다. 이름은 그대로, 값은 랜덤 생성됩니다.
+            </p>
+          </div>
+        </div>
+
+        <div style="background:rgba(255,165,0,0.08); border-left:3px solid #ffaa00; padding:10px 14px; margin-bottom:16px; border-radius:4px;">
+          <strong>⚠️ 사전 준비 사항:</strong>
+          <ol style="margin:6px 0 0 20px; padding:0;">
+            <li>FMC에서 REST API 활성화: <code>System &gt; Configuration &gt; REST API Preferences</code></li>
+            <li>FMC self-signed cert를 브라우저에서 사전 신뢰: <code>https://&lt;FMC_IP&gt;</code> 접속 후 "고급 → 위험 허용"</li>
+            <li>FMC에서 CORS 허용 (별도 설정 필요 시 TAC 문의)</li>
+          </ol>
+        </div>
+
+        <!-- STEP 1-2: Snort 룰 파일 입력 -->
+        <div class="ao-step" id="aoStep1">
+          <h4 style="margin:0 0 8px;">STEP 1: Snort local rule 파일 선택</h4>
+          <input type="file" id="aoRulesFile" accept=".txt,.rules,.conf" />
+          <div style="margin-top:8px; color:var(--muted); font-size:0.9em;">
+            파일을 선택하면 STEP 2가 자동 실행됩니다.
+          </div>
+        </div>
+
+        <!-- STEP 3: User Object 자동 추출 -->
+        <div class="ao-step" id="aoStep3" style="display:none;">
+          <h4 style="margin:14px 0 8px;">STEP 3: User Object 자동 추출 결과</h4>
+          <div id="aoExtractResult"></div>
+        </div>
+
+        <!-- STEP 4: 객체 생성 준비 -->
+        <div class="ao-step" id="aoStep4" style="display:none;">
+          <h4 style="margin:14px 0 8px;">STEP 4: 생성될 객체 미리보기 (이름 그대로, 값 랜덤)</h4>
+          <div id="aoPreviewTable"></div>
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button class="btn secondary" id="aoRegenBtn">🔄 다른 랜덤 값으로 다시 생성</button>
+            <button class="btn" id="aoConfirmBtn">✅ FMC 정보 입력으로 진행</button>
+          </div>
+        </div>
+
+        <!-- STEP 5-7: FMC 연결 정보 -->
+        <div class="ao-step" id="aoStep5" style="display:none;">
+          <h4 style="margin:14px 0 8px;">STEP 5-7: FMC 연결 정보</h4>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div>
+              <label for="aoFmcHost" style="display:block; margin-bottom:4px;">FMC IP 또는 FQDN <span style="color:var(--error);">*</span></label>
+              <input type="text" id="aoFmcHost" placeholder="예: 10.0.0.15" style="width:100%;" />
+            </div>
+            <div>
+              <label for="aoFmcUser" style="display:block; margin-bottom:4px;">사용자 이름 <span style="color:var(--error);">*</span></label>
+              <input type="text" id="aoFmcUser" placeholder="예: apiadmin" style="width:100%;" />
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label for="aoFmcPass" style="display:block; margin-bottom:4px;">비밀번호 <span style="color:var(--error);">*</span></label>
+              <input type="password" id="aoFmcPass" placeholder="FMC 사용자 비밀번호" style="width:100%;" />
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <button class="btn" id="aoLoginBtn">🔐 STEP 8: FMC 로그인 및 객체 생성</button>
+          </div>
+        </div>
+
+        <!-- STEP 8: 진행/결과 -->
+        <div class="ao-step" id="aoStep8" style="display:none;">
+          <h4 style="margin:14px 0 8px;">STEP 8: FMC 로그인 및 객체 생성 진행</h4>
+          <div id="aoProgress" style="font-family:monospace; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; max-height:400px; overflow-y:auto; font-size:0.9em; white-space:pre-wrap;"></div>
+        </div>
+      </div>
     </section>
 
 
@@ -8691,5 +8770,10 @@ ${optRules.join("\n")}
   <script src="scripts/ts-analyzer/parser.js"></script>
   <script src="scripts/ts-analyzer/renderer.js"></script>
   <script src="scripts/ts-analyzer/app.js"></script>
+
+  <script src="scripts/add-object/parser.js"></script>
+  <script src="scripts/add-object/generator.js"></script>
+  <script src="scripts/add-object/fmc-client.js"></script>
+  <script src="scripts/add-object/app.js"></script>
 </body>
 </html>
