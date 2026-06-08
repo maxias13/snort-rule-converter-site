@@ -154,7 +154,7 @@
       'def get_variableset(host, token, domain, vs_id):',
       '    url = (f"https://{host}/api/fmc_config/v1/domain/{domain}"',
       '           f"/object/variablesets/{vs_id}")',
-      '    r = requests.get(url, params={"expanded": "true"},',
+      '    r = requests.get(url,',
       '                     headers={"X-auth-access-token": token},',
       '                     verify=False, timeout=60)',
       '    r.raise_for_status()',
