@@ -10,6 +10,10 @@
 
   function buildPythonScript(payloads) {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    /* JSON.stringify produces JSON syntax (false / true / null in lowercase),
+       which is NOT valid as Python literals. Embedding it directly causes
+       NameError. Solution: emit the JSON as a Python triple-quoted string,
+       then parse it at runtime with json.loads(). */
     const netObjsJson  = JSON.stringify(payloads.networkObjects || [], null, 2);
     const portObjsJson = JSON.stringify(payloads.portObjects    || [], null, 2);
     const ipVarsJson   = JSON.stringify(payloads.ipVariables    || [], null, 2);
@@ -62,13 +66,15 @@
       '',
       'urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)',
       '',
-      'NETWORK_OBJECTS = ' + netObjsJson,
+      '_NETWORK_OBJECTS_JSON = r"""' + netObjsJson + '"""',
+      '_PORT_OBJECTS_JSON = r"""' + portObjsJson + '"""',
+      '_NETWORK_VARIABLES_JSON = r"""' + ipVarsJson + '"""',
+      '_PORT_VARIABLES_JSON = r"""' + portVarsJson + '"""',
       '',
-      'PORT_OBJECTS = ' + portObjsJson,
-      '',
-      'NETWORK_VARIABLES = ' + ipVarsJson,
-      '',
-      'PORT_VARIABLES = ' + portVarsJson,
+      'NETWORK_OBJECTS = json.loads(_NETWORK_OBJECTS_JSON)',
+      'PORT_OBJECTS = json.loads(_PORT_OBJECTS_JSON)',
+      'NETWORK_VARIABLES = json.loads(_NETWORK_VARIABLES_JSON)',
+      'PORT_VARIABLES = json.loads(_PORT_VARIABLES_JSON)',
       '',
       '',
       'def prompt_required(question):',
