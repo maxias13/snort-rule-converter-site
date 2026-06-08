@@ -1809,11 +1809,19 @@
         </div>
 
         <div style="background:rgba(255,165,0,0.08); border-left:3px solid #ffaa00; padding:10px 14px; margin-bottom:16px; border-radius:4px;">
-          <strong>⚠️ Prerequisites:</strong>
-          <ol style="margin:6px 0 0 20px; padding:0;">
-            <li>Enable REST API on FMC: <code>System &gt; Configuration &gt; REST API Preferences</code></li>
-            <li>Pre-trust the FMC self-signed certificate in your browser: visit <code>https://&lt;FMC_IP&gt;</code> and click "Advanced → Proceed".</li>
-            <li>Allow CORS on FMC (contact TAC if additional configuration is required).</li>
+          <strong>ℹ️ How this works:</strong>
+          <p style="margin:6px 0 0;">
+            Browsers cannot call FMC REST API directly due to CORS, self-signed certificates,
+            and (on HTTPS pages) Mixed Content blocking. This tool generates a ready-to-run
+            <strong>Python script</strong> containing all your objects. Run it from any machine
+            that has network access to the FMC — typically your workstation or jump host.
+          </p>
+          <p style="margin:6px 0 0;"><strong>Prerequisites on the machine that will run the script:</strong></p>
+          <ol style="margin:4px 0 0 20px; padding:0;">
+            <li>Python 3.8+ installed</li>
+            <li><code>pip install requests</code></li>
+            <li>Network reachability to the FMC management IP</li>
+            <li>FMC REST API enabled: <code>System &gt; Configuration &gt; REST API Preferences</code></li>
           </ol>
         </div>
 
@@ -1838,35 +1846,35 @@
           <div id="aoPreviewTable"></div>
           <div style="margin-top:10px; display:flex; gap:8px;">
             <button class="btn secondary" id="aoRegenBtn">🔄 Regenerate with different random values</button>
-            <button class="btn" id="aoConfirmBtn">✅ Proceed to FMC credentials</button>
+            <button class="btn" id="aoConfirmBtn">✅ Proceed to FMC details</button>
           </div>
         </div>
 
-        <!-- STEP 5-7: FMC connection info -->
+        <!-- STEP 5-6: FMC connection info (no password — collected at runtime) -->
         <div class="ao-step" id="aoStep5" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 5-7: FMC connection details</h4>
+          <h4 style="margin:14px 0 8px;">STEP 5-6: FMC connection details</h4>
+          <p style="margin:0 0 10px; color:var(--muted); font-size:0.9em;">
+            The password is <strong>NOT</strong> collected here — the generated script will prompt you
+            for it securely when you run it.
+          </p>
           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
             <div>
               <label for="aoFmcHost" style="display:block; margin-bottom:4px;">FMC IP or FQDN <span style="color:var(--error);">*</span></label>
               <input type="text" id="aoFmcHost" placeholder="e.g. 10.0.0.15" style="width:100%;" />
             </div>
             <div>
-              <label for="aoFmcUser" style="display:block; margin-bottom:4px;">Username <span style="color:var(--error);">*</span></label>
+              <label for="aoFmcUser" style="display:block; margin-bottom:4px;">API Username <span style="color:var(--error);">*</span></label>
               <input type="text" id="aoFmcUser" placeholder="e.g. apiadmin" style="width:100%;" />
-            </div>
-            <div style="grid-column: 1 / -1;">
-              <label for="aoFmcPass" style="display:block; margin-bottom:4px;">Password <span style="color:var(--error);">*</span></label>
-              <input type="password" id="aoFmcPass" placeholder="FMC user password" style="width:100%;" />
             </div>
           </div>
           <div style="margin-top:12px;">
-            <button class="btn" id="aoLoginBtn">🔐 STEP 8: Log in to FMC and create objects</button>
+            <button class="btn" id="aoLoginBtn">📥 STEP 7: Generate &amp; Download Python Script</button>
           </div>
         </div>
 
-        <!-- STEP 8: Progress / results -->
+        <!-- STEP 7-8: Progress / results -->
         <div class="ao-step" id="aoStep8" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 8: FMC login and object creation progress</h4>
+          <h4 style="margin:14px 0 8px;">STEP 7-8: Generated script &amp; next steps</h4>
           <div id="aoProgress" style="font-family:monospace; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; max-height:400px; overflow-y:auto; font-size:0.9em; white-space:pre-wrap;"></div>
         </div>
       </div>
@@ -8774,7 +8782,7 @@ ${optRules.join("\n")}
 
   <script src="scripts/add-object/parser.js"></script>
   <script src="scripts/add-object/generator.js"></script>
-  <script src="scripts/add-object/fmc-client.js"></script>
+  <script src="scripts/add-object/script-generator.js"></script>
   <script src="scripts/add-object/app.js"></script>
 </body>
 </html>

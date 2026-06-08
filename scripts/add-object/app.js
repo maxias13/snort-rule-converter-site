@@ -85,79 +85,37 @@
   async function runFmcImport() {
     const host = $('aoFmcHost').value.trim();
     const user = $('aoFmcUser').value.trim();
-    const pass = $('aoFmcPass').value;
-    if (!host || !user || !pass) {
-      alert('Please enter FMC IP, username, and password.');
+    if (!host || !user) {
+      alert('Please enter FMC IP and username.');
       return;
     }
     $('aoStep8').style.display = 'block';
     $('aoProgress').innerHTML = '';
 
-    log('Connecting to FMC: https://' + host);
-    let token, domainUuid;
-    try {
-      const auth = await window.AddObjectFmc.login(host, user, pass);
-      token = auth.token;
-      domainUuid = auth.domainUuid;
-      log('✓ Login successful (Domain UUID: ' + domainUuid + ')', 'ok');
-    } catch (e) {
-      log('✗ FMC login failed: ' + e.message, 'err');
-      log('Troubleshooting checklist:', 'warn');
-      log('  1) Open https://' + host + '/api/api-explorer/ in a NEW browser tab.', 'warn');
-      log('     If you see a cert warning, click "Advanced → Proceed". This pre-trusts the cert.', 'warn');
-      log('  2) Confirm REST API is enabled on FMC:', 'warn');
-      log('     System > Configuration > REST API Preferences', 'warn');
-      log('  3) Confirm CORS is allowed on FMC for this origin (' + window.location.origin + ').', 'warn');
-      log('     FMC must return Access-Control-Allow-Origin AND', 'warn');
-      log('     Access-Control-Expose-Headers: X-auth-access-token, DOMAIN_UUID', 'warn');
-      log('  4) If serving this page from file://, browser may block fetch — host via HTTP(S) instead.', 'warn');
-      return;
-    }
+    log('Generating self-contained Python script...');
+    const total = currentPayloads.hosts.length + currentPayloads.networks.length + currentPayloads.ports.length;
+    log('  Target FMC: ' + host);
+    log('  API user:   ' + user);
+    log('  Objects:    ' + total + ' (' +
+        currentPayloads.hosts.length + ' hosts, ' +
+        currentPayloads.networks.length + ' networks, ' +
+        currentPayloads.ports.length + ' ports)');
 
-    log('Fetching existing objects...');
-    let existingHosts, existingNetworks, existingPorts;
-    try {
-      existingHosts = await window.AddObjectFmc.listExisting(host, token, domainUuid, 'hosts');
-      existingNetworks = await window.AddObjectFmc.listExisting(host, token, domainUuid, 'networks');
-      existingPorts = await window.AddObjectFmc.listExisting(host, token, domainUuid, 'protocolportobjects');
-      log('  Existing: hosts=' + existingHosts.size + ', networks=' + existingNetworks.size + ', ports=' + existingPorts.size, 'ok');
-    } catch (e) {
-      log('✗ Failed to list existing objects: ' + e.message, 'err');
-      return;
-    }
+    const pyCode = window.AddObjectScriptGen.buildPythonScript(host, user, currentPayloads);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = 'fmc_import_' + host.replace(/[^a-z0-9]/gi, '_') + '_' + ts + '.py';
+    window.AddObjectScriptGen.downloadScript(pyCode, filename);
 
-    const hostsToCreate = currentPayloads.hosts.filter(function (p) { return !existingHosts.has(p.name); });
-    const netsToCreate = currentPayloads.networks.filter(function (p) { return !existingNetworks.has(p.name); });
-    const portsToCreate = currentPayloads.ports.filter(function (p) { return !existingPorts.has(p.name); });
-    const skippedExisting = [];
-    currentPayloads.hosts.forEach(function (p) { if (existingHosts.has(p.name)) skippedExisting.push(p.name); });
-    currentPayloads.networks.forEach(function (p) { if (existingNetworks.has(p.name)) skippedExisting.push(p.name); });
-    currentPayloads.ports.forEach(function (p) { if (existingPorts.has(p.name)) skippedExisting.push(p.name); });
-    if (skippedExisting.length) {
-      log('Already exists — SKIPPED: ' + skippedExisting.join(', '), 'warn');
-    }
-
-    log('Creating: hosts=' + hostsToCreate.length + ', networks=' + netsToCreate.length + ', ports=' + portsToCreate.length);
-
-    const hostResult = await window.AddObjectFmc.bulkCreate(host, token, domainUuid, 'hosts', hostsToCreate);
-    const netResult = await window.AddObjectFmc.bulkCreate(host, token, domainUuid, 'networks', netsToCreate);
-    const portResult = await window.AddObjectFmc.bulkCreate(host, token, domainUuid, 'protocolportobjects', portsToCreate);
-
-    log('--- Final results ---', 'ok');
-    log('Hosts:    success=' + hostResult.ok.length + ', failed=' + hostResult.fail.length,
-        hostResult.fail.length ? 'err' : 'ok');
-    log('Networks: success=' + netResult.ok.length + ', failed=' + netResult.fail.length,
-        netResult.fail.length ? 'err' : 'ok');
-    log('Ports:    success=' + portResult.ok.length + ', failed=' + portResult.fail.length,
-        portResult.fail.length ? 'err' : 'ok');
-
-    const allFailures = hostResult.fail.concat(netResult.fail).concat(portResult.fail);
-    if (allFailures.length) {
-      log('--- Failure details ---', 'err');
-      allFailures.forEach(function (f) {
-        log('  ' + f.payload.name + ': ' + f.error, 'err');
-      });
-    }
+    log('✓ Downloaded: ' + filename, 'ok');
+    log('', 'info');
+    log('Next steps:', 'ok');
+    log('  1) Copy the file to a machine that can reach ' + host + ' on the network', 'info');
+    log('  2) Install dependency:  pip install requests', 'info');
+    log('  3) Run the script:      python3 ' + filename, 'info');
+    log('  4) Enter password when prompted', 'info');
+    log('', 'info');
+    log('The script preserves all object names and bulk-creates them via', 'info');
+    log('FMC REST API. Already-existing objects are skipped automatically.', 'info');
   }
 
   function handleFileSelect(e) {
