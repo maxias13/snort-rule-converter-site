@@ -4911,6 +4911,94 @@ ${optRules.join("\n")}
               suggestions.push({ level:"perf", msg:"TCP rule has no flow option. Adding flow:established,to_server (or to_client) limits evaluation to established sessions and significantly reduces false positives (Manual §3.6.2)." });
           }
 
+          // ── S084: file_data:mime deprecated (Manual §3.5.28) ─────────
+          // The 'mime' argument was deprecated in Snort 2.9.4. Bare file_data;
+          // already covers MIME attachments since 2.9.4.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "file_data") return;
+            const val = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
+            if (val === "mime")
+              suggestions.push({ level:"warn", msg:"'file_data:mime' is deprecated since Snort 2.9.4 (Manual §3.5.28). Bare 'file_data;' already covers MIME attachments.", fix:"Replace 'file_data:mime;' with 'file_data;'" });
+            else if (val)
+              suggestions.push({ level:"warn", msg:`'file_data' does not accept argument '${val}' (only the deprecated 'mime' form was ever valid; Manual §3.5.28).`, fix:"Use bare 'file_data;'" });
+          });
+
+          // ── S085: byte_test value/numtype/offset (Manual §3.5.31) ────
+          // Compare value range is 0..4294967295 (32-bit unsigned), offset
+          // -65535..65535. The 'string' flag must be paired with hex|dec|oct.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "byte_test") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const parts = v.split(",").map(p => p.trim());
+            if (parts.length < 4) return;
+            const valNum = parseInt(parts[2], 10);
+            if (!isNaN(valNum) && (valNum < 0 || valNum > 4294967295))
+              suggestions.push({ level:"warn", msg:`byte_test compare value ${valNum} outside 32-bit unsigned range 0..4294967295 (Manual §3.5.31).` });
+            const offNum = parseInt(parts[3], 10);
+            if (!isNaN(offNum) && (offNum < -65535 || offNum > 65535))
+              suggestions.push({ level:"warn", msg:`byte_test offset ${offNum} outside -65535..65535 (Manual §3.5.31).` });
+            const tail = parts.slice(4).map(p => p.toLowerCase());
+            const stringIdx = tail.indexOf("string");
+            if (stringIdx !== -1 && stringIdx + 1 < tail.length) {
+              const numType = tail[stringIdx + 1];
+              if (!["hex","dec","oct"].includes(numType))
+                suggestions.push({ level:"warn", msg:`byte_test 'string' must be paired with hex|dec|oct (got '${numType}'; Manual §3.5.31).`, fix:"Use string,hex / string,dec / string,oct" });
+            }
+          });
+
+          // ── S086: byte_jump multiplier/post_offset/numtype (Manual §3.5.32) ─
+          // multiplier 0..65535, post_offset -65535..65535, 'string' must be
+          // paired with hex|dec|oct.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "byte_jump") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const parts = v.split(",").map(p => p.trim());
+            if (parts.length < 2) return;
+            const tail = parts.slice(2).map(p => p.toLowerCase());
+            tail.forEach(tok => {
+              const mMul = tok.match(/^multiplier\s+(\d+)$/);
+              if (mMul) {
+                const m = parseInt(mMul[1], 10);
+                if (m < 0 || m > 65535)
+                  suggestions.push({ level:"warn", msg:`byte_jump multiplier ${m} outside 0..65535 (Manual §3.5.32).` });
+              }
+              const mPost = tok.match(/^post_offset\s+(-?\d+)$/);
+              if (mPost) {
+                const p = parseInt(mPost[1], 10);
+                if (p < -65535 || p > 65535)
+                  suggestions.push({ level:"warn", msg:`byte_jump post_offset ${p} outside -65535..65535 (Manual §3.5.32).` });
+              }
+            });
+            const stringIdx = tail.indexOf("string");
+            if (stringIdx !== -1 && stringIdx + 1 < tail.length) {
+              const numType = tail[stringIdx + 1];
+              if (!["hex","dec","oct"].includes(numType))
+                suggestions.push({ level:"warn", msg:`byte_jump 'string' must be paired with hex|dec|oct (got '${numType}'; Manual §3.5.32).`, fix:"Use string,hex / string,dec / string,oct" });
+            }
+          });
+
+          // ── S087: byte_extract align enum (Manual §3.5.33) ───────────
+          // Manual: "align <2|4>" — the alignment value MUST be exactly 2 or 4.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "byte_extract") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const tail = v.split(",").slice(3).map(p => p.trim().toLowerCase());
+            tail.forEach(tok => {
+              const m = tok.match(/^align\s+(\d+)$/);
+              if (m && !["2","4"].includes(m[1]))
+                suggestions.push({ level:"warn", msg:`byte_extract align value '${m[1]}' invalid — must be 2 or 4 (Manual §3.5.33).`, fix:"Use 'align 2' or 'align 4'" });
+            });
+          });
+
+          // ── S088: deprecated activates / activated_by options (Manual §3.2.6) ─
+          // The activate/dynamic system is phased out; even when only the
+          // option remains (without the action), surface the deprecation so
+          // partial migrations do not slip through.
+          if (has("activates"))
+            suggestions.push({ level:"warn", msg:"'activates' rule option is deprecated (paired with activate/dynamic actions; Manual §3.2.6). Rewrite using flowbits:set,<bit>; on the trigger rule and flowbits:isset,<bit>; on the follow-up rule." });
+          if (has("activated_by"))
+            suggestions.push({ level:"warn", msg:"'activated_by' rule option is deprecated (paired with activate/dynamic actions; Manual §3.2.6). Rewrite using flowbits:set,<bit>; on the trigger rule and flowbits:isset,<bit>; on the follow-up rule." });
+
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
@@ -5078,6 +5166,104 @@ ${optRules.join("\n")}
             if (!/\b(rewrite)\b/.test(headerLower))
               suggestions.push({ level:"warn", msg:"'replace' option requires the 'rewrite' action in Snort 3.", fix:"Use action 'rewrite ...' with 'replace:\"...\";'" });
           }
+
+          // ── S074: width content modifier enum (>= 3.6.2.0) ───────────
+          // docs.snort.org/rules/options/payload/width_and_endian: width
+          // can be set to 8, 16, or 32 — any other value is rejected.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "width") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            if (v && !["8","16","32"].includes(v))
+              suggestions.push({ level:"warn", msg:`width value '${v}' invalid — must be 8, 16, or 32 (docs.snort.org/rules/options/payload/width_and_endian, ≥ 3.6.2.0).`, fix:"Use width:8 (default), width:16, or width:32" });
+          });
+
+          // ── S075: endian content modifier enum (>= 3.6.2.0) ──────────
+          // docs.snort.org/rules/options/payload/width_and_endian: endian
+          // can be set to big or little (default big).
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "endian") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
+            if (v && !["big","little"].includes(v))
+              suggestions.push({ level:"warn", msg:`endian value '${v}' invalid — must be 'big' or 'little' (docs.snort.org/rules/options/payload/width_and_endian).`, fix:"Use endian:big (default) or endian:little" });
+          });
+
+          // ── S076: tag type enum (Snort 3 changed from Snort 2) ───────
+          // docs.snort.org/rules/options/post/tag: Snort 3 valid types are
+          // session, host_src, host_dst (Snort 2 used host + direction).
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "tag") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            const parts = v.split(",").map(p => p.trim().toLowerCase()).filter(Boolean);
+            if (!parts.length) return;
+            const ttype = parts[0];
+            if (ttype === "host")
+              suggestions.push({ level:"warn", msg:"'tag:host' is the Snort 2 form — Snort 3 uses 'host_src' or 'host_dst' (docs.snort.org/rules/options/post/tag).", fix:"Rewrite as tag:host_src,... or tag:host_dst,..." });
+            else if (!["session","host_src","host_dst"].includes(ttype))
+              suggestions.push({ level:"warn", msg:`tag type '${ttype}' invalid — Snort 3 expects session|host_src|host_dst (docs.snort.org/rules/options/post/tag).` });
+          });
+
+          // ── S077: tls1.3 not in Snort 3 ssl_version enum ─────────────
+          // docs.snort.org/rules/options/payload/ssl: the official enum is
+          // exactly {sslv2, sslv3, tls1.0, tls1.1, tls1.2}. Rules quoting
+          // tls1.3 look reasonable but never match.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "ssl_version") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            v.split(",").forEach(tok => {
+              const t = tok.trim().replace(/^!/, "").trim().toLowerCase();
+              if (["tls1.3","tlsv1.3","tls13"].includes(t))
+                suggestions.push({ level:"warn", msg:`ssl_version:${t} is NOT in the documented Snort 3 enum (only sslv2/sslv3/tls1.0/tls1.1/tls1.2; docs.snort.org/rules/options/payload/ssl).`, fix:"For TLS 1.3 traffic, match via ssl_state or upgrade to a Snort build that extends the enum" });
+            });
+          });
+
+          // ── S078: fast_pattern on http_param buffer (not eligible) ───
+          // docs.snort.org/rules/options/payload/http/param: http_param is
+          // fast-pattern-ineligible; only nocase is a valid content modifier.
+          {
+            let lastSticky = "";
+            opts.forEach(o => {
+              const kw = optionKeyword(o).toLowerCase();
+              if (["http_uri","http_raw_uri","http_header","http_raw_header","http_method","http_client_body","http_raw_body","http_cookie","http_raw_cookie","http_stat_code","http_stat_msg","http_param","http_version","http_raw_request","http_raw_status","http_raw_trailer","http_true_ip","file_data","raw_data","pkt_data","js_data","vba_data"].includes(kw)) {
+                lastSticky = kw;
+              }
+              if (kw === "fast_pattern" && lastSticky === "http_param")
+                suggestions.push({ level:"warn", msg:"'fast_pattern' is not allowed on the 'http_param' buffer (docs.snort.org/rules/options/payload/http/param).", fix:"Move fast_pattern content to an eligible buffer (http_uri, http_header, http_cookie, http_client_body, file_data, …)" });
+            });
+          }
+
+          // ── S079: base64_decode bytes/offset must be positive non-zero ─
+          // docs.snort.org/rules/options/payload/base64: when explicitly
+          // provided, bytes and offset must be >= 1.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "base64_decode") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            ["bytes","offset"].forEach(kw => {
+              const m = v.match(new RegExp("\\b" + kw + "\\s+(\\d+)\\b"));
+              if (m && parseInt(m[1], 10) === 0)
+                suggestions.push({ level:"warn", msg:`base64_decode '${kw}' must be a positive non-zero integer (got 0; docs.snort.org/rules/options/payload/base64).`, fix:`Set ${kw} to a value >= 1 or omit it to use the default` });
+            });
+          });
+
+          // ── S080: file_data takes no arguments in Snort 3 ────────────
+          // docs.snort.org/rules/options/payload/file_data: bare 'file_data;'
+          // only. The Snort 2 deprecated 'file_data:mime' has been removed.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "file_data") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            if (v)
+              suggestions.push({ level:"warn", msg:`file_data takes no arguments in Snort 3 (got '${v}'); the Snort 2 'file_data:mime' form has been removed (docs.snort.org/rules/options/payload/file_data).`, fix:"Use bare 'file_data;'" });
+          });
+
+          // ── S081: pkt_data / raw_data are bare sticky buffers ────────
+          // docs.snort.org/rules/options/payload/{pkt_data,raw_data}.
+          ["pkt_data","raw_data"].forEach(kw => {
+            opts.forEach(o => {
+              if (optionKeyword(o).toLowerCase() !== kw) return;
+              const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+              if (v)
+                suggestions.push({ level:"warn", msg:`${kw} takes no arguments (got '${v}'; docs.snort.org/rules/options/payload/${kw}).`, fix:`Use bare '${kw};'` });
+            });
+          });
         }
 
         // ══ Common checks ════════════════════════════════════════════════
