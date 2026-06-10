@@ -5170,21 +5170,38 @@ ${optRules.join("\n")}
           // ── S074: width content modifier enum (>= 3.6.2.0) ───────────
           // docs.snort.org/rules/options/payload/width_and_endian: width
           // can be set to 8, 16, or 32 — any other value is rejected.
+          // Snort 3 supports BOTH separated form (`width:N;`) AND inline
+          // modifier form (`content:"abc",width N`) — check both.
           opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() !== "width") return;
-            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
-            if (v && !["8","16","32"].includes(v))
-              suggestions.push({ level:"warn", msg:`width value '${v}' invalid — must be 8, 16, or 32 (docs.snort.org/rules/options/payload/width_and_endian, ≥ 3.6.2.0).`, fix:"Use width:8 (default), width:16, or width:32" });
+            const kw = optionKeyword(o).toLowerCase();
+            if (kw === "width") {
+              const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+              if (v && !["8","16","32"].includes(v))
+                suggestions.push({ level:"warn", msg:`width value '${v}' invalid — must be 8, 16, or 32 (docs.snort.org/rules/options/payload/width_and_endian, ≥ 3.6.2.0).`, fix:"Use width:8 (default), width:16, or width:32" });
+            }
+            if (kw === "content") {
+              const m = o.match(/,\s*width\s+(\d+)\b/i);
+              if (m && !["8","16","32"].includes(m[1]))
+                suggestions.push({ level:"warn", msg:`content inline modifier 'width ${m[1]}' invalid — width must be 8, 16, or 32 (docs.snort.org/rules/options/payload/width_and_endian, ≥ 3.6.2.0).`, fix:"Use width 8 (default), width 16, or width 32" });
+            }
           });
 
           // ── S075: endian content modifier enum (>= 3.6.2.0) ──────────
           // docs.snort.org/rules/options/payload/width_and_endian: endian
-          // can be set to big or little (default big).
+          // can be set to big or little (default big). Both separated and
+          // inline modifier forms are validated.
           opts.forEach(o => {
-            if (optionKeyword(o).toLowerCase() !== "endian") return;
-            const v = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
-            if (v && !["big","little"].includes(v))
-              suggestions.push({ level:"warn", msg:`endian value '${v}' invalid — must be 'big' or 'little' (docs.snort.org/rules/options/payload/width_and_endian).`, fix:"Use endian:big (default) or endian:little" });
+            const kw = optionKeyword(o).toLowerCase();
+            if (kw === "endian") {
+              const v = (o.slice(o.indexOf(":") + 1) || "").trim().toLowerCase();
+              if (v && !["big","little"].includes(v))
+                suggestions.push({ level:"warn", msg:`endian value '${v}' invalid — must be 'big' or 'little' (docs.snort.org/rules/options/payload/width_and_endian).`, fix:"Use endian:big (default) or endian:little" });
+            }
+            if (kw === "content") {
+              const m = o.match(/,\s*endian\s+([A-Za-z_]+)/i);
+              if (m && !["big","little"].includes(m[1].toLowerCase()))
+                suggestions.push({ level:"warn", msg:`content inline modifier 'endian ${m[1]}' invalid — endian must be 'big' or 'little' (docs.snort.org/rules/options/payload/width_and_endian).`, fix:"Use endian big (default) or endian little" });
+            }
           });
 
           // ── S076: tag type enum (Snort 3 changed from Snort 2) ───────
