@@ -1601,8 +1601,6 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="homeView"><span class="icon" aria-hidden="true">🏠</span><span class="label">Home</span></button>
 
-      <button class="tab-btn" data-view="variableSetView"><span class="icon" aria-hidden="true">➕</span><span class="label">Atomation Object</span></button>
-
       <div class="tab-group">
         <button type="button" class="tab-btn tab-parent" tabindex="-1" aria-disabled="true" aria-haspopup="menu"><span class="icon" aria-hidden="true">⚡</span><span class="label">Rules Optimization</span><span class="tab-caret" aria-hidden="true">▸</span></button>
         <div class="tab-children" role="menu">
@@ -1792,70 +1790,6 @@
 
       </div>
 
-    </section>
-
-
-    <section id="variableSetView" class="view">
-      <div class="panel">
-        <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-          <div>
-            <h3 style="margin:0;">➕ Variable Set — Snort Variables to FMC</h3>
-            <p style="margin:6px 0 0; color:var(--muted, #9aa);">
-              Extracts user-defined variables ($AD_Servers, $Openvpn, etc.) from a Snort 2 local rule file
-              and bulk-creates them as Network/Port objects on Cisco FMC 7.4.x.
-              Names are preserved exactly; IP/port values are randomized.
-            </p>
-          </div>
-        </div>
-
-        <div style="background:rgba(255,165,0,0.08); border-left:3px solid #ffaa00; padding:10px 14px; margin-bottom:16px; border-radius:4px;">
-          <strong>ℹ️ How this works:</strong>
-          <p style="margin:6px 0 0;">
-            Browsers cannot call FMC REST API directly due to CORS, self-signed certificates,
-            and (on HTTPS pages) Mixed Content blocking. This tool generates a ready-to-run
-            <strong>Python script</strong> containing all your objects. Run it from any machine
-            that has network access to the FMC — typically your workstation or jump host.
-          </p>
-          <p style="margin:6px 0 0;"><strong>Prerequisites on the machine that will run the script:</strong></p>
-          <ol style="margin:4px 0 0 20px; padding:0;">
-            <li>Python 3.8+ installed</li>
-            <li><code>pip install requests</code></li>
-            <li>Network reachability to the FMC management IP</li>
-            <li>FMC REST API enabled: <code>System &gt; Configuration &gt; REST API Preferences</code></li>
-          </ol>
-        </div>
-
-        <!-- STEP 1-2: Snort rule file input -->
-        <div class="ao-step" id="aoStep1">
-          <h4 style="margin:0 0 8px;">STEP 1: Select Snort local rule file</h4>
-          <input type="file" id="aoRulesFile" accept=".txt,.rules,.conf" />
-          <div style="margin-top:8px; color:var(--muted); font-size:0.9em;">
-            STEP 2 runs automatically once a file is selected.
-          </div>
-        </div>
-
-        <!-- STEP 3: Auto-extract user objects -->
-        <div class="ao-step" id="aoStep3" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 3: Extracted user objects</h4>
-          <div id="aoExtractResult"></div>
-        </div>
-
-        <!-- STEP 4: Prepare object payloads -->
-        <div class="ao-step" id="aoStep4" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 4: Preview objects to be created (names preserved, values randomized)</h4>
-          <div id="aoPreviewTable"></div>
-          <div style="margin-top:10px; display:flex; gap:8px;">
-            <button class="btn secondary" id="aoRegenBtn">🔄 Regenerate with different random values</button>
-            <button class="btn" id="aoConfirmBtn">📥 STEP 5: Generate &amp; Download Python Script</button>
-          </div>
-        </div>
-
-        <!-- STEP 6-7: Progress / results -->
-        <div class="ao-step" id="aoStep8" style="display:none;">
-          <h4 style="margin:14px 0 8px;">STEP 6-7: Generated script &amp; next steps</h4>
-          <div id="aoProgress" style="font-family:monospace; background:rgba(0,0,0,0.3); padding:12px; border-radius:6px; max-height:400px; overflow-y:auto; font-size:0.9em; white-space:pre-wrap;"></div>
-        </div>
-      </div>
     </section>
 
 
@@ -9022,10 +8956,5 @@ ${optRules.join("\n")}
   <script src="scripts/ts-analyzer/parser.js"></script>
   <script src="scripts/ts-analyzer/renderer.js"></script>
   <script src="scripts/ts-analyzer/app.js"></script>
-
-<script src="scripts/add-object/parser.js?v=20260608e"></script>
-<script src="scripts/add-object/generator.js?v=20260608e"></script>
-<script src="scripts/add-object/script-generator.js?v=20260608e"></script>
-<script src="scripts/add-object/app.js?v=20260608e"></script>
 </body>
 </html>
