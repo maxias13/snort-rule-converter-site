@@ -3771,12 +3771,149 @@ if __name__ == "__main__":
         };
       }
 
+      // ── Strong Snort-2-syntax sniffer ────────────────────────────────
+      // Used to BLOCK the Snort 3 optimizer when the pasted input is clearly
+      // Snort 2 syntax. Only high-confidence ("genuinely Snort 2") markers are
+      // used so that rules valid in BOTH versions (content/flow/pcre/sid/rev/
+      // classtype/nocase, and HTTP sticky buffers) never trigger a false block.
+      // Returns: [{ ruleIdx, signal, detail }] — empty array means "no Snort 2".
+      function sniffSnort2Signals(ruleLines) {
+        // Options that exist ONLY in Snort 2 (removed/renamed in Snort 3).
+        const S2_ONLY_OPTS = [
+          "uricontent","rawbytes","threshold","activates","activated_by",
+          "logto","sameip","http_encode","stream_reassemble","resp"
+        ];
+        const signals = [];
+        const pushOnce = (ruleIdx, signal, detail) => {
+          if (!signals.some(s => s.ruleIdx === ruleIdx && s.signal === signal))
+            signals.push({ ruleIdx, signal, detail });
+        };
+
+        // http_* MODIFIER keywords (Snort 2 content-modifier style). In Snort 3
+        // these are sticky buffers placed BEFORE content; in Snort 2 they appear
+        // AFTER a content as a modifier (content:"x"; http_uri;). We only flag the
+        // modifier (post-content) layout, never the sticky-buffer (pre-content) one.
+        const HTTP_MODIFIERS = new Set([
+          "http_uri","http_raw_uri","http_header","http_raw_header","http_method",
+          "http_cookie","http_raw_cookie","http_stat_code","http_stat_msg",
+          "http_client_body","http_raw_request","http_raw_status"
+        ]);
+
+        ruleLines.forEach((line, idx) => {
+          const trimmed = (line || "").trim();
+          if (!trimmed || trimmed.startsWith("#")) return;
+
+          // 1) Snort 2-only action: sdrop
+          if (/^sdrop\s/i.test(trimmed))
+            pushOnce(idx, "sdrop action", "'sdrop' is a Snort 2-only action (use 'drop' in Snort 3)");
+
+          const parenStart = trimmed.indexOf("(");
+          const parenEnd   = trimmed.lastIndexOf(")");
+          if (parenStart === -1 || parenEnd === -1 || parenEnd <= parenStart) {
+            // Cannot parse options — fall back to a plain-text scan for the
+            // single most unambiguous Snort 2 token so badly-formed S2 rules
+            // are still caught instead of silently optimized.
+            if (/\buricontent\s*:/i.test(trimmed))
+              pushOnce(idx, "uricontent", "'uricontent' is Snort 2-only (use content + http_uri in Snort 3)");
+            return;
+          }
+
+          const opts = splitOptions(trimmed.slice(parenStart + 1, parenEnd));
+
+          opts.forEach((o, oi) => {
+            const kw = optionKeyword(o).toLowerCase();
+
+            // 2) Snort 2-only option keywords
+            if (S2_ONLY_OPTS.includes(kw))
+              pushOnce(idx, kw, `'${kw}' is a Snort 2-only option, not valid in Snort 3`);
+
+            // 3) Snort 2 fast_pattern forms: fast_pattern:only / fast_pattern:<offset>,<len>
+            if (kw === "fast_pattern") {
+              const val = (o.indexOf(":") >= 0 ? o.slice(o.indexOf(":") + 1) : "").trim();
+              if (/^only$/i.test(val))
+                pushOnce(idx, "fast_pattern:only", "'fast_pattern:only' is not valid in Snort 3");
+              else if (/^\d+\s*,\s*\d+$/.test(val))
+                pushOnce(idx, "fast_pattern:<offset>,<length>", "Snort 2 'fast_pattern:<offset>,<length>' form is not valid in Snort 3");
+            }
+
+            // 4) pcre with trailing Snort 2 HTTP buffer flags (/.../Ui, H, D, M, C, K, S, Y, P, B)
+            if (kw === "pcre") {
+              const val = (o.indexOf(":") >= 0 ? o.slice(o.indexOf(":") + 1) : "").trim();
+              if (/\/[^\/]*[UIPHDMCKSYB][^\/]*\/[a-zA-Z]*$/.test(val) &&
+                  /[UPHDMCKSYB]/.test((val.match(/\/([a-zA-Z]*)$/) || [,""])[1]))
+                pushOnce(idx, "pcre HTTP flags", "pcre uses Snort 2 HTTP buffer flags (U/H/D/M/C/K/S/Y/P/B) — convert to sticky buffers in Snort 3");
+            }
+
+            // 5) Snort 2 content-modifier layout: an http_* modifier directly
+            // following a content/uricontent/pcre group (i.e. it is NOT the first
+            // option of a new sticky-buffer group). In Snort 3 these must precede
+            // content as sticky buffers, so post-content placement is Snort 2 style.
+            if (HTTP_MODIFIERS.has(kw)) {
+              const prevKw = oi > 0 ? optionKeyword(opts[oi - 1]).toLowerCase() : "";
+              if (prevKw === "content" || prevKw === "uricontent" || prevKw === "nocase" ||
+                  prevKw === "depth" || prevKw === "offset" || prevKw === "distance" || prevKw === "within")
+                pushOnce(idx, "content + " + kw + " modifier", `'${kw}' appears as a Snort 2 content modifier (after content); Snort 3 uses it as a sticky buffer before content`);
+            }
+          });
+        });
+
+        return signals;
+      }
+
       function runOptimize() {
         const ruleLines = joinMultilineRules(el.optInput.value);
         if (!ruleLines.length) {
           el.optResults.innerHTML = '<div class="result-card muted">No rules to analyze. Paste rules in the input above and click Optimize.</div>';
           return;
         }
+
+        // ── HARD BLOCK: Snort 3 optimizer must not run on Snort 2 input ──
+        // When the optimizer is set to Snort 3 (optVersion === 3) but the pasted
+        // rules contain genuine Snort 2 syntax, refuse to optimize and direct the
+        // user to convert first via Rules Migration. Optimization is fully blocked
+        // (no output produced) to avoid emitting misleading "optimized" Snort 2 rules.
+        if (optVersion === 3) {
+          const s2signals = sniffSnort2Signals(ruleLines);
+          if (s2signals.length) {
+            const byRule = new Map();
+            s2signals.forEach(s => {
+              if (!byRule.has(s.ruleIdx)) byRule.set(s.ruleIdx, []);
+              byRule.get(s.ruleIdx).push(s);
+            });
+            const rows = Array.from(byRule.entries())
+              .sort((a, b) => a[0] - b[0])
+              .map(([ruleIdx, list]) => {
+                const items = list.map(s =>
+                  `<li><code>${escapeHtml(s.signal)}</code> — ${escapeHtml(s.detail)}</li>`
+                ).join("");
+                return `<div style="margin-bottom:10px;">
+                  <div style="font-weight:700; color:var(--error); font-size:0.86rem; margin-bottom:4px;">Rule ${ruleIdx + 1}</div>
+                  <ul style="margin:0 0 0 18px; padding:0; font-size:0.82rem; line-height:1.6;">${items}</ul>
+                </div>`;
+              }).join("");
+
+            el.optResults.innerHTML = `
+              <div class="opt-mismatch" style="display:flex; align-items:flex-start; gap:10px; padding:14px 16px; font-size:0.95rem;">
+                <span style="font-size:1.3rem; line-height:1;">&#9888;</span>
+                <div>
+                  <b>Snort 2 syntax detected — optimization blocked.</b><br>
+                  You selected the <b>Snort 3</b> optimizer, but the input contains <b>Snort 2-only syntax</b>.
+                  Running the Snort 3 optimizer on Snort 2 rules would produce misleading results, so it has been stopped.
+                </div>
+              </div>
+              <div class="result-card" style="padding:16px 18px; margin-top:12px;">
+                <div style="font-weight:700; margin-bottom:10px;">Snort 2 markers found (${s2signals.length}):</div>
+                ${rows}
+                <div style="margin-top:14px; padding:12px 14px; background:rgba(0,212,255,0.06); border:1px solid var(--border); border-radius:8px; font-size:0.86rem; line-height:1.6;">
+                  &#128161; <b>What to do:</b> Convert these rules to Snort 3 first using
+                  <b>Rules Migration</b>, then optimize the converted output here.
+                  <br>Alternatively, switch this optimizer to <b>Snort 2</b> if you intend to optimize Snort 2 rules as-is.
+                </div>
+              </div>`;
+            return; // ← fully blocked: no optimization runs
+          }
+        }
+
         const versionLabel = optVersion === 2 ? "Snort 2" : "Snort 3";
 
         // ── Pre-compute all optimized rules first ─────────────────────
