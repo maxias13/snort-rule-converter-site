@@ -4999,6 +4999,41 @@ ${optRules.join("\n")}
           if (has("activated_by"))
             suggestions.push({ level:"warn", msg:"'activated_by' rule option is deprecated (paired with activate/dynamic actions; Manual §3.2.6). Rewrite using flowbits:set,<bit>; on the trigger rule and flowbits:isset,<bit>; on the follow-up rule." });
 
+          // ── S089: flow sub-option value enum (Manual §3.6.9) ─────────
+          // S017 only checks flow PRESENCE; here we validate the keyword
+          // VALUES against the §3.6.9 options table. Any other token (a typo
+          // or a Snort-3-only keyword) is flagged.
+          const FLOW_KEYWORDS_S2 = ["to_client","to_server","from_client","from_server",
+            "established","not_established","stateless","no_stream","only_stream","no_frag","only_frag"];
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "flow") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            v.split(",").forEach(tok => {
+              const t = tok.trim().toLowerCase();
+              if (t && !FLOW_KEYWORDS_S2.includes(t))
+                suggestions.push({ level:"warn", msg:`flow sub-option '${t}' is not a valid keyword (Manual §3.6.9). Valid: ${FLOW_KEYWORDS_S2.join(", ")}.`, fix:"Remove or correct the flow keyword" });
+            });
+          });
+
+          // ── S090: bitmask hex range on byte ops (Manual §3.5.31-3.5.34) ─
+          // byte_test/byte_jump/byte_extract/byte_math accept an optional
+          // 'bitmask <value>' that must be a 1..4 byte hex value
+          // (0x1..0xFFFFFFFF). Flag non-hex or out-of-range values.
+          ["byte_test","byte_jump","byte_extract","byte_math"].forEach(kw => {
+            opts.forEach(o => {
+              if (optionKeyword(o).toLowerCase() !== kw) return;
+              const v = o.slice(o.indexOf(":") + 1).trim();
+              const m = v.match(/\bbitmask\s+([^\s,]+)/i);
+              if (!m) return;
+              const raw = m[1].trim();
+              const val = parseInt(raw, 16);
+              if (isNaN(val))
+                suggestions.push({ level:"warn", msg:`${kw} bitmask '${raw}' is not a hexadecimal value (Manual §3.5.31-3.5.34).`, fix:"Use a 1..4 byte hex value (0x1 .. 0xFFFFFFFF)" });
+              else if (val < 0x1 || val > 0xFFFFFFFF)
+                suggestions.push({ level:"warn", msg:`${kw} bitmask 0x${val.toString(16).toUpperCase()} outside 1..4 byte range 0x1..0xFFFFFFFF (Manual §3.5.31-3.5.34).` });
+            });
+          });
+
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
@@ -5280,6 +5315,33 @@ ${optRules.join("\n")}
               if (v)
                 suggestions.push({ level:"warn", msg:`${kw} takes no arguments (got '${v}'; docs.snort.org/rules/options/payload/${kw}).`, fix:`Use bare '${kw};'` });
             });
+          });
+
+          // ── S082: byte_math shift-operator + bitmask constraints ─────
+          // docs.snort.org/rules/options/payload/byte_math: bitwise shift
+          // operators (<< or >>) require rvalue < 32 and bytes 1..4; the
+          // bitmask argument is a 4-byte hex value (0x1..0xFFFFFFFF).
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "byte_math") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const operM = v.match(/\boper\s+(<<|>>|[+\-*/])/);
+            const isShift = operM && (operM[1] === "<<" || operM[1] === ">>");
+            if (isShift) {
+              const rvM = v.match(/\brvalue\s+(\d+)/);
+              if (rvM && parseInt(rvM[1], 10) >= 32)
+                suggestions.push({ level:"warn", msg:`byte_math shift operator '${operM[1]}' requires rvalue < 32 (got ${rvM[1]}; docs.snort.org/rules/options/payload/byte_math).` });
+              const byM = v.match(/\bbytes\s+(\d+)/);
+              if (byM) { const b = parseInt(byM[1], 10); if (b < 1 || b > 4)
+                suggestions.push({ level:"warn", msg:`byte_math shift operator '${operM[1]}' requires bytes 1..4 (got ${byM[1]}; docs.snort.org/rules/options/payload/byte_math).` }); }
+            }
+            const bmM = v.match(/\bbitmask\s+([^\s,]+)/i);
+            if (bmM) {
+              const bval = parseInt(bmM[1], 16);
+              if (isNaN(bval))
+                suggestions.push({ level:"warn", msg:`byte_math bitmask '${bmM[1]}' is not a hexadecimal value (docs.snort.org/rules/options/payload/byte_math).` });
+              else if (bval < 0x1 || bval > 0xFFFFFFFF)
+                suggestions.push({ level:"warn", msg:`byte_math bitmask 0x${bval.toString(16).toUpperCase()} outside 1..4 byte range 0x1..0xFFFFFFFF (docs.snort.org/rules/options/payload/byte_math).` });
+            }
           });
         }
 
