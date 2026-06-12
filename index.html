@@ -2418,7 +2418,7 @@ SNORT2_DEPRECATED = {
     "activated_by":  "removed in Snort 3",
     "logto":         "removed in Snort 3",
     "session":       "removed in Snort 3",
-    "sameip":        "use same_ip in Snort 3",
+    "sameip":        "removed in Snort 3 (no same_ip option); emulate via explicit IP comparison or drop the check",
 }
 
 PCRE_HTTP_FLAGS = set("UIHBDPCMSYK")
@@ -5336,6 +5336,45 @@ ${optRules.join("\n")}
             });
           });
 
+          // ── S091: fragoffset operator enum (Manual §3.6.1) ───────────
+          // fragoffset accepts ONLY the !, <, > operators — not <=, >=, =,
+          // or the min<>max range form (unlike ttl).
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "fragoffset") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            if (/<=|>=|<>/.test(v) || /^[!<>]?\s*=/.test(v))
+              suggestions.push({ level:"warn", msg:`fragoffset '${v}' uses an unsupported operator — only !, <, > are valid (Manual §3.6.1).`, fix:"Use fragoffset:<n>, fragoffset:!<n>, fragoffset:<<n>, or fragoffset:><n>" });
+          });
+
+          // ── S092: byte_math shift-operator byte-count (Manual §3.5.34) ─
+          // When the bitwise shift operators (<< or >>) are used, the byte
+          // count is limited to 1..4 (other operators allow 1..10).
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "byte_math") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const operM = v.match(/\boper\s+(<<|>>)/);
+            if (!operM) return;
+            const byM = v.match(/\bbytes\s+(\d+)/);
+            if (byM) { const b = parseInt(byM[1], 10); if (b < 1 || b > 4)
+              suggestions.push({ level:"warn", msg:`byte_math shift operator '${operM[1]}' requires bytes 1..4 (got ${byM[1]}; Manual §3.5.34).` }); }
+          });
+
+          // ── S093: flowbits name/group charset (Manual §3.6.10) ───────
+          // Bit and group names should be limited to [A-Za-z0-9._-].
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "flowbits") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const parts = v.split(",").map(s => s.trim());
+            const op = (parts[0] || "").toLowerCase();
+            if (op === "noalert" || op === "reset") return;
+            if (parts.length < 2 || !parts[1]) return;
+            parts[1].split(/[&|]/).forEach(bit => {
+              const b = bit.trim();
+              if (b && !/^[A-Za-z0-9._-]+$/.test(b))
+                suggestions.push({ level:"warn", msg:`flowbits bit name '${b}' uses characters outside [A-Za-z0-9._-] (Manual §3.6.10).`, fix:"Limit flowbit/group names to alphanumerics, periods, dashes, underscores" });
+            });
+          });
+
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
@@ -5644,6 +5683,14 @@ ${optRules.join("\n")}
               else if (bval < 0x1 || bval > 0xFFFFFFFF)
                 suggestions.push({ level:"warn", msg:`byte_math bitmask 0x${bval.toString(16).toUpperCase()} outside 1..4 byte range 0x1..0xFFFFFFFF (docs.snort.org/rules/options/payload/byte_math).` });
             }
+          });
+
+          // ── S083: Snort 2 combined fast_pattern:<offset>,<length> removed ─
+          // docs.snort.org/rules/options/payload/fast_pattern: Snort 3 uses
+          // bare fast_pattern; plus separate fast_pattern_offset / fast_pattern_length.
+          opts.forEach(o => {
+            if (/\bfast_pattern\s*:\s*\d+\s*,\s*\d+/i.test(o))
+              suggestions.push({ level:"warn", msg:"'fast_pattern:<offset>,<length>' is a Snort 2 form removed in Snort 3 (docs.snort.org/rules/options/payload/fast_pattern).", fix:"Use bare fast_pattern; with fast_pattern_offset:<o>; and fast_pattern_length:<l>;" });
           });
         }
 
@@ -7109,7 +7156,7 @@ ${optRules.join("\n")}
         M017: { label: "metadata 'service' promoted to service: option", severity: "info", skillRef: "M017" },
         M018: { label: "metadata retained (review Snort 3 compatibility)", severity: "warn", skillRef: "M018" },
         M019: { label: "sdrop → drop (Snort 3 inline always logs)", severity: "warn", skillRef: "M019" },
-        M020: { label: "sameip → same_ip", severity: "info", skillRef: "M020" },
+        M020: { label: "sameip removed (no Snort 3 equivalent)", severity: "warn", skillRef: "M029" },
         M021: { label: "activate → alert + flowbits:set,activator_<sid>", severity: "critical", skillRef: "M021" },
         M022: { label: "dynamic → alert + flowbits:isset,activator_<sid>", severity: "critical", skillRef: "M022" },
         M023: { label: "flowbits:noalert → noalert keyword", severity: "info", skillRef: "M023" },
@@ -7209,8 +7256,11 @@ ${optRules.join("\n")}
           }
 
           if (lower === "sameip") {
-            transformed.push("same_ip");
-            pushT("M020", opt, "same_ip");
+            // sameip has NO Snort 3 equivalent (same_ip is not a documented
+            // Snort 3 option); drop it with an advisory, matching the
+            // snort_2_to_3_migration skill transform M029.
+            warnings.push("sameip dropped — Snort 3 removed it (no same_ip option); emulate via explicit IP comparison or omit the check");
+            pushT("M020", opt, "(removed)");
             changeCount += 1;
             return;
           }
