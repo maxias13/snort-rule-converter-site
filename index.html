@@ -5839,7 +5839,11 @@ ${optRules.join("\n")}
           const result = (typeof convertAll === "function") ? convertAll(text, 1000000) : null;
           if (result && typeof result === "object") {
             output.value = result.output || result.text || result.rules || String(result);
-            const n = (result.output || result.text || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
+            // Count rules from the per-rule array (accurate) rather than output
+            // line count, which is inflated by the multi-line rule layout.
+            const n = Array.isArray(result.rules)
+              ? result.rules.length
+              : (result.output || result.text || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
             if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
             renderPerRulePanel(Array.isArray(result.rules) ? result.rules : null);
           } else {
@@ -6929,8 +6933,92 @@ ${optRules.join("\n")}
         setTimeout(() => { button.textContent = original; }, 1200);
       }
 
+      // Reformat a single-line Snort 3 rule into the recommended multi-line layout:
+      //   <header>
+      //   (
+      //       option1;
+      //       option2;
+      //   )
+      // Header stays on one line; each option is indented 4 spaces and terminated
+      // with a semicolon. Returns the input unchanged if it cannot be parsed
+      // (e.g. comments, blank lines, parse-error passthrough).
+      function formatRuleMultiline(ruleLine) {
+        const parsed = parseRule(ruleLine);
+        if (!parsed.ok) return ruleLine;
+        const opts = splitOptions(parsed.options);
+        if (!opts.length) return ruleLine;
+        const indented = opts.map((o) => `    ${o.trim()};`).join("\n");
+        return `${parsed.header}\n(\n${indented}\n)`;
+      }
+
+      // Split input into logical rules, tolerating multi-line rule layouts.
+      // Comment (#) and blank lines are emitted as their own entries so the
+      // downstream passthrough logic keeps working. A rule that opens a "("
+      // is joined with the following physical lines until the parentheses are
+      // balanced (outside of quoted strings), then collapsed back into a single
+      // logical line. This lets the converter re-ingest its own multi-line
+      // output (and any hand-formatted multi-line Snort 3 rules).
+      function splitLogicalRules(inputText) {
+        const physical = splitLines(inputText);
+        const result = [];
+        let buf = "";          // accumulated logical-rule text
+        let building = false;  // are we currently accumulating a rule?
+        let depth = 0;         // running paren depth (quote-aware)
+        let opened = false;    // has this buffer seen at least one "(" yet?
+        let inStr = false;
+        let esc = false;
+
+        const scanDepth = (s) => {
+          for (let i = 0; i < s.length; i += 1) {
+            const c = s[i];
+            if (esc) { esc = false; continue; }
+            if (c === "\\") { esc = true; continue; }
+            if (c === '"') { inStr = !inStr; continue; }
+            if (inStr) continue;
+            if (c === "(") { depth += 1; opened = true; }
+            else if (c === ")") depth -= 1;
+          }
+        };
+
+        const flush = () => {
+          if (buf.trim()) result.push(buf.trim());
+          buf = ""; building = false; depth = 0; opened = false; inStr = false; esc = false;
+        };
+
+        for (let i = 0; i < physical.length; i += 1) {
+          const line = physical[i];
+          const trimmed = line.trim();
+
+          if (!building) {
+            // Between rules: preserve comments and blank lines verbatim.
+            if (!trimmed || trimmed.startsWith("#")) {
+              result.push(line);
+              continue;
+            }
+            // Start a new logical rule.
+            building = true;
+            buf = trimmed;
+            scanDepth(trimmed);
+          } else {
+            // Continuation: append this physical line to the current rule.
+            buf += " " + trimmed;
+            scanDepth(trimmed);
+          }
+
+          // A rule is complete once it has opened a "(" and balanced back to 0.
+          // (Until the first "(" appears, keep buffering — the option block may
+          // start on a following line, e.g. a bare header line then "(").
+          if (building && opened && depth <= 0) {
+            flush();
+          }
+        }
+        // Flush any unterminated buffer (malformed/never-closed rule).
+        flush();
+        return result;
+      }
+
       function convertAll(inputText, startSid) {
-        const lines = splitLines(inputText);
+        const lines = splitLogicalRules(inputText);
         const out = [];
         const sidMap = {};
         const rules = []; // per-rule rich data for the explanation panel
@@ -6972,7 +7060,7 @@ ${optRules.join("\n")}
           const converted = convertParsedRule(parsed, assignedSid);
           totalChanges += converted.changeCount;
           converted.warnings.forEach((w) => out.push(`# WARNING: ${w}`));
-          out.push(converted.rule);
+          out.push(formatRuleMultiline(converted.rule));
 
           if (converted.sid) sidMap[converted.sid] = converted.rule;
 
