@@ -5016,6 +5016,29 @@ ${optRules.join("\n")}
               suggestions.push({ level:"perf", msg:"PCRE uses unbounded greedy quantifier (.* or .+). Prefer non-greedy (.*?, .+?) or bounded length (.{1,N}) to avoid catastrophic backtracking." });
           });
 
+          // ── S020: pcre alternative delimiter support (Manual §3.5.26) ────
+          // pcre accepts any non-alphanumeric, non-backslash, non-null character
+          // as a delimiter. Additionally, `m<delim>` prefix form is supported.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "pcre") return;
+            const val = o.slice(o.indexOf(":") + 1).trim().replace(/^"|"$/g, "");
+            if (!val) return;
+            // Detect m<delim> prefix form (e.g. m/foo/ or m!bar!)
+            let hasMPrefix = false, delim;
+            if (val.length >= 2 && val[0] === "m" && val[1] && !/[a-z0-9\\]/i.test(val[1])) {
+              hasMPrefix = true;
+              delim = val[1];
+            } else if (val[0] && !/[a-z0-9\\]/.test(val[0]) && val[0] !== "\0") {
+              delim = val[0];
+            }
+            if (delim && hasMPrefix) {
+              // Check closing delimiter and trailing flags
+              const closingIdx = val.lastIndexOf(delim);
+              if (closingIdx <= 2) // only the m<delim> prefix, no closing delimiter
+                suggestions.push({ level:"info", msg:"pcre uses 'm' prefix with alternative delimiter; ensure the closing delimiter is present (Manual §3.5.26)." });
+            }
+          });
+
           // ── flow / flags vs protocol consistency ─────────────────────
           {
             const headerLower = line.slice(0, parenStart).toLowerCase();
@@ -5030,6 +5053,25 @@ ${optRules.join("\n")}
             if (has("flags") && !isTcp)
               suggestions.push({ level:"warn", msg:"'flags' option requires TCP protocol — remove it for non-TCP rules." });
           }
+
+          // ── S051: flags option value validation (Manual §3.6.8) ──────────
+          // TCP flags accept F,S,R,P,A,U,C,E and 0/1/2 with optional +/*/! prefix.
+          // Mask part (after comma) only F,S,R,P,A,U,C,E — no 0, no modifiers.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "flags") return;
+            const v = o.slice(o.indexOf(":") + 1).trim();
+            const parts = v.split(",").map(s => s.trim());
+            let head = parts[0] || "";
+            if (/^[+*!]/.test(head)) head = head.slice(1);
+            const bad = [...new Set(head.split("").filter(ch => !"FSRPAUCE012".includes(ch.toUpperCase())))];
+            if (bad.length)
+              suggestions.push({ level:"warn", msg:`flags value uses invalid TCP flag char(s): ${bad.join(", ")}. Valid: F,S,R,P,A,U,C,E,0 (Manual §3.6.8).` });
+            if (parts.length > 1 && parts[1]) {
+              const maskBad = [...new Set(parts[1].split("").filter(ch => !"FSRPAUCE".includes(ch.toUpperCase())))];
+              if (maskBad.length)
+                suggestions.push({ level:"warn", msg:`flags mask part uses invalid char(s): ${maskBad.join(", ")}. Mask accepts only F,S,R,P,A,U,C,E (no 0, no modifiers, Manual §3.6.8).` });
+            }
+          });
 
           // ── R (relative) / B (rawbytes) flag conflicts in PCRE ───────
           opts.forEach(o => {
