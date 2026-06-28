@@ -3783,7 +3783,7 @@ if __name__ == "__main__":
         // (KNOWN_RULE_OPTIONS), so flagging it would be a false positive.
         const S2_ONLY_OPTS = [
           "uricontent","rawbytes","threshold","activates","activated_by",
-          "logto","sameip","http_encode","resp"
+          "logto","sameip","http_encode","resp","urilen"
         ];
         const signals = [];
         const pushOnce = (ruleIdx, signal, detail) => {
@@ -7310,6 +7310,28 @@ ${optRules.join("\n")}
             return;
           }
 
+          // ── urilen → bufferlen ──────────────────────────────────────────
+          // Snort 2: urilen:N;     (operates on the URI buffer implicitly)
+          // Snort 3: http_uri; bufferlen:N;    (explicit sticky buffer + length check)
+          // See Manual §7.1.20 (bufferlen) and §7.1.32 (urilen removed).
+          if (lower === "urilen") {
+            const val = opt.slice(opt.indexOf(":") + 1).trim().replace(/;\s*$/, "");
+            warnings.push("urilen converted to bufferlen on http_uri sticky buffer (Manual §7.1.20 / §7.1.32)");
+            pushT("M025", opt, `http_uri; bufferlen:${val}`);
+            transformed.push("http_uri");
+            transformed.push(`bufferlen:${val}`);
+            changeCount += 1;
+            return;
+          }
+
+          // ── http_encode removed (no Snort 3 equivalent) ────────────────
+          if (lower === "http_encode") {
+            warnings.push("http_encode removed in Snort 3 — dropped; use DAQ inline normalization instead (Manual §3.7.20)");
+            pushT("M027", opt, "(removed)");
+            changeCount += 1;
+            return;
+          }
+
           if (lower === "metadata") {
             // Extract "service <value>" entries from metadata and emit them as
             // standalone service: options (Snort 3 syntax). Any remaining metadata
@@ -7361,7 +7383,16 @@ ${optRules.join("\n")}
               changeCount += 1;
               return;
             }
-            // set, unset, toggle, isset, isnotset — keep as-is, flowbits is valid in Snort 3
+            if (action === "toggle") {
+              // flowbits:toggle does NOT exist in Snort 3 (docs.snort.org lists only
+              // set/unset/isset/isnotset/noalert/reset). The Snort 2 toggle behavior
+              // must be replaced with paired set+unset logic or removed.
+              warnings.push("flowbits:toggle has no Snort 3 equivalent — removed; emulate with paired flowbits:set/flowbits:unset logic");
+              pushT("M030", opt, "(removed — no Snort 3 equivalent)");
+              changeCount += 1;
+              return;
+            }
+            // set, unset, isset, isnotset — keep as-is, flowbits is valid in Snort 3
             transformed.push(opt);
             return;
           }
