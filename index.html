@@ -3894,12 +3894,15 @@ if __name__ == "__main__":
         // Sticky buffers that, when placed as their OWN option BEFORE a content/
         // pcre/regex, indicate the Snort 3 sticky-buffer layout (Snort 2 used
         // post-content modifiers and had no standalone http_uri; etc. option).
+        // NOTE: file_data, pkt_data, base64_data are intentionally EXCLUDED —
+        // they exist in BOTH Snort 2 and Snort 3 as standalone options before
+        // content, so flagging them would produce false positives on Snort 2 rules.
         const STICKY_BUFFERS = [
           "http_uri","http_raw_uri","http_header","http_raw_header","http_cookie",
           "http_raw_cookie","http_client_body","http_raw_body","http_method",
           "http_stat_code","http_stat_msg","http_version","http_true_ip","http_param",
           "http_raw_request","http_raw_status","http_trailer","http_raw_trailer",
-          "pkt_data","raw_data","js_data","vba_data","file_data","base64_data"
+          "raw_data","js_data","vba_data"
         ];
         const FOLLOWERS = new Set(["content","pcre","regex","isdataat","byte_test","byte_jump","byte_extract","byte_math"]);
 
