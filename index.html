@@ -8677,19 +8677,21 @@ ${optRules.join("\n")}
 
         // Snort 2 PCRE HTTP flags are UPPERCASE only.
         // Lowercase letters (i, s, m, x, g) are standard PCRE regex flags and must be kept.
+        // @@SYNC:PCRE_FLAG_TO_BUFFER_START@@ auto-generated from rewrites.py — do NOT edit by hand
         const flagMap = {
-          U: "http_uri",       // M002: normalized URI buffer
-          I: "http_raw_uri",   // raw/unnormalized URI buffer
-          H: "http_header",    // M003: HTTP request header (normalized)
-          D: "http_raw_header",  // M004: HTTP raw (unnormalized) header buffer
-          M: "http_method",    // M005: HTTP request method
-          C: "http_cookie",    // M006: HTTP cookie (normalized)
-          K: "http_raw_cookie",// M007: HTTP raw cookie
-          S: "http_stat_code", // M008: HTTP response status code
-          Y: "http_stat_msg",  // M009: HTTP response status message
-          P: "http_client_body", // M010: HTTP client request body
-          B: "pkt_data"        // M011: rawbytes → pkt_data sticky buffer in Snort 3
+          B: "pkt_data",
+          C: "http_cookie",
+          D: "http_raw_header",
+          H: "http_header",
+          I: "http_raw_uri",
+          K: "http_raw_cookie",
+          M: "http_method",
+          P: "http_client_body",
+          S: "http_stat_code",
+          U: "http_uri",
+          Y: "http_stat_msg"
         };
+        // @@SYNC:PCRE_FLAG_TO_BUFFER_END@@
 
         const sticky = [];
         let keptFlags = "";
