@@ -8346,11 +8346,14 @@ ${optRules.join("\n")}
           }
         });
 
-        // PASS 4: Merge content positional modifiers inline (Snort 3 syntax)
-        // Snort 2: content:"x"; depth:20; nocase; distance:0;
-        // Snort 3: content:"x", depth 20, nocase, distance 0;
-        const merged = mergeContentModifiers(final);
-        if (JSON.stringify(merged) !== JSON.stringify(final)) changeCount += 1;
+        // PASS 4: FMC COMPATIBILITY — do NOT merge content modifiers inline.
+        // Snort 3 supports inline modifier syntax: content:"x", depth 20, nocase;
+        // BUT Cisco FMC's Snort 3 parser does NOT — it rejects depth/offset/within/distance
+        // as "unknown rule keyword" when they appear inside the content option.
+        // FMC only accepts the traditional separate-option form: content:"x"; depth:20;
+        // Therefore we skip mergeContentModifiers() here and pass options through unchanged.
+        // Error evidence: "VALIDATION ERROR: unknown rule keyword: distance/within/offset/depth"
+        const merged = final; // ← intentionally NOT merging for FMC compatibility
 
         // ── PASS 5: Service hint enrichment ───────────────────────────────
         // Traditional Snort 3 rules with HTTP sticky buffers should be scoped with service:http.
