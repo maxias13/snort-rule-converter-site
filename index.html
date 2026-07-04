@@ -6826,7 +6826,12 @@ ${optRules.join("\n")}
           try { await navigator.clipboard.writeText(output.value || ""); copyBtn.textContent = "Copied ✓"; setTimeout(() => copyBtn.textContent = "Copy", 1200); } catch (_) {}
         });
         if (downloadBtn) downloadBtn.addEventListener("click", () => {
-          const blob = new Blob([output.value || ""], { type: "text/plain" });
+          const rawContent = output.value || "";
+          const fmcContent = rawContent
+            .split(/\r?\n/)
+            .filter(l => !l.trim().startsWith("# WARNING:"))
+            .join("\n");
+          const blob = new Blob([fmcContent], { type: "text/plain" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
