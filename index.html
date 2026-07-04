@@ -8334,7 +8334,28 @@ ${optRules.join("\n")}
           }
           if (lower === "session") {
             warnings.push("session removed in Snort 3");
-            pushT("M035", opt, "(removed)");
+            pushT("M036", opt, "(removed)");
+            changeCount += 1;
+            return;
+          }
+
+          // M048: dce_iface — Cisco FMC local-rule importer rejects DCE/RPC
+          // inspection options with "invalid argument dce_iface:UUID =".
+          // Snort 3 supports dce_iface natively but FMC cannot import it as a
+          // local rule. Drop with advisory; remaining content detection is preserved.
+          if (lower === "dce_iface") {
+            const val = opt.indexOf(":") !== -1 ? opt.slice(opt.indexOf(":") + 1).trim() : "";
+            warnings.push(`dce_iface:${val} dropped — Cisco FMC local-rule importer does not support DCE/RPC inspection options; remaining content detection preserved`);
+            pushT("M048", opt, "(removed — FMC DCE/RPC limitation)");
+            changeCount += 1;
+            return;
+          }
+
+          // M049: dce_opnum — same FMC limitation as dce_iface (M048).
+          if (lower === "dce_opnum") {
+            const val = opt.indexOf(":") !== -1 ? opt.slice(opt.indexOf(":") + 1).trim() : "";
+            warnings.push(`dce_opnum:${val} dropped — Cisco FMC local-rule importer does not support DCE/RPC inspection options; remaining content detection preserved`);
+            pushT("M049", opt, "(removed — FMC DCE/RPC limitation)");
             changeCount += 1;
             return;
           }
