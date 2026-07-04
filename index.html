@@ -2243,6 +2243,8 @@ python3 trigger_rules.py --delay 1
           </div>
           <div id="migNotice" class="muted" style="margin-top:14px; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-elev);"></div>
 
+          <div id="migFmcReadiness" style="display:none; margin-top:18px;"></div>
+
           <div id="migPerRuleWrap" style="margin-top:18px; display:none;">
             <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
               <div>
@@ -6095,6 +6097,554 @@ ${optRules.join("\n")}
         if (notice) notice.innerHTML = "";
       }
 
+      // ── FMC Import Readiness Report ──────────────────────────────────────
+      // Analyzes all converted rules and produces a comprehensive checklist of
+      // items that could cause FMC local-rule import failures or misconfigurations.
+      function buildFmcReadinessReport(rules) {
+        // FMC built-in Variable Set — network variables
+        const FMC_NET_VARS = new Set([
+          "$HOME_NET","$EXTERNAL_NET","$HTTP_SERVERS","$SQL_SERVERS",
+          "$ORACLE_SERVERS","$SMTP_SERVERS","$FTP_SERVERS","$SSH_SERVERS",
+          "$DNS_SERVERS","$TELNET_SERVERS","$AIM_SERVERS","$DC_NET",
+          "$DNP3_SERVER","$DNP3_CLIENT","$MODBUS_CLIENT","$MODBUS_SERVER",
+          "$SIP_SERVERS","$FILE_DATA_PORTS"
+        ]);
+        // FMC built-in Variable Set — port variables
+        const FMC_PORT_VARS = new Set([
+          "$HTTP_PORTS","$SHELLCODE_PORTS","$ORACLE_PORTS","$SSH_PORTS",
+          "$FTP_PORTS","$SIP_PORTS","$FILE_DATA_PORTS","$GTP_PORTS",
+          "$FTP_DATA_PORTS","$SMTP_PORTS","$ORACLE_PORTS","$SQL_PORTS",
+          "$POP_PORTS","$IMAP_PORTS","$MSSQL_PORTS"
+        ]);
+        // All FMC standard vars (combined, uppercase-normalized for case-sensitive check)
+        const FMC_ALL_VARS_NORMALIZED = new Set(
+          [...FMC_NET_VARS, ...FMC_PORT_VARS].map(v => v.toUpperCase())
+        );
+        // FMC standard classtype list
+        const FMC_CLASSTYPES = new Set(["not-suspicious","unknown","bad-unknown","attempted-recon","successful-recon-limited","successful-recon-largescale","attempted-dos","successful-dos","attempted-user","unsuccessful-user","successful-user","attempted-admin","successful-admin","rpc-portmap-decode","shellcode-detect","string-detect","suspicious-filename-detect","suspicious-login","system-call-detect","tcp-connection","trojan-activity","unusual-client-port-connection","network-scan","denial-of-service","non-standard-protocol","protocol-command-decode","web-application-activity","web-application-attack","misc-activity","misc-attack","icmp-event","kickass-porn","policy-violation","default-login-attempt","sdf","file-format","malware-cnc","client-side-exploit","inappropriate-content"]);
+
+        // --- collect data from all rules ---
+        const varUsage = new Map();     // UPPERCASE_VAR → { variants: Set, ruleNums: [], isPort: bool }
+        const sidCount = new Map();     // sid → [ruleNums]
+        const unknownClasstypes = new Map(); // classtype → [ruleNums]
+        const inlineActionRules = [];   // { action, ruleNum, msg }
+        const postMigItems = {
+          threshold: [], toggleDropped: [], sameipDropped: [],
+          respDropped: [], activateDynamic: [], replaceDropped: [],
+          streamDropped: [], logtoDropped: []
+        };
+        const missingMsg = [], missingSid = [], missingRev = [];
+        const sidOutOfRange = [];
+        const longMsgRules = [];
+        const specialCharMsgRules = [];
+        const gidNotOne = [];
+        const metaPolicyIssues = [];
+        const serviceUnrecognized = [];
+
+        const FMC_KNOWN_SERVICES = new Set(["http","ftp","smtp","pop3","imap","ssl","tls","ssh","dns","dcerpc","smb","sip","telnet","ldap","netbios-ssn","snmp","tftp","rdp","imap","finger","ident","ftp-data"]);
+        const FMC_POLICY_NAMES = new Set(["balanced-ips","connectivity-ips","max-detect-ips","security-ips"]);
+
+        rules.forEach((rule, idx) => {
+          const ruleNum = idx + 1;
+          const ruleText = rule.convertedRule || rule.originalLine || "";
+          if (!ruleText.trim() || ruleText.trim().startsWith("#")) return;
+
+          // --- Extract $VARIABLE references from entire rule (header + options) ---
+          const allVarsInRule = [...new Set((ruleText.match(/\$[A-Za-z_][A-Za-z0-9_]*/g) || []))];
+          allVarsInRule.forEach(v => {
+            const key = v.toUpperCase();
+            if (!varUsage.has(key)) {
+              varUsage.set(key, {
+                variants: new Set(),
+                ruleNums: [],
+                isPort: /PORTS?$/.test(key)
+              });
+            }
+            const entry = varUsage.get(key);
+            entry.variants.add(v);
+            if (!entry.ruleNums.includes(ruleNum)) entry.ruleNums.push(ruleNum);
+          });
+
+          // --- SID tracking ---
+          const sidM = ruleText.match(/\bsid\s*:\s*(\d+)/i);
+          if (sidM) {
+            const sid = sidM[1];
+            if (!sidCount.has(sid)) sidCount.set(sid, []);
+            sidCount.get(sid).push(ruleNum);
+            const sidN = parseInt(sid, 10);
+            if (sidN < 1000000) sidOutOfRange.push({ sid: sidN, ruleNum });
+          } else {
+            missingSid.push(ruleNum);
+          }
+
+          // --- msg ---
+          if (!/\bmsg\s*:/.test(ruleText)) missingMsg.push(ruleNum);
+          else {
+            const msgM = ruleText.match(/\bmsg\s*:\s*"([^"]*)"/i);
+            if (msgM) {
+              if (msgM[1].length > 256) longMsgRules.push({ ruleNum, len: msgM[1].length });
+              if (/[;<>]/.test(msgM[1])) specialCharMsgRules.push(ruleNum);
+            }
+          }
+
+          // --- rev ---
+          if (!/\brev\s*:/.test(ruleText)) missingRev.push(ruleNum);
+
+          // --- gid ---
+          const gidM = ruleText.match(/\bgid\s*:\s*(\d+)/i);
+          if (gidM && gidM[1] !== "1") gidNotOne.push({ ruleNum, gid: gidM[1] });
+
+          // --- classtype ---
+          const ctM = ruleText.match(/\bclasstype\s*:\s*([A-Za-z0-9_-]+)/i);
+          if (ctM && !FMC_CLASSTYPES.has(ctM[1].toLowerCase())) {
+            const ct = ctM[1];
+            if (!unknownClasstypes.has(ct)) unknownClasstypes.set(ct, []);
+            unknownClasstypes.get(ct).push(ruleNum);
+          }
+
+          // --- action (inline mode required) ---
+          const actionM = ruleText.match(/^(drop|reject|block)\s/i);
+          if (actionM) {
+            inlineActionRules.push({ action: actionM[1].toLowerCase(), ruleNum });
+          }
+
+          // --- metadata:policy ---
+          const metaM = ruleText.match(/\bmetadata\s*:\s*([^;)]+)/gi);
+          if (metaM) {
+            metaM.forEach(m => {
+              const pairs = (m.replace(/^metadata\s*:\s*/i, "")).split(",");
+              pairs.forEach(p => {
+                const toks = p.trim().split(/\s+/);
+                if (toks[0].toLowerCase() === "policy" && toks[1] && !FMC_POLICY_NAMES.has(toks[1].toLowerCase()))
+                  metaPolicyIssues.push({ policy: toks[1], ruleNum });
+              });
+            });
+          }
+
+          // --- service: unrecognized values ---
+          const svcM = ruleText.match(/\bservice\s*:\s*([^;)]+)/gi);
+          if (svcM) {
+            svcM.forEach(m => {
+              const vals = m.replace(/^service\s*:\s*/i, "").split(",").map(s => s.trim().toLowerCase());
+              vals.forEach(v => {
+                if (v && !FMC_KNOWN_SERVICES.has(v))
+                  serviceUnrecognized.push({ service: v, ruleNum });
+              });
+            });
+          }
+
+          // --- post-migration advisory items (from warnings) ---
+          (rule.warnings || []).forEach(w => {
+            if (/M016|threshold.*detection_filter/i.test(w) && !postMigItems.threshold.includes(ruleNum)) postMigItems.threshold.push(ruleNum);
+            if (/M030|toggle.*dropped|flowbits.*toggle/i.test(w) && !postMigItems.toggleDropped.includes(ruleNum)) postMigItems.toggleDropped.push(ruleNum);
+            if (/M020|sameip.*removed/i.test(w) && !postMigItems.sameipDropped.includes(ruleNum)) postMigItems.sameipDropped.push(ruleNum);
+            if (/M032|resp.*removed/i.test(w) && !postMigItems.respDropped.includes(ruleNum)) postMigItems.respDropped.push(ruleNum);
+            if (/M021|M022|activate|dynamic.*alert/i.test(w) && !postMigItems.activateDynamic.includes(ruleNum)) postMigItems.activateDynamic.push(ruleNum);
+            if (/M029|replace.*removed/i.test(w) && !postMigItems.replaceDropped.includes(ruleNum)) postMigItems.replaceDropped.push(ruleNum);
+            if (/M028|stream_reassemble/i.test(w) && !postMigItems.streamDropped.includes(ruleNum)) postMigItems.streamDropped.push(ruleNum);
+            if (/M035|logto.*removed/i.test(w) && !postMigItems.logtoDropped.includes(ruleNum)) postMigItems.logtoDropped.push(ruleNum);
+          });
+        });
+
+        // --- Build variable issue lists ---
+        const undefinedNetVars = [], undefinedPortVars = [], caseMismatchVars = [];
+        varUsage.forEach((entry, key) => {
+          const isStd = FMC_ALL_VARS_NORMALIZED.has(key);
+          // Case mismatch: same var used with different casings
+          if (entry.variants.size > 1) {
+            caseMismatchVars.push({
+              variants: [...entry.variants],
+              rules: entry.rules || entry.ruleNums,
+              isPort: entry.isPort
+            });
+          }
+          if (!isStd) {
+            // Unknown to FMC — needs manual Variable Set entry
+            const item = { name: key, variants: [...entry.variants], rules: entry.ruleNums, isPort: entry.isPort };
+            if (entry.isPort) undefinedPortVars.push(item);
+            else undefinedNetVars.push(item);
+          } else {
+            // Standard var: check for case mismatch vs FMC canonical name
+            const stdName = entry.isPort
+              ? [...FMC_PORT_VARS].find(v => v.toUpperCase() === key)
+              : [...FMC_NET_VARS].find(v => v.toUpperCase() === key);
+            if (stdName) {
+              entry.variants.forEach(v => {
+                if (v !== stdName && !caseMismatchVars.some(c => c.variants.includes(v))) {
+                  caseMismatchVars.push({
+                    variants: [v],
+                    standard: stdName,
+                    rules: entry.ruleNums,
+                    isPort: entry.isPort,
+                    caseMismatch: true
+                  });
+                }
+              });
+            }
+          }
+        });
+
+        // --- Duplicate SIDs ---
+        const dupSids = [];
+        sidCount.forEach((ruleNums, sid) => {
+          if (ruleNums.length > 1) dupSids.push({ sid, rules: ruleNums });
+        });
+
+        return {
+          ruleCount: rules.length,
+          undefinedNetVars, undefinedPortVars, caseMismatchVars,
+          dupSids, sidOutOfRange,
+          missingMsg, missingSid, missingRev,
+          unknownClasstypes: [...unknownClasstypes.entries()].map(([ct, rules]) => ({ ct, rules })),
+          inlineActionRules,
+          longMsgRules, specialCharMsgRules,
+          gidNotOne, metaPolicyIssues, serviceUnrecognized,
+          postMigItems
+        };
+      }
+
+      function renderFmcReadinessPanel(report) {
+        const el = document.getElementById("migFmcReadiness");
+        if (!el) return;
+        if (!report || !report.ruleCount) { el.style.display = "none"; return; }
+
+        const { ruleCount, undefinedNetVars, undefinedPortVars, caseMismatchVars,
+                dupSids, sidOutOfRange, missingMsg, missingSid, missingRev,
+                unknownClasstypes, inlineActionRules, longMsgRules,
+                specialCharMsgRules, gidNotOne, metaPolicyIssues,
+                serviceUnrecognized, postMigItems } = report;
+
+        const C = { crit:"#ef4444", warn:"#fb923c", info:"#60a5fa", ok:"#22c55e" };
+        const ruleList = (arr, max=10) => arr.length
+          ? `<span style="color:var(--muted);font-size:0.78rem;">Rule${arr.length>1?'s':''}: ${arr.slice(0,max).join(', ')}${arr.length>max?` +${arr.length-max} more`:''}</span>`
+          : '';
+
+        // Count totals
+        let critCount = 0, warnCount = 0, infoCount = 0;
+        const sections = [];
+
+        // ── CRITICAL SECTION ──────────────────────────────────────────────
+        const critItems = [];
+
+        // 1. Missing SID
+        if (missingSid.length) {
+          critCount += missingSid.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ Missing <code>sid</code> (${missingSid.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 2px;">FMC requires <code>sid</code> in every local rule. Rules without it will be rejected.</div>
+            ${ruleList(missingSid)}
+            <div style="font-size:0.78rem;color:${C.crit};margin-top:4px;">Fix: Add <code>sid:100XXXX;</code> (must be ≥ 1,000,000)</div>
+          </div>`);
+        }
+
+        // 2. Missing msg
+        if (missingMsg.length) {
+          critCount += missingMsg.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ Missing <code>msg</code> (${missingMsg.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 2px;">FMC rejects local rules without a <code>msg</code> option.</div>
+            ${ruleList(missingMsg)}
+            <div style="font-size:0.78rem;color:${C.crit};margin-top:4px;">Fix: Add <code>msg:"PROTOCOL Threat Description";</code></div>
+          </div>`);
+        }
+
+        // 3. SID out of range
+        if (sidOutOfRange.length) {
+          critCount += sidOutOfRange.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ SID in Talos-reserved range (${sidOutOfRange.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 2px;">FMC enforces SID ≥ 1,000,000 for local/custom rules. SIDs 1–999,999 are reserved for Talos.</div>
+            ${ruleList(sidOutOfRange.map(r => `${r.ruleNum}(sid:${r.sid})`))}
+            <div style="font-size:0.78rem;color:${C.crit};margin-top:4px;">Fix: Renumber to 1,000,000+. The migration tool auto-converts: sid:N → sid:1000000+N</div>
+          </div>`);
+        }
+
+        // 4. Duplicate SIDs
+        if (dupSids.length) {
+          critCount += dupSids.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ Duplicate SIDs (${dupSids.length} conflicts)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 2px;">FMC requires each SID to be unique. Duplicate SIDs cause silent overwrite or import rejection.</div>
+            ${dupSids.map(d => `<div style="font-size:0.8rem;margin:2px 0;"><code>sid:${escapeHtml(d.sid)}</code> — rules: ${d.rules.join(', ')}</div>`).join('')}
+          </div>`);
+        }
+
+        // 5. Undefined network variables
+        if (undefinedNetVars.length) {
+          critCount += undefinedNetVars.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ Undefined Network Variable(s) — ${undefinedNetVars.length} variable(s)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 5px;">These variables are referenced in rule headers but do not exist in FMC's built-in Variable Set. FMC will reject rules using undefined variables.</div>
+            ${undefinedNetVars.map(v => `
+              <div style="margin:4px 0; padding:6px 10px; background:rgba(239,68,68,0.06); border-left:3px solid ${C.crit}; border-radius:4px;">
+                <code style="font-size:0.84rem;color:${C.crit};">${escapeHtml(v.variants[0])}</code>
+                <span style="font-size:0.78rem;color:var(--muted);margin-left:8px;">used in ${v.rules.length} rule(s): ${v.rules.slice(0,6).join(', ')}${v.rules.length>6?'...':''}</span>
+                <div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">🛠 FMC: <b>Objects → Object Management → Variable Sets</b> → Edit → Add network object: <code>${escapeHtml(v.variants[0])}</code></div>
+              </div>`).join('')}
+          </div>`);
+        }
+
+        // 6. Undefined port variables
+        if (undefinedPortVars.length) {
+          critCount += undefinedPortVars.length;
+          critItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.crit};font-size:0.87rem;">❌ Undefined Port Variable(s) — ${undefinedPortVars.length} variable(s)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 5px;">These port variables do not exist in FMC's Variable Set.</div>
+            ${undefinedPortVars.map(v => `
+              <div style="margin:4px 0; padding:6px 10px; background:rgba(239,68,68,0.06); border-left:3px solid ${C.crit}; border-radius:4px;">
+                <code style="font-size:0.84rem;color:${C.crit};">${escapeHtml(v.variants[0])}</code>
+                <span style="font-size:0.78rem;color:var(--muted);margin-left:8px;">${v.rules.length} rule(s)</span>
+                <div style="font-size:0.76rem;color:var(--muted);margin-top:2px;">🛠 FMC: <b>Objects → Object Management → Variable Sets</b> → Edit → Add port variable: <code>${escapeHtml(v.variants[0])}</code></div>
+              </div>`).join('')}
+          </div>`);
+        }
+
+        if (critItems.length) {
+          sections.push(`
+            <details open style="margin-bottom:12px; border:1px solid ${C.crit}44; border-radius:8px; background:rgba(239,68,68,0.04);">
+              <summary style="padding:10px 14px; cursor:pointer; font-size:0.93rem; font-weight:700; color:${C.crit}; list-style:none;">
+                ❌ Critical — ${critCount} item(s) that WILL cause FMC import failure
+              </summary>
+              <div style="padding:4px 14px 12px;">${critItems.join('')}</div>
+            </details>`);
+        }
+
+        // ── WARNING SECTION ──────────────────────────────────────────────
+        const warnItems = [];
+
+        // Variable case mismatch
+        const realCaseMismatches = caseMismatchVars.filter(c => c.caseMismatch || c.variants.length > 1);
+        if (realCaseMismatches.length) {
+          warnCount += realCaseMismatches.length;
+          warnItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ Variable Name Case Mismatch (${realCaseMismatches.length})</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 4px;">FMC Variable Set names are <b>case-sensitive</b>. Mismatched casing causes "variable not found" at import.</div>
+            ${realCaseMismatches.map(c => {
+              const used = c.variants ? c.variants[0] : c.variants;
+              const std = c.standard || '(mixed usage)';
+              return `<div style="font-size:0.8rem;margin:3px 0; padding:4px 8px; background:rgba(251,146,60,0.06); border-left:2px solid ${C.warn}; border-radius:3px;">
+                Used: <code>${escapeHtml(used)}</code> → FMC standard: <code>${escapeHtml(std)}</code>
+                <span style="color:var(--muted);margin-left:6px;">${c.rules ? c.rules.slice(0,4).join(', ') : ''}</span>
+              </div>`;
+            }).join('')}
+          </div>`);
+        }
+
+        // Unknown classtype
+        if (unknownClasstypes.length) {
+          warnCount += unknownClasstypes.length;
+          warnItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ Non-standard classtype (${unknownClasstypes.length})</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 4px;">FMC rejects unknown classtypes unless pre-defined in the policy's classification.config.</div>
+            ${unknownClasstypes.map(({ct, rules}) => `<div style="font-size:0.8rem;margin:2px 0;"><code>${escapeHtml(ct)}</code> — ${ruleList(rules)}</div>`).join('')}
+            <div style="font-size:0.76rem;color:${C.warn};margin-top:4px;">Fix: Use a standard classtype, or pre-define in FMC before importing.</div>
+          </div>`);
+        }
+
+        // Inline actions (drop/reject/block need FTD inline mode)
+        if (inlineActionRules.length) {
+          warnCount += 1;
+          const actionGroups = {};
+          inlineActionRules.forEach(({action, ruleNum}) => {
+            if (!actionGroups[action]) actionGroups[action] = [];
+            actionGroups[action].push(ruleNum);
+          });
+          warnItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ Inline actions require FTD Inline Mode (${inlineActionRules.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 4px;"><code>drop</code> / <code>reject</code> / <code>block</code> only work when FTD is deployed in <b>Inline or Tap mode</b>. In Passive mode, these silently become <code>alert</code>.</div>
+            ${Object.entries(actionGroups).map(([a,rs]) => `<div style="font-size:0.8rem;margin:2px 0;"><code>${escapeHtml(a)}</code>: ${ruleList(rs)}</div>`).join('')}
+            <div style="font-size:0.76rem;color:${C.warn};margin-top:4px;">Check: FMC → Devices → Device Management → Interface → Mode: Inline / Inline-Tap</div>
+          </div>`);
+        }
+
+        // metadata:policy issues
+        if (metaPolicyIssues.length) {
+          warnCount += metaPolicyIssues.length;
+          warnItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ Unknown metadata:policy value (${metaPolicyIssues.length})</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 4px;">FMC recognizes: <code>balanced-ips</code>, <code>connectivity-ips</code>, <code>max-detect-ips</code>, <code>security-ips</code> (optionally followed by <code>alert</code> or <code>drop</code>).</div>
+            ${metaPolicyIssues.map(({policy, ruleNum}) => `<div style="font-size:0.8rem;margin:2px 0;"><code>${escapeHtml(policy)}</code> — rule ${ruleNum}</div>`).join('')}
+          </div>`);
+        }
+
+        // service: unrecognized
+        if (serviceUnrecognized.length) {
+          warnCount += serviceUnrecognized.length;
+          warnItems.push(`<div style="margin-bottom:10px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ Unrecognized service: value (${serviceUnrecognized.length})</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin:3px 0 4px;">FMC may not recognize these service names. Known: http, ftp, smtp, ssl, sip, dns, dcerpc, ssh, telnet, imap, pop3…</div>
+            ${serviceUnrecognized.map(({service, ruleNum}) => `<div style="font-size:0.8rem;margin:2px 0;"><code>${escapeHtml(service)}</code> — rule ${ruleNum}</div>`).join('')}
+          </div>`);
+        }
+
+        // msg issues
+        if (longMsgRules.length || specialCharMsgRules.length) {
+          warnCount += longMsgRules.length + specialCharMsgRules.length;
+          if (longMsgRules.length) warnItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ msg too long &gt; 256 chars (${longMsgRules.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">FMC truncates msg values at 256 chars in event display.</div>
+            ${ruleList(longMsgRules.map(r => `${r.ruleNum}(${r.len}ch)`))}
+          </div>`);
+          if (specialCharMsgRules.length) warnItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ msg contains special chars (${specialCharMsgRules.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Characters ; &lt; &gt; in msg may need escaping for FMC import.</div>
+            ${ruleList(specialCharMsgRules)}
+          </div>`);
+        }
+
+        // gid != 1
+        if (gidNotOne.length) {
+          warnCount += gidNotOne.length;
+          warnItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.warn};font-size:0.87rem;">⚠️ gid ≠ 1 in local rules (${gidNotOne.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">FMC local text rules must use <code>gid:1</code> (standard rule engine). Other GIDs are reserved for SO rules.</div>
+            ${ruleList(gidNotOne.map(r => `${r.ruleNum}(gid:${r.gid})`))}
+            <div style="font-size:0.76rem;color:${C.warn};margin-top:4px;">Fix: Change to <code>gid:1;</code> or remove (gid:1 is the default)</div>
+          </div>`);
+        }
+
+        if (warnItems.length) {
+          sections.push(`
+            <details open style="margin-bottom:12px; border:1px solid ${C.warn}44; border-radius:8px; background:rgba(251,146,60,0.04);">
+              <summary style="padding:10px 14px; cursor:pointer; font-size:0.93rem; font-weight:700; color:${C.warn}; list-style:none;">
+                ⚠️ Warnings — ${warnCount} item(s) that may cause issues or silently misbehave
+              </summary>
+              <div style="padding:4px 14px 12px;">${warnItems.join('')}</div>
+            </details>`);
+        }
+
+        // ── INFO / ADVISORY SECTION ──────────────────────────────────────────
+        const infoItems = [];
+
+        // Missing rev
+        if (missingRev.length) {
+          infoCount += missingRev.length;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ Missing rev (${missingRev.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">FMC auto-assigns rev:1 if missing, but explicit <code>rev</code> is recommended for change tracking.</div>
+            ${ruleList(missingRev)}
+          </div>`);
+        }
+
+        // Post-migration advisories
+        if (postMigItems.threshold.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ threshold → detection_filter (${postMigItems.threshold.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Converted to per-rule <code>detection_filter</code>. If the original used <code>type:limit</code> or <code>type:both</code>, you may also need an <code>event_filter</code> in FMC's intrusion policy settings.</div>
+            ${ruleList(postMigItems.threshold)}
+          </div>`);
+        }
+        if (postMigItems.toggleDropped.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ flowbits:toggle removed — manual rewrite needed (${postMigItems.toggleDropped.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Snort 3 has no toggle op. Rewrite using paired <code>isset+unset</code> or <code>isnotset+set</code> to reproduce toggle semantics.</div>
+            ${ruleList(postMigItems.toggleDropped)}
+          </div>`);
+        }
+        if (postMigItems.sameipDropped.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ sameip removed — no Snort 3 equivalent (${postMigItems.sameipDropped.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">The <code>sameip</code> check (src IP = dst IP) has no Snort 3 equivalent. These rules will no longer perform this check. Consider using FMC Access Control Policy conditions instead.</div>
+            ${ruleList(postMigItems.sameipDropped)}
+          </div>`);
+        }
+        if (postMigItems.respDropped.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ resp option removed — consider reject action (${postMigItems.respDropped.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Snort 3 removed the <code>resp</code> post-detection option. Use the <code>reject</code> rule action to send TCP RST / ICMP unreachable (requires FTD inline mode).</div>
+            ${ruleList(postMigItems.respDropped)}
+          </div>`);
+        }
+        if (postMigItems.activateDynamic.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ activate/dynamic → flowbits (${postMigItems.activateDynamic.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Paired activate/dynamic rules were rewritten as <code>flowbits:set/isset</code>. Verify the flowbits logic triggers correctly in the target traffic flow.</div>
+            ${ruleList(postMigItems.activateDynamic)}
+          </div>`);
+        }
+        if (postMigItems.streamDropped.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem;">ℹ️ stream_reassemble removed — configure in snort.lua / FMC (${postMigItems.streamDropped.length} rules)</div>
+            <div style="font-size:0.81rem;color:var(--muted);">Per-rule stream reassembly configuration is not supported in Snort 3. Configure stream reassembly globally in FMC's Intrusion Policy → Advanced Settings → Stream Reassembly.</div>
+            ${ruleList(postMigItems.streamDropped)}
+          </div>`);
+        }
+
+        // Variable Set pre-import checklist (if any undefined vars)
+        const allUndefined = [...undefinedNetVars, ...undefinedPortVars];
+        if (allUndefined.length) {
+          infoCount++;
+          infoItems.push(`<div style="margin-bottom:8px; padding:10px 12px; background:rgba(96,165,250,0.06); border:1px solid rgba(96,165,250,0.25); border-radius:6px;">
+            <div style="font-weight:600;color:${C.info};font-size:0.87rem; margin-bottom:6px;">📋 Variable Set Pre-Import Checklist</div>
+            <div style="font-size:0.81rem;color:var(--muted);margin-bottom:8px;">
+              Before importing, add these variables in FMC:<br>
+              <b>Path:</b> Objects → Object Management → Variable Sets → [Your Variable Set] → Edit
+            </div>
+            <table style="width:100%;font-size:0.79rem;border-collapse:collapse;">
+              <thead><tr style="color:var(--muted);">
+                <th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);">Variable</th>
+                <th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);">Type</th>
+                <th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);">FMC Object Type</th>
+                <th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border);">Used in Rules</th>
+              </tr></thead>
+              <tbody>
+                ${allUndefined.map(v => `<tr>
+                  <td style="padding:3px 8px;font-family:monospace;color:${C.crit};">${escapeHtml(v.variants[0])}</td>
+                  <td style="padding:3px 8px;">${v.isPort ? 'Port' : 'Network'}</td>
+                  <td style="padding:3px 8px;color:var(--muted);">${v.isPort ? 'Port Object / Port Group' : 'Network Object / Network Group'}</td>
+                  <td style="padding:3px 8px;color:var(--muted);">${v.rules.slice(0,5).join(', ')}${v.rules.length>5?` +${v.rules.length-5}`:''}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`);
+        }
+
+        if (infoItems.length) {
+          sections.push(`
+            <details style="margin-bottom:12px; border:1px solid ${C.info}44; border-radius:8px; background:rgba(96,165,250,0.04);">
+              <summary style="padding:10px 14px; cursor:pointer; font-size:0.93rem; font-weight:700; color:${C.info}; list-style:none;">
+                ℹ️ Advisory — ${infoCount} item(s) requiring manual review
+              </summary>
+              <div style="padding:4px 14px 12px;">${infoItems.join('')}</div>
+            </details>`);
+        }
+
+        // ── SUMMARY BAR ────────────────────────────────────────────────────
+        const totalIssues = critCount + warnCount + infoCount;
+        const statusColor = critCount > 0 ? C.crit : warnCount > 0 ? C.warn : C.ok;
+        const statusIcon = critCount > 0 ? '❌' : warnCount > 0 ? '⚠️' : '✅';
+        const statusText = totalIssues === 0
+          ? 'No issues detected — rules appear FMC-import-ready'
+          : `${critCount} critical, ${warnCount} warnings, ${infoCount} advisories`;
+
+        el.style.display = "block";
+        el.innerHTML = `
+          <div style="border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:0;">
+            <div style="padding:12px 16px; background:rgba(0,212,255,0.04); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:12px; flex-wrap:wrap; justify-content:space-between;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:1.1rem;">${statusIcon}</span>
+                <span style="font-weight:700; font-size:0.95rem;">FMC Import Readiness</span>
+                <span class="badge" style="font-size:0.78rem;">${ruleCount} rules analyzed</span>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                ${critCount ? `<span style="padding:3px 10px; border-radius:12px; background:rgba(239,68,68,0.12); color:${C.crit}; font-size:0.8rem; font-weight:600;">❌ ${critCount} Critical</span>` : ''}
+                ${warnCount ? `<span style="padding:3px 10px; border-radius:12px; background:rgba(251,146,60,0.12); color:${C.warn}; font-size:0.8rem; font-weight:600;">⚠️ ${warnCount} Warnings</span>` : ''}
+                ${infoCount ? `<span style="padding:3px 10px; border-radius:12px; background:rgba(96,165,250,0.12); color:${C.info}; font-size:0.8rem; font-weight:600;">ℹ️ ${infoCount} Advisory</span>` : ''}
+                ${totalIssues === 0 ? `<span style="padding:3px 10px; border-radius:12px; background:rgba(34,197,94,0.12); color:${C.ok}; font-size:0.8rem; font-weight:600;">✅ Import Ready</span>` : ''}
+              </div>
+            </div>
+            <div style="padding:14px 16px;">
+              ${sections.length ? sections.join('') : `<div style="color:${C.ok}; font-size:0.9rem; padding:8px 0;">✅ All ${ruleCount} rules passed FMC import validation. No issues detected.</div>`}
+            </div>
+          </div>`;
+      }
+
       function runMigrationConvert() {
         const input = document.getElementById("migInput");
         const output = document.getElementById("migOutput");
@@ -6118,6 +6668,9 @@ ${optRules.join("\n")}
               : (result.output || result.text || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
             if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
             renderPerRulePanel(Array.isArray(result.rules) ? result.rules : null);
+            if (Array.isArray(result.rules) && result.rules.length > 0) {
+              renderFmcReadinessPanel(buildFmcReadinessReport(result.rules));
+            }
           } else {
             output.value = String(result || "");
             const n = String(result || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
@@ -6128,6 +6681,8 @@ ${optRules.join("\n")}
           output.value = "# Conversion error: " + (e && e.message ? e.message : String(e));
           if (badge) badge.textContent = "0 rules";
           renderPerRulePanel(null);
+          const fmcEl = document.getElementById("migFmcReadiness");
+          if (fmcEl) fmcEl.style.display = "none";
         }
       }
 
