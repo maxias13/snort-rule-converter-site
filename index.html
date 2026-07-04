@@ -6658,7 +6658,7 @@ ${optRules.join("\n")}
           return;
         }
         try {
-          const result = (typeof convertAll === "function") ? convertAll(text, 1000000) : null;
+          const result = (typeof convertAll === "function") ? convertAll(text, null) : null;
           if (result && typeof result === "object") {
             output.value = result.output || result.text || result.rules || String(result);
             // Count rules from the per-rule array (accurate) rather than output
@@ -8417,10 +8417,19 @@ ${optRules.join("\n")}
         tail.sort((a, b) => TAIL_ORDER.indexOf(optionKeyword(a)) - TAIL_ORDER.indexOf(optionKeyword(b)));
         const ordered = [...body, ...tail];
 
-        // Replace SID if a new one was assigned
-        if (newSid !== null && newSid !== undefined) {
-          const sidIdx = ordered.findIndex((o) => optionKeyword(o) === "sid");
-          if (sidIdx !== -1) ordered[sidIdx] = `sid:${newSid}`;
+        // Replace SID if a new one was assigned OR if original SID is in Talos range (< 1,000,000)
+        {
+          const sidIdx = ordered.findIndex((o) => optionKeyword(o).toLowerCase() === "sid");
+          if (sidIdx !== -1) {
+            if (newSid !== null && newSid !== undefined) {
+              ordered[sidIdx] = `sid:${newSid}`;
+            } else {
+              const origSid = parseInt(ordered[sidIdx].slice(ordered[sidIdx].indexOf(":") + 1).trim(), 10);
+              if (!isNaN(origSid) && origSid > 0 && origSid < 1000000) {
+                ordered[sidIdx] = `sid:${1000000 + origSid}`;
+              }
+            }
+          }
         }
 
         const optionsString = ordered.join("; ");
