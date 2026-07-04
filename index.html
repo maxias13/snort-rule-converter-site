@@ -2223,12 +2223,12 @@ python3 trigger_rules.py --delay 1
               <label class="field-label" for="migInput">Input rules</label>
               <textarea id="migInput" class="textarea" rows="14" placeholder="Paste Snort 2 rules here, one per line."></textarea>
               <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
-                <button class="btn primary" id="migConvertBtn">Convert →</button>
-                <button class="btn secondary" id="migClearBtn">Clear</button>
-                <label class="btn secondary" style="cursor:pointer;">
-                  Load File
+                <label class="btn" style="cursor:pointer; background:#16a34a; border-color:#16a34a; color:#fff;">
+                  📂 Load File
                   <input type="file" id="migFileInput" accept=".rules,.txt" style="display:none;">
                 </label>
+                <button class="btn primary" id="migConvertBtn">Convert →</button>
+                <button class="btn secondary" id="migClearBtn">Clear</button>
                 <span class="badge" id="migCountBadge">0 rules</span>
               </div>
             </div>
@@ -2236,8 +2236,8 @@ python3 trigger_rules.py --delay 1
               <label class="field-label" for="migOutput">Output rules</label>
               <textarea id="migOutput" class="textarea" rows="14" placeholder="Converted rules will appear here." readonly></textarea>
               <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+                <button class="btn" id="migDownloadBtn" style="background:#16a34a; border-color:#16a34a; color:#fff;">⬇ Download .rules</button>
                 <button class="btn secondary" id="migCopyBtn">Copy</button>
-                <button class="btn secondary" id="migDownloadBtn">Download .rules</button>
               </div>
             </div>
           </div>
