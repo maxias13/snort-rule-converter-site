@@ -8499,7 +8499,9 @@ ${optRules.join("\n")}
         }
 
         // Ensure sid, rev, gid appear at the end in FMC-friendly order.
-        const TAIL_ORDER = ["sid", "rev", "gid"];
+        // Also move service: options to tail — FMC rejects non-http service values
+        // (e.g. service:stun, service:openvpn) when they appear as the first option.
+        const TAIL_ORDER = ["service", "sid", "rev", "gid"];
         const tail = [];
         const body = merged.filter((opt) => {
           if (TAIL_ORDER.includes(optionKeyword(opt))) {
