@@ -7770,12 +7770,24 @@ ${optRules.join("\n")}
       // with a semicolon. Returns the input unchanged if it cannot be parsed
       // (e.g. comments, blank lines, parse-error passthrough).
       function formatRuleMultiline(ruleLine) {
+        // FMC COMPATIBILITY: Output as a single line.
+        // Multi-line format causes FMC import errors because FMC's local-rule
+        // parser processes each physical line independently. When content modifiers
+        // (depth, within, distance, offset, nocase, fast_pattern) appear on their own
+        // line after content:, FMC treats them as standalone unknown keywords and
+        // rejects the rule with "unknown rule keyword: depth/nocase/within/etc."
+        //
+        // Single-line format keeps all options on one line so the parser sees
+        // content:"X"; depth:1; as a coherent modifier chain, not a standalone keyword.
+        //
+        // Error evidence: "VALIDATION ERROR: unknown rule keyword: nocase/depth/within"
         const parsed = parseRule(ruleLine);
         if (!parsed.ok) return ruleLine;
         const opts = splitOptions(parsed.options);
         if (!opts.length) return ruleLine;
-        const indented = opts.map((o) => `    ${o.trim()};`).join("\n");
-        return `${parsed.header}\n(\n${indented}\n)`;
+        // Single-line: header (opt1; opt2; opt3;)
+        const optStr = opts.map((o) => o.trim() + ";").join(" ");
+        return `${parsed.header.trim()} (${optStr})`;
       }
 
       // Split input into logical rules, tolerating multi-line rule layouts.
