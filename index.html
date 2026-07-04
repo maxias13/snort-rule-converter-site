@@ -3948,15 +3948,22 @@ if __name__ == "__main__":
             if (kw === "service")
               pushOnce(idx, "service: option", "standalone 'service:' option is Snort 3-only (Snort 2 used metadata:service)");
 
-            // 5) Snort 3 sticky-buffer layout: a sticky buffer as its OWN option
-            // immediately BEFORE a content/pcre/regex group. This pre-content
-            // placement does not exist in Snort 2 (which used post-content modifiers).
+            // 5) Snort 3 sticky-buffer layout: ONLY flag when the rule has NO definitive
+            // Snort 2 indicators AND uses a buffer that does not exist in Snort 2 at all.
+            // http_uri/http_header/http_method/etc. ARE valid Snort 2 keywords (post-content
+            // modifiers). Placing them before content is incorrect Snort 2 style, but is NOT
+            // unambiguously Snort 3-only — the user may have mixed/partially-converted rules.
+            // Hard-blocking on this causes false positives (e.g. 100+ rules blocked when the
+            // file also contains uricontent: / rawbytes which prove the input is Snort 2).
+            // Only flag truly Snort-3-only buffers (raw_data, js_data, vba_data) here.
             if (STICKY_BUFFERS.includes(kw)) {
-              // Only the bare buffer form (no ":") is a sticky buffer statement.
-              const isBare = o.indexOf(":") === -1;
-              const nextKw = oi < opts.length - 1 ? optionKeyword(opts[oi + 1]).toLowerCase() : "";
-              if (isBare && FOLLOWERS.has(nextKw))
-                pushOnce(idx, kw + " sticky buffer", `'${kw};' placed before content is the Snort 3 sticky-buffer layout (Snort 2 used it as a post-content modifier)`);
+              const S3_ONLY_BUFFERS = new Set(["raw_data","js_data","vba_data"]);
+              if (S3_ONLY_BUFFERS.has(kw)) {
+                const isBare = o.indexOf(":") === -1;
+                const nextKw = oi < opts.length - 1 ? optionKeyword(opts[oi + 1]).toLowerCase() : "";
+                if (isBare && FOLLOWERS.has(nextKw))
+                  pushOnce(idx, kw + " sticky buffer", `'${kw};' is a Snort 3-only sticky buffer — not available in Snort 2`);
+              }
             }
           });
         });
