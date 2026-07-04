@@ -8416,6 +8416,23 @@ ${optRules.join("\n")}
           changeCount += 1;
         }
 
+        // ── Rev auto-increment: bump rev:N → rev:N+1 when any transform applied ──
+        // Mirrors the Python migration tool behaviour: rules that were changed
+        // during migration should carry an incremented rev for FMC change tracking.
+        if (changeCount > 0) {
+          const revIdxM = merged.findIndex(o => optionKeyword(o).toLowerCase() === "rev");
+          if (revIdxM !== -1) {
+            const revValM = parseInt(merged[revIdxM].slice(merged[revIdxM].indexOf(":") + 1).trim(), 10);
+            if (!isNaN(revValM)) {
+              merged[revIdxM] = `rev:${revValM + 1}`;
+              transforms.push({
+                id: "REV", label: `rev auto-incremented: ${revValM} → ${revValM + 1}`,
+                severity: "auto", skillRef: "FMC", before: `rev:${revValM}`, after: `rev:${revValM + 1}`
+              });
+            }
+          }
+        }
+
         // Ensure sid, rev, gid appear at the end in FMC-friendly order.
         const TAIL_ORDER = ["sid", "rev", "gid"];
         const tail = [];
