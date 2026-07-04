@@ -6830,7 +6830,9 @@ ${optRules.join("\n")}
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = (__migVersion === 2 ? "snort3_migrated.rules" : "snort2_downgrade.rules");
+          const _now = new Date();
+          const _ts = `${_now.getFullYear()}${String(_now.getMonth()+1).padStart(2,"0")}${String(_now.getDate()).padStart(2,"0")}_${String(_now.getHours()).padStart(2,"0")}${String(_now.getMinutes()).padStart(2,"0")}${String(_now.getSeconds()).padStart(2,"0")}`;
+          a.download = `${_ts}_Snort3_migrated.rules`;
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         });
@@ -8422,7 +8424,13 @@ ${optRules.join("\n")}
         }
 
         const optionsString = ordered.join("; ");
-        const outputRule = `${header} (${optionsString};)`;
+        let outputRule = `${header} (${optionsString};)`;
+        // Fix double semicolons ;; → ; (serializer edge case from inline modifier merge)
+        outputRule = outputRule.replace(/;{2,}/g, ";");
+        // Fix PCRE \" → \x22 inside pcre:"..." to avoid FMC Gson JSON parser confusion
+        outputRule = outputRule.replace(/pcre:"([^"\\]|\\.)*"/g, (m) =>
+          m.replace(/\\"/g, "\\x22")
+        );
         const sid = extractOptionValue(ordered, "sid");
 
         // ── FMC Import Validation (post-migration checks) ──────────────
