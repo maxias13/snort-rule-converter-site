@@ -7973,7 +7973,11 @@ ${optRules.join("\n")}
         M040: { label: "FMC: SID still in Talos-reserved range (< 1,000,000)", severity: "critical", skillRef: "FMC" },
         M041: { label: "FMC: unrecognized metadata:policy value", severity: "warn", skillRef: "FMC" },
         M042: { label: "FMC: classtype not in FMC built-in set", severity: "warn", skillRef: "FMC" },
-        M043: { label: "FMC: undefined custom network variable(s)", severity: "warn", skillRef: "FMC" }
+        M043: { label: "FMC: undefined custom network variable(s)", severity: "warn", skillRef: "FMC" },
+        M044: { label: "fast_pattern:N,M split → fast_pattern + fast_pattern_offset + fast_pattern_length", severity: "info", skillRef: "M031" },
+        M045: { label: "base64_decode:offset 0 removed (offset must be positive non-zero in Snort 3)", severity: "info", skillRef: "S079" },
+        M046: { label: "nocase after pcre removed (no-op in Snort 3; add 'i' flag inside pcre pattern instead)", severity: "info", skillRef: "M023" },
+        M047: { label: "metadata:rule-flushing token removed (Snort 2-only field not valid in Snort 3)", severity: "info", skillRef: "M018" }
       };
 
       function convertParsedRule(parsed, newSid) {
@@ -8098,6 +8102,12 @@ ${optRules.join("\n")}
               const tokens = part.trim().split(/\s+/);
               if (tokens[0].toLowerCase() === "service" && tokens.length >= 2) {
                 serviceParts.push(tokens.slice(1).join(" "));
+              } else if (/\brule-flushing\b/i.test(part)) {
+                // M047: rule-flushing is a Snort 2-only metadata field — strip it.
+                // Mirrors Python rewrites.py M018: rule-flushing token removal.
+                pushT("M047", part.trim(), "(removed — Snort 2-only metadata field)");
+                warnings.push("metadata:rule-flushing removed — Snort 2-only field not valid in Snort 3");
+                changeCount += 1;
               } else {
                 otherParts.push(part);
               }
@@ -8320,14 +8330,52 @@ ${optRules.join("\n")}
           }
 
           if (lower === "fast_pattern") {
-            // fast_pattern:only is not valid in Snort 3 — the :only qualifier was removed.
-            // Plain fast_pattern is still valid as a standalone option.
+            // fast_pattern:only → bare fast_pattern (Snort 3 removed the :only qualifier)
             const hasOnly = /^fast_pattern\s*:\s*only\s*$/i.test(opt);
-            transformed.push("fast_pattern");
             if (hasOnly) {
+              transformed.push("fast_pattern");
               pushT("M036", opt, "fast_pattern");
               changeCount += 1;
+              return;
             }
+            // fast_pattern:N,M → fast_pattern + fast_pattern_offset:N + fast_pattern_length:M
+            // Mirrors Python rewrites.py M031: Snort 3 splits the combined N,M form.
+            const fpNM = opt.match(/^fast_pattern\s*:\s*(\d+)\s*,\s*(\d+)\s*$/i);
+            if (fpNM) {
+              const fpOff = fpNM[1], fpLen = fpNM[2];
+              transformed.push("fast_pattern");
+              transformed.push(`fast_pattern_offset:${fpOff}`);
+              transformed.push(`fast_pattern_length:${fpLen}`);
+              pushT("M044", opt, `fast_pattern; fast_pattern_offset:${fpOff}; fast_pattern_length:${fpLen}`);
+              changeCount += 1;
+              return;
+            }
+            // bare fast_pattern or unknown form — pass through as-is
+            transformed.push(opt);
+            return;
+          }
+
+          // ── base64_decode: offset 0 removal (M045 / Python _fix_base64_decode / S079) ──
+          // Snort 3 rejects base64_decode:offset 0 — offset must be positive non-zero.
+          // Strip the 'offset 0' token; leave other base64_decode sub-options intact.
+          if (lower === "base64_decode") {
+            const colonIdx = opt.indexOf(":");
+            if (colonIdx !== -1) {
+              let val = opt.slice(colonIdx + 1).trim().replace(/;\s*$/, "");
+              const cleaned = val
+                .replace(/,?\s*offset\s+0\b/gi, "")
+                .replace(/\s*,\s*,/g, ",")
+                .trim().replace(/^,|,$/g, "");
+              if (cleaned !== val) {
+                const newOpt = cleaned ? `base64_decode:${cleaned}` : "base64_decode";
+                transformed.push(newOpt);
+                warnings.push("base64_decode:offset 0 removed — offset must be a positive non-zero integer in Snort 3 (S079)");
+                pushT("M045", opt, newOpt);
+                changeCount += 1;
+                return;
+              }
+            }
+            transformed.push(opt);
             return;
           }
 
@@ -8342,9 +8390,11 @@ ${optRules.join("\n")}
         const reordered = reorderStickyForContent(transformed);
         if (JSON.stringify(reordered) !== JSON.stringify(transformed)) changeCount += 1;
 
-        // PASS 3: Convert pcre HTTP flags → prepend sticky buffers right before each pcre
+        // PASS 3: Convert pcre HTTP flags → prepend sticky buffers right before each pcre.
+        // Also drops nocase immediately following pcre — it is a no-op in Snort 3 (M046 / Python M023).
         const final = [];
-        reordered.forEach((opt) => {
+        for (let _p3i = 0; _p3i < reordered.length; _p3i++) {
+          const opt = reordered[_p3i];
           if (optionKeyword(opt) === "pcre") {
             const pcreConv = convertPcreOption(opt);
             if (pcreConv.changed) {
@@ -8355,10 +8405,18 @@ ${optRules.join("\n")}
             } else {
               final.push(opt);
             }
+            // M046: drop nocase immediately after pcre — it is a no-op in Snort 3.
+            // In Snort 3, nocase after pcre does nothing; use the 'i' flag inside the regex instead.
+            while (_p3i + 1 < reordered.length && optionKeyword(reordered[_p3i + 1]).toLowerCase() === "nocase") {
+              _p3i++;
+              warnings.push("nocase after pcre is a no-op in Snort 3 — dropped; add 'i' flag inside the pcre pattern if case-insensitive match is needed");
+              pushT("M046", reordered[_p3i], "(removed — no-op in Snort 3)");
+              changeCount += 1;
+            }
           } else {
             final.push(opt);
           }
-        });
+        }
 
         // PASS 4: Merge ALL content modifiers inline — required by FMC Snort 3.
         // FMC rejects depth/distance/within/offset/nocase/fast_pattern as standalone
