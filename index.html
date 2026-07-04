@@ -8069,15 +8069,20 @@ ${optRules.join("\n")}
           }
 
           // ── urilen → bufferlen ──────────────────────────────────────────
-          // Snort 2: urilen:N;     (operates on the URI buffer implicitly)
-          // Snort 3: http_uri; bufferlen:N;    (explicit sticky buffer + length check)
-          // See Manual §7.1.20 (bufferlen) and §7.1.32 (urilen removed).
+          // Snort 2: urilen:N[,norm|,raw];  (operates on the URI buffer implicitly)
+          // Snort 3: <buf>; bufferlen:N;    (explicit sticky buffer + length check)
+          // ,norm → http_uri (normalized, default); strip the suffix.
+          // ,raw  → http_raw_uri (unnormalized); strip the suffix.
+          // Snort 3 bufferlen has no norm/raw modifier; buffer selection handles it.
           if (lower === "urilen") {
-            const val = opt.slice(opt.indexOf(":") + 1).trim().replace(/;\s*$/, "");
-            warnings.push("urilen converted to bufferlen on http_uri sticky buffer (Manual §7.1.20 / §7.1.32)");
-            pushT("M025", opt, `http_uri; bufferlen:${val}`);
-            transformed.push("http_uri");
-            transformed.push(`bufferlen:${val}`);
+            const fullVal = opt.slice(opt.indexOf(":") + 1).trim().replace(/;\s*$/, "");
+            const useRaw = /,\s*raw\b/i.test(fullVal);
+            const cleanVal = fullVal.replace(/,\s*(norm|raw)\b/gi, "").trim();
+            const buf = useRaw ? "http_raw_uri" : "http_uri";
+            warnings.push(`urilen converted to bufferlen on ${buf} sticky buffer (Manual §7.1.20 / §7.1.32)`);
+            pushT("M025", opt, `${buf}; bufferlen:${cleanVal}`);
+            transformed.push(buf);
+            transformed.push(`bufferlen:${cleanVal}`);
             changeCount += 1;
             return;
           }
