@@ -8499,9 +8499,12 @@ ${optRules.join("\n")}
         }
 
         // Ensure sid, rev, gid appear at the end in FMC-friendly order.
-        // Also move service: options to tail — FMC rejects non-http service values
-        // (e.g. service:stun, service:openvpn) when they appear as the first option.
-        const TAIL_ORDER = ["service", "sid", "rev", "gid"];
+        // service: options MUST come AFTER sid: — FMC rejects non-http service values
+        // (e.g. service:stun, service:openvpn) when they appear before sid: because
+        // FMC hasn't yet established the rule context (sid) before validating service.
+        // Python skill keeps sid:N first (parser puts it first); website must do the
+        // same by placing service: AFTER sid/rev/gid in the tail ordering.
+        const TAIL_ORDER = ["sid", "rev", "gid", "service"];
         const tail = [];
         const body = merged.filter((opt) => {
           if (TAIL_ORDER.includes(optionKeyword(opt))) {
