@@ -5420,6 +5420,130 @@ ${optRules.join("\n")}
             });
           });
 
+          // ── S094: isdataat sub-option validation (Manual §3.5.25) ─────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "isdataat") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim().replace(/^!/, "").trim();
+            if (!v) return;
+            const parts94 = v.split(",").map(s => s.trim().toLowerCase());
+            const offset94 = parseInt(parts94[0], 10);
+            if (isNaN(offset94))
+              suggestions.push({ level:"warn", msg:`isdataat offset '${parts94[0]}' is not numeric (Manual §3.5.25).` });
+            else if (offset94 === 0 && !parts94.includes("relative"))
+              suggestions.push({ level:"info", msg:"isdataat:0 in absolute form (no 'relative') is a no-op — it always matches at byte 0 (Manual §3.5.25)." });
+            if (parts94.length > 1) {
+              parts94.slice(1).filter(Boolean).forEach(tok => {
+                if (tok !== "relative")
+                  suggestions.push({ level:"warn", msg:`isdataat sub-option '${tok}' is not valid — only 'relative' is allowed (Manual §3.5.25).`, fix:"Use isdataat:<offset>[,relative]" });
+              });
+            }
+          });
+
+          // ── S095: uricontent + rawbytes / HTTP modifier forbidden (Manual §3.5.23) ──
+          {
+            const HTTP_MOD_FORBIDDEN_S95 = new Set(["rawbytes","http_client_body","http_cookie","http_raw_cookie","http_header","http_raw_header","http_method","http_uri","http_raw_uri","http_stat_code","http_stat_msg"]);
+            let inUricontent95 = false;
+            for (let i = 0; i < opts.length; i++) {
+              const kw = optionKeyword(opts[i]).toLowerCase();
+              if (kw === "uricontent") { inUricontent95 = true; continue; }
+              if (kw === "content" || kw === "pcre") { inUricontent95 = false; continue; }
+              if (inUricontent95 && HTTP_MOD_FORBIDDEN_S95.has(kw))
+                suggestions.push({ level:"warn", msg:`'uricontent' cannot be modified by '${kw}' — the Snort 2 manual explicitly prohibits rawbytes and HTTP modifiers on uricontent (Manual §3.5.23). Use content:"..."; ${kw}; instead.`, fix:`Replace 'uricontent' with 'content' and keep '${kw}'` });
+            }
+          }
+
+          // ── S098: window range 0..65535 (Manual §3.6.13) ─────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "window") return;
+            const v = parseInt((o.slice(o.indexOf(":") + 1) || "").trim().replace(/^!/, "").trim(), 10);
+            if (!isNaN(v) && (v < 0 || v > 65535))
+              suggestions.push({ level:"warn", msg:`window value ${v} is outside TCP window range 0..65535 (Manual §3.6.13).` });
+          });
+
+          // ── S099: seq / ack range 0..4294967295 (Manual §3.6.11-3.6.12) ──
+          ["seq","ack"].forEach(kwSA => {
+            opts.forEach(o => {
+              if (optionKeyword(o).toLowerCase() !== kwSA) return;
+              const v = parseInt((o.slice(o.indexOf(":") + 1) || "").trim(), 10);
+              if (!isNaN(v) && (v < 0 || v > 4294967295))
+                suggestions.push({ level:"warn", msg:`${kwSA} value ${v} is outside TCP 32-bit range 0..4294967295 (Manual §3.6.11-3.6.12).` });
+            });
+          });
+
+          // ── S100: id range 0..65535 (Manual §3.6.4) ──────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "id") return;
+            const v = parseInt((o.slice(o.indexOf(":") + 1) || "").trim(), 10);
+            if (!isNaN(v) && (v < 0 || v > 65535))
+              suggestions.push({ level:"warn", msg:`id value ${v} is outside IP identification 16-bit range 0..65535 (Manual §3.6.4).` });
+          });
+
+          // ── S101: tos range 0..255 (Manual §3.6.3) ───────────────────
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "tos") return;
+            const v = parseInt((o.slice(o.indexOf(":") + 1) || "").trim().replace(/^!/, "").trim(), 10);
+            if (!isNaN(v) && (v < 0 || v > 255))
+              suggestions.push({ level:"warn", msg:`tos value ${v} is outside IP TOS 8-bit range 0..255 (Manual §3.6.3).` });
+          });
+
+          // ── S102: icmp_id / icmp_seq range 0..65535 (Manual §3.6.16-3.6.17) ──
+          ["icmp_id","icmp_seq"].forEach(kwIC => {
+            opts.forEach(o => {
+              if (optionKeyword(o).toLowerCase() !== kwIC) return;
+              const v = parseInt((o.slice(o.indexOf(":") + 1) || "").trim(), 10);
+              if (!isNaN(v) && (v < 0 || v > 65535))
+                suggestions.push({ level:"warn", msg:`${kwIC} value ${v} is outside ICMP 16-bit range 0..65535 (Manual §3.6.16-3.6.17).` });
+            });
+          });
+
+          // ── S103: dsize range 0..65535 and min<>max check (Manual §3.6.7) ──
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "dsize") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            const rangeM = v.match(/^(\d+)\s*<>\s*(\d+)$/);
+            if (rangeM) {
+              const mn = parseInt(rangeM[1], 10), mx = parseInt(rangeM[2], 10);
+              if (mn >= mx)
+                suggestions.push({ level:"warn", msg:`[FMC] dsize range ${mn}<>${mx} is invalid — min must be less than max (Manual §3.6.7).` });
+              if (mn < 0 || mn > 65535 || mx < 0 || mx > 65535)
+                suggestions.push({ level:"warn", msg:"dsize range values must be within 0..65535 (16-bit payload size field; Manual §3.6.7)." });
+            } else {
+              const num = parseInt(v.replace(/^[<>!]=?/, "").trim(), 10);
+              if (!isNaN(num) && (num < 0 || num > 65535))
+                suggestions.push({ level:"warn", msg:`dsize value ${num} is outside payload size range 0..65535 (Manual §3.6.7).` });
+            }
+          });
+
+          // ── FMC Import Checks (Snort 2 local rules) ───────────────────
+          // [FMC] msg required — FMC rejects rules without msg at import
+          if (!has("msg"))
+            suggestions.push({ level:"warn", msg:"[FMC] msg option is required. Cisco FMC rejects Snort 2 local rules without a msg option at import time.", fix:'msg:"PROTOCOL-SERVICE Threat description";' });
+
+          // [FMC] SID must be ≥ 1,000,000 — FMC enforces Talos reservation strictly
+          if (sidVal > 0 && sidVal < 1000000)
+            suggestions.push({ level:"warn", msg:`[FMC] SID ${sidVal} is in the Talos-reserved range (1–999,999). FMC enforces this boundary strictly at import — local rules must use SID ≥ 1,000,000.`, fix:`Use sid:${1000000 + sidVal};` });
+
+          // [FMC] metadata:service value advisory
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "metadata") return;
+            const mv = (o.slice(o.indexOf(":") + 1) || "").trim();
+            mv.split(",").forEach(pair => {
+              const toks = pair.trim().split(/\s+/);
+              if (toks[0].toLowerCase() === "service" && toks.length >= 2) {
+                const svcName = toks.slice(1).join(" ").toLowerCase();
+                const FMC_KNOWN_SVCS = new Set(["http","ftp","smtp","pop2","pop3","imap","telnet","ssh","dns","netbios-ssn","netbios-dgm","dcerpc","ssl","sip","isakmp","tftp","snmp","finger","ident","irc","ftp-data","mssql","oracle","mysql"]);
+                if (!FMC_KNOWN_SVCS.has(svcName))
+                  suggestions.push({ level:"info", msg:`[FMC] metadata:service '${svcName}' may not be recognized by Cisco FMC. Known services include: http, ftp, smtp, ssl, sip, dns, dcerpc, imap, pop3, ssh, telnet.` });
+              }
+              if (toks[0].toLowerCase() === "policy" && toks.length >= 2) {
+                const policyName = toks[1].toLowerCase();
+                const FMC_POLICY_NAMES_S2 = new Set(["balanced-ips","connectivity-ips","max-detect-ips","security-ips"]);
+                if (!FMC_POLICY_NAMES_S2.has(policyName))
+                  suggestions.push({ level:"info", msg:`[FMC] metadata:policy '${policyName}' is not a recognized FMC intrusion policy name. Expected one of: balanced-ips, connectivity-ips, max-detect-ips, security-ips (optionally followed by alert or drop).` });
+              }
+            });
+          });
+
         // ══ SNORT 3 specific ══════════════════════════════════════════════
         } else {
           const remnants = [
@@ -5737,6 +5861,55 @@ ${optRules.join("\n")}
             if (/\bfast_pattern\s*:\s*\d+\s*,\s*\d+/i.test(o))
               suggestions.push({ level:"warn", msg:"'fast_pattern:<offset>,<length>' is a Snort 2 form removed in Snort 3 (docs.snort.org/rules/options/payload/fast_pattern).", fix:"Use bare fast_pattern; with fast_pattern_offset:<o>; and fast_pattern_length:<l>;" });
           });
+
+          // ── S084: flowbits:set/unset with | (pipe) operator ──────────
+          // docs.snort.org: set/unset only support & (AND); | (OR) is only for isset/isnotset.
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "flowbits") return;
+            const v = (o.slice(o.indexOf(":") + 1) || "").trim();
+            const fbParts = v.split(",");
+            const fbAction = (fbParts[0] || "").trim().toLowerCase();
+            if ((fbAction === "set" || fbAction === "unset") && fbParts.length >= 2) {
+              const bitField = fbParts.slice(1).join(",");
+              if (/\|/.test(bitField))
+                suggestions.push({ level:"warn", msg:`flowbits:${fbAction} uses '|' (OR operator) in the bit name, but OR is only valid for isset/isnotset. Use '&' (AND) for multiple bits with set/unset (docs.snort.org/rules/options/non_payload/flowbits).`, fix:`Replace '|' with '&': flowbits:${fbAction},bitA&bitB;` });
+            }
+          });
+
+          // ── FMC Import Checks (Snort 3 local rules) ───────────────────
+          // [FMC] msg required — FMC rejects rules without msg at import
+          if (!has("msg"))
+            suggestions.push({ level:"warn", msg:"[FMC] msg option is required. Cisco FMC rejects Snort 3 local rules without a msg option at import time.", fix:'msg:"PROTOCOL-SERVICE Threat description";' });
+
+          // [FMC] SID must be ≥ 1,000,000 — FMC enforces Talos reservation strictly
+          {
+            const sidFmc3 = parseInt((get("sid") || "0"), 10);
+            if (sidFmc3 > 0 && sidFmc3 < 1000000)
+              suggestions.push({ level:"warn", msg:`[FMC] SID ${sidFmc3} is in the Talos-reserved range (1–999,999). FMC enforces this boundary strictly at import — local rules must use SID ≥ 1,000,000.`, fix:`Use sid:${1000000 + sidFmc3};` });
+          }
+
+          // [FMC] metadata:policy value check (Snort 3)
+          opts.forEach(o => {
+            if (optionKeyword(o).toLowerCase() !== "metadata") return;
+            const mv3 = (o.slice(o.indexOf(":") + 1) || "").trim();
+            mv3.split(",").forEach(pair => {
+              const toks = pair.trim().split(/\s+/);
+              if (toks[0].toLowerCase() === "policy" && toks.length >= 2) {
+                const pn3 = toks[1].toLowerCase();
+                const FMC_POLICIES3 = new Set(["balanced-ips","connectivity-ips","max-detect-ips","security-ips"]);
+                if (!FMC_POLICIES3.has(pn3))
+                  suggestions.push({ level:"info", msg:`[FMC] metadata:policy '${pn3}' is not a recognized FMC intrusion policy name. Expected one of: balanced-ips, connectivity-ips, max-detect-ips, security-ips (optionally followed by alert or drop).`, fix:"metadata:policy max-detect-ips drop;" });
+              }
+            });
+          });
+
+          // [FMC] classtype must match FMC's built-in set (use --strict-classtypes mode for FMC)
+          if (has("classtype")) {
+            const ctFmc3 = (get("classtype") || "").trim().toLowerCase();
+            const FMC_CLASSTYPES = new Set(["not-suspicious","unknown","bad-unknown","attempted-recon","successful-recon-limited","successful-recon-largescale","attempted-dos","successful-dos","attempted-user","unsuccessful-user","successful-user","attempted-admin","successful-admin","rpc-portmap-decode","shellcode-detect","string-detect","suspicious-filename-detect","suspicious-login","system-call-detect","tcp-connection","trojan-activity","unusual-client-port-connection","network-scan","denial-of-service","non-standard-protocol","protocol-command-decode","web-application-activity","web-application-attack","misc-activity","misc-attack","icmp-event","kickass-porn","policy-violation","default-login-attempt","sdf","file-format","malware-cnc","client-side-exploit","inappropriate-content"]);
+            if (ctFmc3 && !FMC_CLASSTYPES.has(ctFmc3))
+              suggestions.push({ level:"warn", msg:`[FMC] classtype '${ctFmc3}' is not in the standard Snort classification.config set. FMC will reject this classtype at import unless it is pre-defined in the FMC policy. Either use a standard classtype or pre-define it in FMC before importing.`, fix:"Use a standard classtype (e.g. attempted-recon, web-application-attack, trojan-activity, malware-cnc)" });
+          }
         }
 
         // ══ Common checks ════════════════════════════════════════════════
@@ -7219,7 +7392,12 @@ ${optRules.join("\n")}
         M035: { label: "logto removed in Snort 3", severity: "warn", skillRef: "M035" },
         M036: { label: "session removed in Snort 3", severity: "warn", skillRef: "M036" },
         M037: { label: "fast_pattern:only qualifier removed", severity: "info", skillRef: "M037" },
-        M038: { label: "Snort 3 parse error (line could not be parsed)", severity: "critical", skillRef: "M038" }
+        M038: { label: "Snort 3 parse error (line could not be parsed)", severity: "critical", skillRef: "M038" },
+        M039: { label: "FMC: msg missing (required at FMC import)", severity: "critical", skillRef: "FMC" },
+        M040: { label: "FMC: SID still in Talos-reserved range (< 1,000,000)", severity: "critical", skillRef: "FMC" },
+        M041: { label: "FMC: unrecognized metadata:policy value", severity: "warn", skillRef: "FMC" },
+        M042: { label: "FMC: classtype not in FMC built-in set", severity: "warn", skillRef: "FMC" },
+        M043: { label: "FMC: undefined custom network variable(s)", severity: "warn", skillRef: "FMC" }
       };
 
       function convertParsedRule(parsed, newSid) {
@@ -7656,6 +7834,60 @@ ${optRules.join("\n")}
         const optionsString = ordered.join("; ");
         const outputRule = `${header} (${optionsString};)`;
         const sid = extractOptionValue(ordered, "sid");
+
+        // ── FMC Import Validation (post-migration checks) ──────────────
+        // Verify the migrated rule meets Cisco FMC import requirements.
+        const fmcGet = (kw) => {
+          for (const o of ordered) {
+            const k = optionKeyword(o).toLowerCase();
+            if (k === kw.toLowerCase()) {
+              const col = o.indexOf(":");
+              return col === -1 ? "" : o.slice(col + 1).trim().replace(/^"(.*)"$/, "$1");
+            }
+          }
+          return null;
+        };
+        const fmcHas = (kw) => ordered.some(o => optionKeyword(o).toLowerCase() === kw.toLowerCase());
+
+        // [FMC] msg is required — FMC rejects rules without msg
+        if (!fmcHas("msg"))
+          warnings.push("[FMC] msg option missing — Cisco FMC will reject this rule at import. Add: msg:\"Description\";");
+
+        // [FMC] SID must be ≥ 1,000,000 (auto-conversion already applied; double-check)
+        const fmcSidNum = parseInt(fmcGet("sid") || "0", 10);
+        if (fmcSidNum > 0 && fmcSidNum < 1000000)
+          warnings.push(`[FMC] SID ${fmcSidNum} is still in the Talos-reserved range after migration. FMC will reject at import — SID must be ≥ 1,000,000.`);
+
+        // [FMC] metadata:policy value check
+        for (const o of ordered) {
+          if (optionKeyword(o).toLowerCase() !== "metadata") continue;
+          const mv = (o.slice(o.indexOf(":") + 1) || "").trim();
+          mv.split(",").forEach(pair => {
+            const toks = pair.trim().split(/\s+/);
+            if (toks[0].toLowerCase() === "policy" && toks.length >= 2) {
+              const pn = toks[1].toLowerCase();
+              const FMC_POLICY_NAMES_MIG = ["balanced-ips","connectivity-ips","max-detect-ips","security-ips"];
+              if (!FMC_POLICY_NAMES_MIG.includes(pn))
+                warnings.push(`[FMC] metadata:policy '${pn}' is not a recognized FMC intrusion policy name. Expected one of: ${FMC_POLICY_NAMES_MIG.join(", ")}.`);
+            }
+          });
+        }
+
+        // [FMC] classtype must match FMC's built-in set
+        if (fmcHas("classtype")) {
+          const ctMig = (fmcGet("classtype") || "").trim().toLowerCase();
+          const FMC_CLASSTYPES_MIG = new Set(["not-suspicious","unknown","bad-unknown","attempted-recon","successful-recon-limited","successful-recon-largescale","attempted-dos","successful-dos","attempted-user","unsuccessful-user","successful-user","attempted-admin","successful-admin","rpc-portmap-decode","shellcode-detect","string-detect","suspicious-filename-detect","suspicious-login","system-call-detect","tcp-connection","trojan-activity","unusual-client-port-connection","network-scan","denial-of-service","non-standard-protocol","protocol-command-decode","web-application-activity","web-application-attack","misc-activity","misc-attack","icmp-event","kickass-porn","policy-violation","default-login-attempt","sdf","file-format","malware-cnc","client-side-exploit","inappropriate-content"]);
+          if (ctMig && !FMC_CLASSTYPES_MIG.has(ctMig))
+            warnings.push(`[FMC] classtype '${ctMig}' is not in FMC's standard classification.config set. FMC will reject this rule at import unless the classtype is pre-defined in the FMC policy.`);
+        }
+
+        // [FMC] undefined custom network variables advisory
+        const ruleTextMig = ordered.join(" ");
+        const allVarsMig = [...new Set((ruleTextMig.match(/\$[A-Z_][A-Z0-9_]*/g) || []))];
+        const STANDARD_SNORT_VARS = new Set(["$HOME_NET","$EXTERNAL_NET","$HTTP_SERVERS","$HTTP_PORTS","$SQL_SERVERS","$ORACLE_SERVERS","$SMTP_SERVERS","$FTP_SERVERS","$SSH_SERVERS","$DNS_SERVERS","$TELNET_SERVERS","$AIM_SERVERS","$DC_NET","$DNP3_SERVER","$DNP3_CLIENT","$MODBUS_CLIENT","$MODBUS_SERVER","$GTP_PORTS","$FILE_DATA_PORTS","$FTP_DATA_PORTS","$ORACLE_PORTS","$SSH_PORTS","$SIP_PORTS","$SMTP_PORTS","$FTP_PORTS","$POP_PORTS"]);
+        const unknownVarsMig = allVarsMig.filter(v => !STANDARD_SNORT_VARS.has(v));
+        if (unknownVarsMig.length > 0)
+          warnings.push(`[FMC] Custom network variable(s) detected in rule options: ${unknownVarsMig.join(", ")}. These must be pre-defined in FMC's Network Variables before import, or FMC will reject the rule.`);
 
         return {
           rule: outputRule,
