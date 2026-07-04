@@ -8240,10 +8240,15 @@ ${optRules.join("\n")}
           }
 
           if (lower === "rawbytes") {
-            // Manual §7.1.16: raw_data sticky buffer replaces the old rawbytes keyword
-            warnings.push("rawbytes converted to raw_data sticky buffer (Manual §7.1.16)");
-            pushT("M031", opt, "raw_data");
-            transformed.push("raw_data");
+            // M026 (Python): rawbytes DROPPED — Snort 3 removed it.
+            // Do NOT convert to raw_data sticky buffer:
+            //   (a) FMC local-rule importer does not recognise raw_data as a valid keyword.
+            //   (b) Inserting raw_data between content and its positional modifiers
+            //       (distance/within/offset/depth) would block inline modifier merging,
+            //       leaving standalone modifiers that FMC also rejects.
+            // Advisory: use an appropriate raw sticky buffer (http_raw_uri / pkt_data).
+            warnings.push("rawbytes dropped — Snort 3 removed it; use a raw sticky buffer (http_raw_uri / pkt_data) for raw inspection (Manual §7.1.16)");
+            pushT("M031", opt, "(removed)");
             changeCount += 1;
             return;
           }
@@ -8564,7 +8569,7 @@ ${optRules.join("\n")}
       }
 
       // Content positional modifiers that must be folded into the content option in Snort 3.
-      const CONTENT_POS_MODS = new Set(["depth", "within", "offset", "distance", "nocase", "fast_pattern"]);
+      const CONTENT_POS_MODS = new Set(["depth", "within", "offset", "distance", "nocase", "fast_pattern", "fast_pattern_offset", "fast_pattern_length"]);
 
       function mergeContentModifiers(options) {
         const result = [];
