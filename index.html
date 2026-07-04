@@ -8358,41 +8358,10 @@ ${optRules.join("\n")}
           }
         });
 
-        // PASS 4: Selective inline merge — ONLY nocase and fast_pattern
-        // FMC Snort 3 rule validation matrix (confirmed from import errors):
-        //   nocase;            → INVALID as standalone — must be content:"X", nocase;
-        //   fast_pattern;      → INVALID as standalone — must be content:"X", fast_pattern;
-        //   depth:N;           → VALID as standalone option (Snort 3 ODDW section)
-        //   within:N;          → VALID as standalone option
-        //   distance:N;        → VALID as standalone option
-        //   offset:N;          → VALID as standalone option
-        // Therefore we merge ONLY nocase/fast_pattern inline with their preceding content:
-        const merged = (function mergeNocaseFpInline(options) {
-          const INLINE_ONLY = new Set(["nocase", "fast_pattern"]);
-          const out = [];
-          let i = 0;
-          while (i < options.length) {
-            const opt = options[i];
-            const key = optionKeyword(opt).toLowerCase();
-            if (key === "content") {
-              let merged2 = opt;
-              let j = i + 1;
-              // Absorb only contiguous nocase/fast_pattern immediately after content
-              while (j < options.length) {
-                const nk = optionKeyword(options[j]).toLowerCase();
-                if (!INLINE_ONLY.has(nk)) break;
-                merged2 += `, ${nk}`;
-                j++;
-              }
-              out.push(merged2);
-              i = j;
-            } else {
-              out.push(opt);
-              i++;
-            }
-          }
-          return out;
-        })(final);
+        // PASS 4: Merge ALL content modifiers inline — required by FMC Snort 3.
+        // FMC rejects depth/distance/within/offset/nocase/fast_pattern as standalone
+        // options. All must be inline: content:"X", depth 5, nocase, distance 3;
+        const merged = mergeContentModifiers(final);
 
         // ── PASS 5: Service hint enrichment ───────────────────────────────
         // Traditional Snort 3 rules with HTTP sticky buffers should be scoped with service:http.
