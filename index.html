@@ -9667,7 +9667,18 @@ ${optRules.join("\n")}
       }
 
       function pyStr(s) {
-        return '"' + String(s).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"';
+        var out = '';
+        for (var i = 0; i < s.length; i++) {
+          var c = s.charCodeAt(i);
+          if (c === 0x5c) out += '\\\\';
+          else if (c === 0x22) out += '\\"';
+          else if (c === 0x0a) out += '\\n';
+          else if (c === 0x0d) out += '\\r';
+          else if (c === 0x09) out += '\\t';
+          else if (c < 0x20 || c >= 0x7f) out += '\\x' + (c < 16 ? '0' : '') + c.toString(16);
+          else out += s.charAt(i);
+        }
+        return '"' + out + '"';
       }
       function pyBytes(s) {
         var out = '';
@@ -9813,7 +9824,16 @@ ${optRules.join("\n")}
           var t = c.text;
           var buf = c.buffer || '';
           if (buf === 'http_uri' || buf === 'http_raw_uri') {
-            path = t.charAt(0) === '/' ? t : '/' + t;
+            // Only use as URL path if content is printable ASCII (no null bytes or binary data).
+            // Binary content may end up with http_uri buffer due to sticky-buffer persistence
+            // in the Snort 3 parser; skip it to preserve the first valid path found.
+            var candidate = t.charAt(0) === '/' ? t : '/' + t;
+            var safe = true;
+            for (var ci2 = 0; ci2 < candidate.length; ci2++) {
+              var cc = candidate.charCodeAt(ci2);
+              if (cc < 0x20 || cc >= 0x7f) { safe = false; break; }
+            }
+            if (safe) path = candidate;
           } else if (buf === 'http_method') {
             method = t.toUpperCase();
           } else if (buf === 'http_user_agent') {
