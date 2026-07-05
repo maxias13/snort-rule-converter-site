@@ -8164,9 +8164,12 @@ ${optRules.join("\n")}
             const action = (val.split(",")[0] || "").trim().toLowerCase();
 
             if (action === "noalert") {
-              // flowbits:noalert → standalone noalert keyword in Snort 3
-              transformed.push("noalert");
-              pushT("M025", opt, "noalert");
+              // flowbits:noalert — Snort 3 replaces this with the standalone 'noalert' keyword,
+              // but Cisco FMC's local-rule importer does NOT support 'noalert' as a rule keyword.
+              // FMC rejects it with "unknown rule keyword: noalert" at import time.
+              // Drop it and advise using FMC's event suppression / threshold UI instead.
+              warnings.push("flowbits:noalert dropped — FMC local-rule importer does not support the 'noalert' keyword; use FMC event suppression or detection_filter to suppress alerts for this rule");
+              pushT("M023", opt, "(removed — FMC does not support noalert keyword)");
               changeCount += 1;
               return;
             }
@@ -8432,6 +8435,17 @@ ${optRules.join("\n")}
               }
             }
             transformed.push(opt);
+            return;
+          }
+
+          // ── noalert: standalone keyword — FMC local-rule importer rejects it ──
+          // In Snort 3, 'noalert' is the replacement for flowbits:noalert, but
+          // Cisco FMC's local-rule importer does not support it.
+          // When 'noalert' appears as a standalone option (either from the original
+          // rule or emitted by other tools), drop it and advise using FMC suppression.
+          if (lower === "noalert") {
+            warnings.push("noalert keyword dropped — FMC local-rule importer does not support 'noalert'; use FMC event suppression or detection_filter instead");
+            changeCount += 1;
             return;
           }
 
