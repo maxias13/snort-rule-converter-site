@@ -9976,7 +9976,7 @@ ${optRules.join("\n")}
           var effectiveInfo = info;
           if (destOverride) {
             if (destOverride.host) dstIp = destOverride.host;
-            if (destOverride.port) dport = destOverride.port;
+            if (destOverride.port != null) dport = destOverride.port;
             if (destOverride.proto) {
               effectiveInfo = Object.assign({}, info, { proto: destOverride.proto });
             }
@@ -10134,14 +10134,14 @@ ${optRules.join("\n")}
         // inspection happens against a stable target/proto unless user picks udp/icmp/etc.
         var dest = {
           host: destParsed.host,
-          proto: protoVal || 'tcp',
-          port: portVal || 80,
+          proto: protoVal || null,
+          port: portVal != null ? portVal : null,
           srcPort: srcPortVal
         };
         var res = generateMultiScript(ruleEntries, ver, dest);
         var effectiveHostNote = 'host=' + (dest.host || '(per-rule parsed)')
-                              + ' proto=' + dest.proto
-                              + ' port=' + dest.port
+                              + ' proto=' + (dest.proto || '(per-rule parsed)')
+                              + ' port=' + (dest.port != null ? dest.port : '(per-rule parsed)')
                               + (dest.srcPort ? ' src_port=' + dest.srcPort : '');
         var summary = 'Generated triggers for ' + res.count + ' rule(s)'
                     + ' [SIDs: ' + res.sids.join(', ') + ']'
