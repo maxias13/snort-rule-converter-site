@@ -8104,14 +8104,33 @@ ${optRules.join("\n")}
             // Extract "service <value>" entries from metadata and emit them as
             // standalone service: options (Snort 3 syntax). Any remaining metadata
             // fields are kept with a compatibility warning.
+            //
+            // Handles all observed Samsung / non-standard metadata service forms:
+            //   metadata:service http, service https    (comma-separated — standard)
+            //   metadata:service http service https     (space-separated, no comma)
+            //   metadata:services http                  (plural "services" keyword)
+            //   metadata:services http services https   (plural + space-separated)
             const metaValue = opt.slice(opt.indexOf(":") + 1).trim();
             const metaParts = metaValue.split(",").map((s) => s.trim()).filter(Boolean);
             const serviceParts = [];
             const otherParts = [];
             for (const part of metaParts) {
               const tokens = part.trim().split(/\s+/);
-              if (tokens[0].toLowerCase() === "service" && tokens.length >= 2) {
-                serviceParts.push(tokens.slice(1).join(" "));
+              const firstKw = tokens[0].toLowerCase();
+              if ((firstKw === "service" || firstKw === "services") && tokens.length >= 2) {
+                // Walk the tokens to extract ALL service:X pairs within this comma-split part.
+                // Handles both "service http" (simple) and "service http service https"
+                // (space-separated multiple — non-standard but seen in Samsung rule sets).
+                let ti = 0;
+                while (ti < tokens.length) {
+                  const kw = tokens[ti].toLowerCase();
+                  if ((kw === "service" || kw === "services") && ti + 1 < tokens.length) {
+                    serviceParts.push(tokens[ti + 1]);
+                    ti += 2;
+                  } else {
+                    ti++;
+                  }
+                }
               } else if (/\brule-flushing\b/i.test(part)) {
                 // M047: rule-flushing is a Snort 2-only metadata field — strip it.
                 // Mirrors Python rewrites.py M018: rule-flushing token removal.
@@ -8413,6 +8432,45 @@ ${optRules.join("\n")}
               }
             }
             transformed.push(opt);
+            return;
+          }
+
+          // ── service: multi-word normalization ─────────────────────────
+          // Guards against pass-through options that somehow arrive as
+          // "service:http service https" (space-separated multi-word value).
+          // Normal single-name service:http passes through unchanged.
+          // This primarily catches mixed-syntax rules where service: appears
+          // directly in the rule body rather than inside metadata:.
+          if (lower === "service") {
+            const colonIdx = opt.indexOf(":");
+            if (colonIdx !== -1) {
+              const rawVal = opt.slice(colonIdx + 1).trim();
+              const words = rawVal.split(/\s+/).filter(Boolean);
+              if (words.length <= 1) {
+                // Single service name — pass through as-is
+                transformed.push(opt);
+              } else {
+                // Multi-word: extract all "service X" pairs or bare words
+                // "http service https" → ["http", "https"]
+                const svcNames = [];
+                let wi = 0;
+                while (wi < words.length) {
+                  const wk = words[wi].toLowerCase();
+                  if ((wk === "service" || wk === "services") && wi + 1 < words.length) {
+                    svcNames.push(words[wi + 1]);
+                    wi += 2;
+                  } else {
+                    svcNames.push(words[wi]);
+                    wi++;
+                  }
+                }
+                svcNames.forEach(n => transformed.push(`service:${n}`));
+                warnings.push(`service option with multiple names split into ${svcNames.length} separate service: options (FMC requires one name per option)`);
+                changeCount += 1;
+              }
+            } else {
+              transformed.push(opt);
+            }
             return;
           }
 
