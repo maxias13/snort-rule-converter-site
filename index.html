@@ -8237,7 +8237,8 @@ ${optRules.join("\n")}
               changeCount += 1;
               return;
             }
-            transformed.push(opt);
+            // file_data:; (empty colon) → bare file_data; (Snort 3 sticky buffer form)
+            transformed.push(normalizeEmptyColonBuffer(opt));
             return;
           }
 
@@ -8245,7 +8246,7 @@ ${optRules.join("\n")}
           if (lower === "dce_stub_data") {
             // Manual §6.1.4: dce_smb / dce_tcp / dce_udp inspectors must be enabled in snort.lua
             warnings.push("dce_stub_data requires dce_smb / dce_tcp / dce_udp inspector to be enabled in snort.lua");
-            transformed.push(opt);
+            transformed.push(normalizeEmptyColonBuffer(opt));
             return;
           }
 
@@ -8419,7 +8420,10 @@ ${optRules.join("\n")}
           // Its HTTP flag conversion (which inserts sticky buffers) must happen
           // AFTER content-sticky reordering in pass 2, so those buffers are not
           // mistakenly "stolen" by the preceding content block.
-          transformed.push(opt);
+          // Apply empty-colon buffer normalization for any remaining sticky buffer
+          // keywords that weren't handled by an earlier branch (e.g. http_header:;
+          // http_client_body:; http_stat_code:; etc. passed as content modifiers).
+          transformed.push(normalizeEmptyColonBuffer(opt));
         });
 
         // PASS 2: Reorder sticky buffers (content-level only, pcre untouched)
@@ -8832,10 +8836,36 @@ ${optRules.join("\n")}
         return parts;
       }
 
-      function optionKeyword(option) {
-        const key = option.split(":", 1)[0].trim().toLowerCase();
-        return key;
-      }
+       function optionKeyword(option) {
+         const key = option.split(":", 1)[0].trim().toLowerCase();
+         return key;
+       }
+
+       // Normalize empty-colon sticky-buffer keywords to bare form for Snort 3.
+       // Snort 2 rules (and some mixed-syntax rules) write buffer modifiers as
+       //   http_uri:;   file_data:;   http_client_body:;
+       // but Snort 3 / FMC require the bare keyword form:
+       //   http_uri;    file_data;    http_client_body;
+       // This mirrors the Python emit.py serializer in snort_2_to_3_migration skill
+       // which always outputs sticky buffers without a trailing colon.
+       const SNORT3_STICKY_BUFFERS = new Set([
+         "http_uri","http_raw_uri","http_header","http_raw_header","http_method",
+         "http_client_body","http_raw_body","http_raw_request","http_stat_code",
+         "http_stat_msg","http_cookie","http_raw_cookie","http_user_agent",
+         "http_host","http_raw_host","http_param","http_version","http_trailer",
+         "http_raw_trailer","http_true_ip","http_response","http_request",
+         "file_data","raw_data","pkt_data","js_data","vba_data",
+         "dce_stub_data","base64_data"
+       ]);
+       function normalizeEmptyColonBuffer(opt) {
+         const key = optionKeyword(opt);
+         if (!SNORT3_STICKY_BUFFERS.has(key)) return opt;
+         const colonIdx = opt.indexOf(":");
+         if (colonIdx === -1) return opt;           // already bare keyword
+         const val = opt.slice(colonIdx + 1).trim();
+         if (val === "") return key;                // empty colon → bare keyword
+         return opt;                                // has value (e.g. file_data:mime) → leave as-is
+       }
 
       function extractOptionValue(options, key) {
         const target = options.find((o) => optionKeyword(o) === key.toLowerCase());
