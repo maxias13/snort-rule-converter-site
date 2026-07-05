@@ -9694,8 +9694,18 @@ ${optRules.join("\n")}
         var s = raw.trim();
         var negated = false;
         if (s.charAt(0) === '!') { negated = true; s = s.slice(1).trim(); }
-        if (s.charAt(0) === '"') s = s.slice(1);
-        if (s.charAt(s.length - 1) === '"') s = s.slice(0, -1);
+        if (s.charAt(0) === '"') {
+          s = s.slice(1);
+          // Find the closing " — everything after it is inline modifiers (nocase, depth N, etc.)
+          // and must be stripped so modifier text doesn't end up as literal payload bytes.
+          var endQ = -1;
+          for (var qi = 0; qi < s.length; qi++) {
+            if (s.charAt(qi) === '"' && (qi === 0 || s.charAt(qi - 1) !== '\\')) { endQ = qi; break; }
+          }
+          if (endQ >= 0) s = s.slice(0, endQ);
+        } else {
+          if (s.charAt(s.length - 1) === '"') s = s.slice(0, -1);
+        }
         var out = '';
         var inHex = false;
         for (var i = 0; i < s.length; i++) {
