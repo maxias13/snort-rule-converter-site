@@ -1529,6 +1529,49 @@
     .snortval-tbl tr.sev-warn  td { background:rgba(245,158,11,0.05); }
     .sv-sug { font-size:0.78rem; color:var(--muted); margin-top:3px; font-style:italic; }
 
+    /* ── Migration KPI bar ────────────────────────────────────────────── */
+    .mig-kpi-bar { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+    .mig-kpi-card {
+      flex:1; min-width:120px;
+      background:rgba(10,17,34,0.9);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:13px 18px;
+      display:flex; flex-direction:column; gap:4px;
+    }
+    .mig-kpi-card .kpi-val { font-size:1.8rem; font-weight:800; line-height:1; }
+    .mig-kpi-card .kpi-lbl { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .mig-kpi-card.cyan  { border-top:4px solid #00bceb; } .mig-kpi-card.cyan .kpi-val  { color:#00bceb; }
+    .mig-kpi-card.blue  { border-top:4px solid #3070E7; } .mig-kpi-card.blue .kpi-val  { color:#60a5fa; }
+    .mig-kpi-card.green { border-top:4px solid #22C55E; } .mig-kpi-card.green .kpi-val { color:#4ade80; }
+    .mig-kpi-card.orange{ border-top:4px solid #FF9000; } .mig-kpi-card.orange .kpi-val{ color:#fb923c; }
+    .mig-kpi-card.gray  { border-top:4px solid #64748B; } .mig-kpi-card.gray .kpi-val  { color:#94a3b8; }
+
+    /* ── Migration per-rule cards ─────────────────────────────────────── */
+    .mig-rule-card { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:rgba(8,16,28,0.5); transition:border-color 0.15s; }
+    .mig-rule-card:hover { border-color:var(--border-soft); }
+    .mig-rule-card .mig-card-head {
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:10px 14px; cursor:pointer;
+      background:linear-gradient(180deg,rgba(0,80,130,0.28) 0%,rgba(0,60,100,0.12) 100%);
+      border-bottom:1px solid transparent; user-select:none; transition:background 0.15s;
+    }
+    .mig-rule-card.expanded .mig-card-head { border-bottom-color:var(--border); background:linear-gradient(180deg,rgba(0,80,130,0.38) 0%,rgba(0,60,100,0.2) 100%); }
+    .mig-rule-card .mig-card-body { padding:14px; display:none; }
+    .mig-rule-card.expanded .mig-card-body { display:block; }
+    .mig-sid-badge { font-family:monospace; font-size:0.78rem; background:rgba(0,188,235,0.12); border:1px solid rgba(0,188,235,0.3); color:#00bceb; padding:2px 8px; border-radius:20px; white-space:nowrap; }
+    .mig-status-badge { font-size:0.68rem; font-weight:700; padding:2px 9px; border-radius:999px; letter-spacing:0.05em; white-space:nowrap; }
+    .mig-status-badge.changed { background:rgba(48,112,231,0.18); color:#60a5fa; border:1px solid rgba(48,112,231,0.4); }
+    .mig-status-badge.warned  { background:rgba(255,144,0,0.18);  color:#fb923c; border:1px solid rgba(255,144,0,0.4); }
+    .mig-status-badge.clean   { background:rgba(34,197,94,0.10);  color:#4ade80; border:1px solid rgba(34,197,94,0.3); }
+    .mig-tx-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px; border:1px solid var(--border-soft); background:rgba(255,255,255,0.025); margin:3px; font-size:0.79rem; }
+    .mig-code-label { font-size:0.7rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:5px; font-weight:600; }
+    .mig-code-block { background:#060c1a; border:1px solid var(--border); border-radius:8px; padding:10px 12px; font-family:Consolas,monospace; font-size:0.81rem; white-space:pre-wrap; word-break:break-all; line-height:1.5; color:#e2e8f0; }
+    .mig-code-block.snort2 { border-color:#3f2020; background:#12080a; color:#fca5a5; }
+    .mig-code-block.snort3 { border-color:#1a3020; background:#081210; color:#86efac; }
+    .mig-expand-all-btn { background:transparent; border:1px solid var(--border); color:var(--muted); border-radius:6px; padding:3px 10px; font-size:0.78rem; cursor:pointer; transition:all 0.15s; }
+    .mig-expand-all-btn:hover { border-color:var(--primary); color:var(--primary); }
+
     /* ── TS Analyzer (Cisco show-tech / FPR troubleshoot) ─────────────── */
     #tsAnalyzerView .ts-upload {
       border: 2px dashed var(--border, #334);
@@ -2237,6 +2280,7 @@ python3 trigger_rules.py --delay 1
               <textarea id="migOutput" class="textarea" rows="14" placeholder="Converted rules will appear here." readonly></textarea>
               <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
                 <button class="btn" id="migDownloadBtn" style="background:#16a34a; border-color:#16a34a; color:#fff;">⬇ Download .rules</button>
+                <button class="btn secondary" id="migHtmlReportBtn">📄 HTML Report</button>
                 <button class="btn secondary" id="migCopyBtn">Copy</button>
               </div>
             </div>
@@ -6715,11 +6759,22 @@ ${optRules.join("\n")}
         __migPerRuleCache = rules;
         wrap.style.display = "block";
 
-        const totalRules = rules.length;
-        const totalTransforms = rules.reduce((acc, r) => acc + ((r.transforms || []).length), 0);
-        const totalWarnings = rules.reduce((acc, r) => acc + ((r.warnings || []).length), 0);
+        const totalRules    = rules.length;
+        const changedRules  = rules.filter(r => (r.transforms||[]).length > 0 || (r.changeCount||0) > 0);
+        const cleanRules    = rules.filter(r => (r.transforms||[]).length === 0 && (r.warnings||[]).length === 0 && (r.changeCount||0) === 0);
+        const totalTransforms = rules.reduce((a, r) => a + ((r.transforms||[]).length), 0);
+        const totalWarnings   = rules.reduce((a, r) => a + ((r.warnings||[]).length), 0);
+
+        // KPI summary bar
         if (summary) {
-          summary.textContent = `${totalRules} rules, ${totalTransforms} transforms, ${totalWarnings} warnings`;
+          summary.innerHTML = `
+            <div class="mig-kpi-bar">
+              <div class="mig-kpi-card cyan"><div class="kpi-val">${totalRules}</div><div class="kpi-lbl">Total Rules</div></div>
+              <div class="mig-kpi-card blue"><div class="kpi-val">${changedRules.length}</div><div class="kpi-lbl">Changed</div></div>
+              <div class="mig-kpi-card green"><div class="kpi-val">${totalTransforms}</div><div class="kpi-lbl">Transforms</div></div>
+              <div class="mig-kpi-card ${totalWarnings > 0 ? 'orange' : 'gray'}"><div class="kpi-val">${totalWarnings}</div><div class="kpi-lbl">Warnings</div></div>
+              <div class="mig-kpi-card ${cleanRules.length === totalRules ? 'green' : 'gray'}"><div class="kpi-val">${cleanRules.length}</div><div class="kpi-lbl">Unchanged</div></div>
+            </div>`;
         }
 
         const filtered = rules.filter((r) => {
@@ -6734,60 +6789,76 @@ ${optRules.join("\n")}
         }
 
         panel.innerHTML = filtered.map((r) => {
-          const idx = (typeof r.index === "number") ? r.index + 1 : "?";
-          const sid = r.sid ? `SID ${escapeHtml(r.sid)}` : "(no sid)";
-          const changes = r.changeCount || 0;
-          const warnCount = (r.warnings || []).length;
+          const idx        = (typeof r.index === "number") ? r.index + 1 : "?";
+          const sid        = r.sid || "(no sid)";
           const transforms = r.transforms || [];
-          const headerBadges = [
-            `<span class="badge" style="font-size:13px;">#${idx}</span>`,
-            `<span class="badge" style="font-size:13px;">${sid}</span>`,
-            changes > 0 ? `<span class="badge" style="font-size:13px; background:#1e3a8a; color:#dbeafe;">${changes} changes</span>` : "",
-            warnCount > 0 ? `<span class="badge" style="font-size:13px; background:#7c2d12; color:#fed7aa;">${warnCount} warnings</span>` : ""
-          ].filter(Boolean).join(" ");
+          const warnings   = r.warnings || [];
+          const hasChanges = transforms.length > 0 || (r.changeCount||0) > 0;
+          const isClean    = !hasChanges && !warnings.length;
+          const expanded   = !isClean ? " expanded" : "";
 
-          const transformItems = transforms.map((t) => {
-            const sev = __SEVERITY_META[t.severity] || __SEVERITY_META.info;
-            const before = t.before ? `<div style="margin-top:4px;"><span class="muted" style="font-size:13px;">before:</span> <code style="background:#3f1d1d; color:#fecaca; padding:2px 6px; border-radius:4px; font-size:14px;">${escapeHtml(t.before)}</code></div>` : "";
-            const after  = t.after  ? `<div style="margin-top:2px;"><span class="muted" style="font-size:13px;">after:</span>  <code style="background:#14532d; color:#bbf7d0; padding:2px 6px; border-radius:4px; font-size:14px;">${escapeHtml(t.after)}</code></div>` : "";
-            return `
-              <li style="margin-bottom:8px; padding:8px 10px; background:var(--bg-elev); border-left:3px solid ${sev.color}; border-radius:4px;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span style="font-weight:600; color:${sev.color}; font-size:14px;">[${escapeHtml(t.id)}]</span>
-                  <span style="font-size:15px;">${escapeHtml(t.label)}</span>
-                  <span class="badge" style="font-size:12px; background:${sev.color}22; color:${sev.color}; border:1px solid ${sev.color}55;">${sev.label}</span>
-                </div>
-                ${before}${after}
-              </li>`;
+          // Status badge
+          const statusBadge = isClean
+            ? `<span class="mig-status-badge clean">✓ CLEAN</span>`
+            : hasChanges
+              ? `<span class="mig-status-badge changed">⟳ ${transforms.length} TRANSFORMS</span>`
+              : `<span class="mig-status-badge warned">⚠ ${warnings.length} WARNINGS</span>`;
+
+          // msg excerpt from converted rule
+          const msgM = (r.convertedRule || r.originalLine || "").match(/msg\s*:\s*"([^"]{0,70})"/i);
+          const msgExcerpt = msgM
+            ? `<span style="color:var(--muted);font-size:0.8rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(msgM[1])}">${escapeHtml(msgM[1])}</span>`
+            : "";
+
+          // Transform chips
+          const txChips = transforms.map(t => {
+            const sev    = __SEVERITY_META[t.severity] || __SEVERITY_META.info;
+            const before = t.before ? `<span style="color:var(--muted);font-size:0.72rem;">was:</span> <code style="background:#3f1d1d;color:#fca5a5;padding:1px 5px;border-radius:3px;font-size:0.78rem;">${escapeHtml(String(t.before).length > 40 ? String(t.before).slice(0,40)+'…' : t.before)}</code>` : "";
+            const after  = t.after  ? `<span style="color:var(--muted);font-size:0.72rem;">→</span> <code style="background:#14532d;color:#86efac;padding:1px 5px;border-radius:3px;font-size:0.78rem;">${escapeHtml(String(t.after).length > 40 ? String(t.after).slice(0,40)+'…' : t.after)}</code>` : "";
+            return `<div class="mig-tx-chip" style="border-color:${sev.color}44;">
+              <span style="font-weight:800;color:${sev.color};font-size:0.75rem;font-family:monospace;background:${sev.color}22;padding:1px 6px;border-radius:4px;">${escapeHtml(t.id)}</span>
+              <span style="font-size:0.79rem;color:var(--text);">${escapeHtml(t.label)}</span>
+              ${before ? `<span style="display:flex;align-items:center;gap:4px;">${before}</span>` : ""}
+              ${after  ? `<span style="display:flex;align-items:center;gap:4px;">${after}</span>` : ""}
+            </div>`;
           }).join("");
 
-          const warningItems = (r.warnings || []).map((w) => `<li style="font-size:14px; color:#fb923c;">⚠ ${escapeHtml(w)}</li>`).join("");
-
-          const original = r.originalLine || "";
-          const converted = r.convertedRule || "";
-          const noChange = transforms.length === 0 && warnCount === 0;
+          // Warning block
+          const warnBlock = warnings.length ? `
+            <div style="margin-top:12px;padding:10px 14px;border-left:3px solid #FF9000;background:rgba(255,144,0,0.06);border-radius:6px;">
+              <div style="font-size:0.75rem;font-weight:700;color:#fb923c;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+                ⚠ Advisory Notices (${warnings.length})
+              </div>
+              ${warnings.map(w => `<div style="font-size:0.81rem;color:#fbd38d;margin-bottom:4px;line-height:1.4;">• ${escapeHtml(w)}</div>`).join("")}
+            </div>` : "";
 
           return `
-            <details class="rule-explain" style="border:1px solid var(--border); border-radius:8px; background:var(--bg-card); padding:8px 12px;" ${noChange ? "" : "open"}>
-              <summary style="cursor:pointer; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                ${headerBadges}
-                ${noChange ? `<span class="muted" style="font-size:13px;">No changes</span>` : ""}
-              </summary>
-              <div style="margin-top:10px;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="mig-rule-card${expanded}" onclick="this.classList.toggle('expanded')">
+              <div class="mig-card-head">
+                <span style="font-family:monospace;font-size:0.78rem;color:var(--muted);min-width:28px;flex-shrink:0;">#${idx}</span>
+                <span class="mig-sid-badge">SID ${escapeHtml(String(sid))}</span>
+                ${msgExcerpt}
+                ${statusBadge}
+                <span style="margin-left:auto;color:var(--muted);font-size:0.73rem;flex-shrink:0;">▾</span>
+              </div>
+              <div class="mig-card-body">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:${txChips || warnings.length ? '14px' : '0'};">
                   <div>
-                    <div class="muted" style="font-size:13px; margin-bottom:4px;">Snort 2 (input)</div>
-                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:13px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(original)}</pre>
+                    <div class="mig-code-label">Snort 2 Input</div>
+                    <div class="mig-code-block snort2">${escapeHtml(r.originalLine || "")}</div>
                   </div>
                   <div>
-                    <div class="muted" style="font-size:13px; margin-bottom:4px;">Snort 3 (output)</div>
-                    <pre style="margin:0; padding:8px; background:#1f1f1f; border-radius:4px; font-size:13px; white-space:pre-wrap; word-break:break-all; color:#e5e7eb;">${escapeHtml(converted)}</pre>
+                    <div class="mig-code-label">Snort 3 Output (FMC-ready)</div>
+                    <div class="mig-code-block snort3">${escapeHtml(r.convertedRule || "")}</div>
                   </div>
                 </div>
-                ${transformItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:13px; margin-bottom:4px;">Applied transforms (${transforms.length})</div><ul style="list-style:none; padding:0; margin:0;">${transformItems}</ul></div>` : ""}
-                ${warningItems ? `<div style="margin-top:10px;"><div class="muted" style="font-size:13px; margin-bottom:4px;">Warnings (${warnCount})</div><ul style="margin:0; padding-left:18px;">${warningItems}</ul></div>` : ""}
+                ${txChips ? `<div>
+                  <div class="mig-code-label" style="margin-bottom:8px;">Applied Transforms (${transforms.length})</div>
+                  <div style="display:flex;flex-wrap:wrap;">${txChips}</div>
+                </div>` : ""}
+                ${warnBlock}
               </div>
-            </details>`;
+            </div>`;
         }).join("");
       }
 
@@ -6841,10 +6912,81 @@ ${optRules.join("\n")}
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         });
+        const htmlReportBtn = document.getElementById("migHtmlReportBtn");
+        if (htmlReportBtn) htmlReportBtn.addEventListener("click", downloadMigrationHtmlReport);
         input.addEventListener("input", () => {
           const n = String(input.value || "").split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith("#")).length;
           if (badge) badge.textContent = n + " rule" + (n === 1 ? "" : "s");
         });
+      }
+
+      // ── Cisco-branded HTML Migration Report ────────────────────────────
+      function downloadMigrationHtmlReport() {
+        const rules = __migPerRuleCache || [];
+        if (!rules.length) { alert("No migration results to export. Run a conversion first."); return; }
+
+        const esc = (s) => String(s == null ? "" : s)
+          .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+
+        const totalRules     = rules.length;
+        const changedRules   = rules.filter(r => (r.transforms||[]).length > 0 || (r.changeCount||0) > 0);
+        const cleanRules     = rules.filter(r => (r.transforms||[]).length === 0 && (r.warnings||[]).length === 0);
+        const totalTransforms= rules.reduce((a,r)=>a+((r.transforms||[]).length),0);
+        const totalWarnings  = rules.reduce((a,r)=>a+((r.warnings||[]).length),0);
+
+        const txFreq = new Map();
+        rules.forEach(r => (r.transforms||[]).forEach(t => {
+          if (!txFreq.has(t.id)) txFreq.set(t.id, {id:t.id, label:t.label, severity:t.severity, count:0, sids:[]});
+          const e = txFreq.get(t.id); e.count++;
+          if (r.sid && !e.sids.includes(r.sid)) e.sids.push(r.sid);
+        }));
+        const txRows = [...txFreq.values()].sort((a,b)=>b.count-a.count);
+        const sevColor = { critical:"#EF4444", warn:"#FF9000", auto:"#3070E7", info:"#22C55E" };
+
+        const txTableRows = txRows.map(t => {
+          const col = sevColor[t.severity] || "#64748B";
+          const sidsStr = t.sids.slice(0,5).join(", ") + (t.sids.length>5 ? ` +${t.sids.length-5} more`:"");
+          return `<tr><td><code style="background:#f1f5f9;padding:2px 7px;border-radius:4px;font-size:12px;font-weight:700;color:${col};">${esc(t.id)}</code></td><td style="font-size:13px;">${esc(t.label)}</td><td><span style="background:${col}20;color:${col};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">${esc(t.severity.toUpperCase())}</span></td><td style="font-weight:700;text-align:center;">${t.count}</td><td style="font-size:12px;color:#64748B;">${esc(sidsStr)}</td></tr>`;
+        }).join("");
+
+        const perRuleRows = changedRules.map(r => {
+          const sid = r.sid || "(no sid)";
+          const msgM = (r.convertedRule||r.originalLine||"").match(/msg\s*:\s*"([^"]{0,80})"/i);
+          const msg = msgM ? msgM[1] : "";
+          const transforms = r.transforms || [];
+          const warnings   = r.warnings  || [];
+          const txList = transforms.map(t => {
+            const col = sevColor[t.severity] || "#64748B";
+            const before = t.before ? `<span style="background:#fee2e2;color:#dc2626;padding:1px 5px;border-radius:3px;font-size:11px;">${esc(String(t.before).slice(0,50))}</span>` : "";
+            const after  = t.after  ? `<span style="background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:3px;font-size:11px;">${esc(String(t.after).slice(0,50))}</span>` : "";
+            return `<div style="display:flex;align-items:center;gap:6px;margin:3px 0;flex-wrap:wrap;"><span style="background:${col}20;color:${col};padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;">${esc(t.id)}</span><span style="font-size:12px;color:#374151;">${esc(t.label)}</span>${before}${after}</div>`;
+          }).join("");
+          const warnList = warnings.map(w => `<div style="font-size:12px;color:#b45309;margin:2px 0;">&#x26A0; ${esc(w)}</div>`).join("");
+          return `<div class="rule-row"><div class="rule-row-head"><span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;">SID ${esc(String(sid))}</span><span style="font-size:13px;color:#374151;flex:1;">${esc(msg)}</span><span style="font-size:11px;color:#6b7280;">${transforms.length} transforms &middot; ${warnings.length} warnings</span></div><div class="rule-row-body"><div class="diff-grid"><div><div class="code-label">Snort 2 Input</div><pre class="code-block" style="background:#fff5f5;border-color:#fecaca;">${esc(r.originalLine||"")}</pre></div><div><div class="code-label">Snort 3 Output (FMC-ready)</div><pre class="code-block" style="background:#f0fdf4;border-color:#bbf7d0;">${esc(r.convertedRule||"")}</pre></div></div>${txList ? `<div style="margin-top:10px;"><div class="code-label">Transforms Applied</div>${txList}</div>` : ""}${warnList ? `<div style="margin-top:8px;padding:8px 12px;background:#fffbeb;border-left:3px solid #F59E0B;border-radius:4px;">${warnList}</div>` : ""}</div></div>`;
+        }).join("");
+
+        const now   = new Date();
+        const ts    = now.toISOString().replace("T"," ").substring(0,19) + " UTC";
+        const tsFile= `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}${String(now.getSeconds()).padStart(2,"0")}`;
+        const fmcScore  = Math.max(0, Math.round(100 - (totalWarnings / Math.max(totalRules,1)) * 20));
+        const scoreColor= fmcScore >= 90 ? "#22C55E" : fmcScore >= 70 ? "#F59E0B" : "#EF4444";
+
+        const html = `<!doctype html><html lang="en"><head><meta charset="UTF-8"><title>Snort 2&#x2192;3 Migration Report</title><style>:root{--teal:#16BDEB;--blue:#3070E7;--dark:#0F1729;--navy:#07182D;--green:#22C55E;--orange:#FF9000;--red:#EF4444;--gray:#64748B;--light:#F8FAFC;--nav:250px;}*{box-sizing:border-box;}body{font-family:system-ui,sans-serif;background:var(--light);color:#1e293b;margin:0;font-size:14px;}.sidebar{position:fixed;top:0;left:0;width:var(--nav);height:100vh;overflow-y:auto;background:linear-gradient(180deg,var(--dark) 0%,var(--navy) 100%);padding:20px 14px;}.sidebar h2{color:#fff;font-size:14px;font-weight:800;margin:0 0 4px;}.sidebar .sub{color:#94a3b8;font-size:11px;margin:0 0 6px;}.ver{display:inline-block;background:#16BDEB22;border:1px solid #16BDEB55;color:#16BDEB;border-radius:20px;padding:1px 9px;font-size:10px;font-weight:700;margin-bottom:20px;}.nav-link{display:block;color:#94a3b8;text-decoration:none;padding:7px 12px;border-radius:6px;font-size:12px;margin-bottom:2px;border-left:3px solid transparent;transition:all .15s;}.nav-link:hover,.nav-link.active{background:rgba(255,255,255,.07);color:#fff;border-left-color:var(--teal);}.ns{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.08em;padding:12px 12px 4px;font-weight:700;}.main{margin-left:var(--nav);padding:28px 32px;max-width:1200px;}.rh{background:var(--dark);color:#fff;border-radius:14px;padding:24px 28px;margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;}.rh h1{margin:0;font-size:20px;font-weight:800;}.rh .meta{font-size:12px;color:#94a3b8;margin-top:5px;line-height:1.6;}.tag{background:rgba(22,189,235,.15);border:1px solid rgba(22,189,235,.4);color:#16BDEB;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;}.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:14px;margin-bottom:24px;}.kc{background:#fff;border-radius:12px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.07);}.kc .v{font-size:2rem;font-weight:800;color:var(--dark);line-height:1;}.kc .l{font-size:11px;color:var(--gray);text-transform:uppercase;letter-spacing:.05em;margin-top:4px;}.sec{background:#fff;border-radius:12px;padding:22px;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.06);scroll-margin-top:20px;}.st{font-size:15px;font-weight:700;color:var(--dark);margin:0 0 16px;padding-bottom:10px;border-bottom:2px solid var(--light);}table{width:100%;border-collapse:collapse;font-size:13px;}th{background:var(--dark);color:#fff;padding:9px 12px;text-align:left;font-size:11px;font-weight:600;letter-spacing:.04em;}td{padding:8px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}tr:hover td{background:#f8fafc;}.cb{background:#f8fafc;border-radius:6px;padding:9px 12px;font-family:Consolas,monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;margin:4px 0;border:1px solid #e2e8f0;line-height:1.5;}.rr{border:1px solid #e2e8f0;border-radius:10px;margin-bottom:14px;overflow:hidden;}.rrh{background:#f8fafc;padding:10px 16px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;}.rrb{padding:14px 16px;}.dg{display:grid;grid-template-columns:1fr 1fr;gap:12px;}.cl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gray);margin-bottom:4px;}@media(max-width:900px){.sidebar{position:static;width:100%;height:auto;}.main{margin-left:0;}.dg{grid-template-columns:1fr;}}@media print{.sidebar{display:none;}.main{margin-left:0;}}</style></head><body>
+<nav class="sidebar"><h2>&#128260; Snort Migration</h2><p class="sub">Snort 2 &#x2192; 3 Report</p><span class="ver">FMC-Ready</span><div class="ns">Sections</div><a class="nav-link active" href="#summary">&#128202; Executive Summary</a><a class="nav-link" href="#transforms">&#x1F504; Transform Analysis</a><a class="nav-link" href="#per-rule">&#128203; Per-Rule Details</a><div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#475569;">Generated:<br>${ts}</div></nav>
+<main class="main"><div class="rh"><div><h1>Snort 2 &#x2192; 3 Migration Report</h1><p class="meta">Generated: ${ts}<br>Target: Cisco FMC Snort 3 Local Rules</p></div><div style="text-align:right;"><span class="tag">Cisco FMC</span><div style="font-size:28px;font-weight:800;color:${scoreColor};margin-top:8px;">${fmcScore}<span style="font-size:14px;color:#94a3b8;">/100</span></div><div style="font-size:11px;color:#94a3b8;">FMC Readiness Score</div></div></div>
+<div class="kg"><div class="kc" style="border-top:5px solid #16BDEB;"><div class="v">${totalRules}</div><div class="l">Total Rules</div></div><div class="kc" style="border-top:5px solid #3070E7;"><div class="v">${changedRules.length}</div><div class="l">Changed</div></div><div class="kc" style="border-top:5px solid #22C55E;"><div class="v">${cleanRules.length}</div><div class="l">Unchanged</div></div><div class="kc" style="border-top:5px solid #22C55E;"><div class="v">${totalTransforms}</div><div class="l">Transforms</div></div><div class="kc" style="border-top:5px solid ${totalWarnings>0?"#FF9000":"#64748B"};"><div class="v">${totalWarnings}</div><div class="l">Warnings</div></div></div>
+<section class="sec" id="summary"><div class="st">&#128202; Executive Summary</div><table><tr><th>Metric</th><th>Value</th></tr><tr><td>Total input rules</td><td><strong>${totalRules}</strong></td></tr><tr><td>Rules with transforms</td><td><strong>${changedRules.length}</strong> (${Math.round(changedRules.length/Math.max(totalRules,1)*100)}%)</td></tr><tr><td>Rules unchanged</td><td><strong>${cleanRules.length}</strong></td></tr><tr><td>Total transforms applied</td><td><strong>${totalTransforms}</strong> across ${txFreq.size} M-codes</td></tr><tr><td>Advisory warnings</td><td><strong style="color:${totalWarnings>0?"#b45309":"#15803d"}">${totalWarnings}</strong></td></tr><tr><td>FMC Readiness Score</td><td><strong style="color:${scoreColor}">${fmcScore}/100</strong></td></tr><tr><td>Report generated</td><td>${ts}</td></tr></table></section>
+<section class="sec" id="transforms"><div class="st">&#x1F504; Transform Analysis &mdash; ${txFreq.size} M-codes applied</div>${txRows.length?`<table><tr><th>ID</th><th>Description</th><th>Severity</th><th style="text-align:center">Count</th><th>Sample SIDs</th></tr>${txTableRows}</table>`:`<p style="color:#64748B;text-align:center;padding:20px 0;">No transforms applied &mdash; all rules were already Snort 3 compatible.</p>`}</section>
+<section class="sec" id="per-rule"><div class="st">&#128203; Per-Rule Details &mdash; ${changedRules.length} changed rules</div>${perRuleRows||`<p style="color:#64748B;text-align:center;padding:20px 0;">All rules are Snort 3 compatible. No changes needed.</p>`}</section></main>
+<script>document.querySelectorAll('.nav-link').forEach(a=>{a.addEventListener('click',()=>{document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));a.classList.add('active');});});<\/script></body></html>`;
+
+        const blob = new Blob([html], {type:"text/html;charset=utf-8"});
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href = url; a.download = `${tsFile}_Snort_Migration_Report.html`;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(()=>URL.revokeObjectURL(url),1000);
       }
 
       function formatWeekRange(dates) {
