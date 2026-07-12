@@ -2139,11 +2139,11 @@ python3 trigger_rules.py --delay 1
         <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
           <div>
             <h3 style="margin:0;">📊 Rules Dashboard</h3>
-            <p style="margin:4px 0 0;color:var(--muted);font-size:0.85rem;">Upload a <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.rules</code> file to visualize rule distribution — action, protocol, category, SID ranges and more.</p>
+            <p style="margin:4px 0 0;color:var(--muted);font-size:0.85rem;">Upload any file — <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.rules</code> for Snort analysis, <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.xlsx/.csv</code> for tabular data dashboard.</p>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <button class="btn cyan" id="dashUploadBtn">📁 Upload .rules</button>
-            <input type="file" id="dashFileInput" accept=".rules,.txt" style="display:none">
+            <label for="dashFileInput" class="btn cyan" style="cursor:pointer;">📁 Upload file</label>
+            <input type="file" id="dashFileInput" style="display:none">
             <button class="btn success" id="dashDownloadBtn" style="display:none;">⬇ Download HTML</button>
             <button class="btn secondary" id="dashResetBtn" style="display:none;">↺ Reset</button>
           </div>
@@ -2153,9 +2153,9 @@ python3 trigger_rules.py --delay 1
 
         <div id="dashDropZone" class="dash-drop-zone">
           <div class="dash-drop-icon">📂</div>
-          <div class="dash-drop-title">Drop your .rules file here</div>
-          <div class="dash-drop-sub">or click <b>Upload .rules</b> above</div>
-          <div class="dash-drop-hint">Supports Snort 2 / Snort 3 local rules format</div>
+          <div class="dash-drop-title">Drop your file here</div>
+          <div class="dash-drop-sub">or click <b>Upload file</b> above</div>
+          <div class="dash-drop-hint">.rules · .csv · .tsv · .xlsx · .xls · any text file</div>
         </div>
 
         <div id="dashContent" style="display:none;">
@@ -11310,6 +11310,7 @@ ${optRules.join("\n")}
   <script src="scripts/ts-analyzer/parser.js"></script>
   <script src="scripts/ts-analyzer/renderer.js"></script>
   <script src="scripts/ts-analyzer/app.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="scripts/dashboard/app.js"></script>
 </body>
