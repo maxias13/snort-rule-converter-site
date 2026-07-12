@@ -111,17 +111,147 @@
 
   function parseExcel(buffer) {
     if (typeof XLSX === 'undefined') throw new Error('SheetJS not loaded');
-    const wb   = XLSX.read(new Uint8Array(buffer), { type:'array' });
-    const ws   = wb.Sheets[wb.SheetNames[0]];
+    const wb = XLSX.read(new Uint8Array(buffer), { type:'array' });
+
+    // Smart sheet selection:
+    // 1) Prefer a sheet whose first row has 5+ non-empty cells
+    // 2) Among those, prefer 'All Rules' (our extractor output)
+    // 3) Fall back to first sheet
+    let targetSheet = wb.SheetNames[0];
+    let bestScore = -1;
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name];
+      const first = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', range:{ s:{r:0,c:0}, e:{r:0,c:30} } });
+      const hdrCount = first.length ? first[0].filter(v => v !== '').length : 0;
+      const score = hdrCount + (name === 'All Rules' ? 1000 : 0);
+      if (score > bestScore) { bestScore = score; targetSheet = name; }
+    }
+
+    const ws   = wb.Sheets[targetSheet];
     const data = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
-    if (!data.length) return { headers:[], rows:[] };
+    if (!data.length) return { headers:[], rows:[], sheetName: targetSheet };
     const headers = data[0].map(String);
-    const rows = data.slice(1).map(row => {
-      const r = row.map(String).slice(0, headers.length);
-      while (r.length < headers.length) r.push('');
-      return r;
+    const rows = data.slice(1)
+      .filter(r => r.some(v => v !== ''))
+      .map(row => {
+        const r = row.map(String).slice(0, headers.length);
+        while (r.length < headers.length) r.push('');
+        return r;
+      });
+    return { headers, rows, sheetName: targetSheet };
+  }
+
+  // ── Snort Excel Export detection & parsing ─────────────────────────────
+
+  function isSnortXlsxExport(headers) {
+    const h = new Set(headers.map(String));
+    return ['GID','SID','Message','Rule Details','Rule Action','Status'].every(k => h.has(k));
+  }
+
+  function parseSnortXlsx(headers, rows) {
+    const col = {};
+    headers.forEach((h, i) => { col[String(h)] = i; });
+    const get = (r, k) => String(r[col[k]] ?? '').trim();
+
+    return rows
+      .filter(r => get(r,'SID') && get(r,'SID') !== '0')
+      .map(r => {
+        const ruleData = get(r, 'Rule Details');
+        const opts     = ruleData.includes('(') ? ruleData.slice(ruleData.lastIndexOf('(') + 1).replace(/\)\s*$/, '') : '';
+        const protoM   = ruleData.match(/^\s*\w+\s+(\w+)\s+/);
+        const ctM      = opts.match(/\bclasstype\s*:\s*([^;,)]+)/);
+        return {
+          type:      get(r, 'Type') || 'B',
+          gid:       parseInt(get(r, 'GID'))  || 1,
+          sid:       parseInt(get(r, 'SID'))  || 0,
+          msg:       get(r, 'Message'),
+          ruleData,
+          action:    get(r, 'Rule Action').toUpperCase(),
+          status:    get(r, 'Status'),
+          groups:    get(r, 'Assigned Groups') || '—',
+          protocol:  protoM ? protoM[1].toUpperCase() : '(Unknown)',
+          classtype: ctM    ? ctM[1].trim()            : '(none)',
+        };
+      });
+  }
+
+  // ── Snort Excel Export dashboard ───────────────────────────────────────
+
+  function renderSnortXlsxDashboard(rules) {
+    const total    = rules.length;
+    const builtins = rules.filter(r => r.type === 'B').length;
+    const locals   = rules.filter(r => r.type === 'L').length;
+    const active   = rules.filter(r => r.status === 'Active').length;
+    const disabled = rules.filter(r => r.status === 'Disabled').length;
+
+    renderKpis([
+      { v: total.toLocaleString(),    l: 'Total Rules'  },
+      { v: builtins.toLocaleString(), l: 'Built-in'     },
+      { v: locals.toLocaleString(),   l: 'Local'        },
+      { v: active.toLocaleString(),   l: 'Active'       },
+      { v: disabled.toLocaleString(), l: 'Disabled'     },
+    ]);
+
+    const actions   = tally(rules, r => r.action);
+    const statuses  = tally(rules, r => r.status);
+    const typeDist  = tally(rules, r => r.type === 'B' ? 'Built-in' : 'Local');
+    const cats      = tally(rules, r => snortCategory(r.msg)).slice(0, 20);
+    const protos    = tally(rules, r => r.protocol).slice(0, 10);
+    const sidBkts   = tally(rules, r => sidBucket(r.sid));
+    const ctypes    = tally(rules, r => r.classtype).slice(0, 15);
+    const groups    = tally(rules, r => r.groups).filter(g => g[0] !== '—').slice(0, 15);
+
+    document.getElementById('dashChartsGrid').innerHTML = `
+      <div class="dash-card"><div class="dash-card-title">Rule Action</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXA"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Status</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXS"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Built-in vs Local</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXT"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Protocol Distribution</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXP"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 20 Categories (from Message)</div>
+        <div class="dash-ch-wrap" style="height:520px"><canvas id="dXCat"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 15 Classtypes (from Rule Details)</div>
+        <div class="dash-ch-wrap" style="height:420px"><canvas id="dXCT"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">SID Range Distribution</div>
+        <div class="dash-ch-wrap" style="height:300px"><canvas id="dXSid"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">GID Distribution</div>
+        <div class="dash-ch-wrap" style="height:300px"><canvas id="dXG"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 15 Assigned Groups</div>
+        <div class="dash-ch-wrap" style="height:420px"><canvas id="dXGrp"></canvas></div></div>`;
+
+    const gids = tally(rules, r => String(r.gid));
+
+    requestAnimationFrame(() => {
+      state.charts.xa  = makeDoughnut('dXA',  actions.map(a=>a[0]),    actions.map(a=>a[1]),   ['#3070E7','#00bceb','#9ca3af'].slice(0,actions.length));
+      state.charts.xs  = makeDoughnut('dXS',  statuses.map(s=>s[0]),   statuses.map(s=>s[1]),  ['#22c55e','#94a3b8','#ff7e3f'].slice(0,statuses.length));
+      state.charts.xt  = makeDoughnut('dXT',  typeDist.map(t=>t[0]),   typeDist.map(t=>t[1]),  ['#00bceb','#f59e0b'].slice(0,typeDist.length));
+      state.charts.xp  = makeDoughnut('dXP',  protos.map(p=>p[0]),     protos.map(p=>p[1]),    PALETTE.slice(0,protos.length));
+      state.charts.xc  = makeBar('dXCat', cats.map(c=>c[0]),    cats.map(c=>c[1]),    '#00bceb', true);
+      state.charts.xct = makeBar('dXCT',  ctypes.map(c=>c[0]),  ctypes.map(c=>c[1]),  '#ec4899', true);
+      state.charts.xsi = makeBar('dXSid', sidBkts.map(s=>s[0]), sidBkts.map(s=>s[1]),'#3070E7', false);
+      state.charts.xg  = makeDoughnut('dXG', gids.map(g=>'GID '+g[0]), gids.map(g=>g[1]), PALETTE.slice(0,gids.length));
+      state.charts.xgr = makeBar('dXGrp', groups.map(g=>g[0]), groups.map(g=>g[1]), '#a855f7', true);
     });
-    return { headers, rows };
+
+    const catList = tally(rules, r => snortCategory(r.msg));
+    document.querySelector('#dashDataTable thead').innerHTML =
+      `<tr><th>#</th><th>Category</th><th>Count</th><th>%</th><th>BLOCK</th><th>ALERT</th><th>DISABLE</th><th>Active</th><th>Disabled</th></tr>`;
+    document.querySelector('#dashDataTable tbody').innerHTML = catList.slice(0, 50).map((c, i) => {
+      const sub   = rules.filter(r => snortCategory(r.msg) === c[0]);
+      const block = sub.filter(r => r.action === 'BLOCK').length;
+      const alert = sub.filter(r => r.action === 'ALERT').length;
+      const dis   = sub.filter(r => r.action === 'DISABLE').length;
+      const act   = sub.filter(r => r.status === 'Active').length;
+      const dstat = sub.filter(r => r.status === 'Disabled').length;
+      return `<tr><td>${i+1}</td>
+        <td style="font-weight:600;color:var(--primary)">${esc(c[0])}</td>
+        <td>${c[1].toLocaleString()}</td>
+        <td>${((c[1]/total)*100).toFixed(1)}%</td>
+        <td>${block.toLocaleString()}</td><td>${alert.toLocaleString()}</td><td>${dis.toLocaleString()}</td>
+        <td>${act.toLocaleString()}</td><td>${dstat.toLocaleString()}</td></tr>`;
+    }).join('');
   }
 
   function analyzeColumns(headers, rows) {
@@ -157,7 +287,7 @@
     return bins.filter(b=>b.count>0);
   }
 
-  const GRID='#1a2d55', TICK='#8fa4c8', LABEL='#ffffff';
+  const GRID='#d1d5db', TICK='#374151', LABEL='#1e293b';
 
   function makeBar(id, labels, data, color, horiz=false) {
     const el=document.getElementById(id);
@@ -344,11 +474,22 @@
 
   function processBuffer(buffer, name) {
     try {
-      const {headers,rows}=parseExcel(buffer);
+      const {headers,rows,sheetName}=parseExcel(buffer);
       if (!headers.length){showError('Excel file appears empty');return;}
+
+      if (isSnortXlsxExport(headers)) {
+        const rules = parseSnortXlsx(headers, rows);
+        if (!rules.length){showError('No rule rows found in this Excel file');return;}
+        state.mode='snort-xlsx'; state.rules=rules; destroyCharts();
+        activateDashboard(name,
+          name+' — '+rules.length.toLocaleString()+' rules (sheet: '+sheetName+')');
+        renderSnortXlsxDashboard(rules);
+        return;
+      }
+
       const colMeta=analyzeColumns(headers,rows);
       state.mode='table'; state.table={headers,rows,colMeta,selectedCols:[]}; destroyCharts();
-      activateDashboard(name,name+' — '+rows.length.toLocaleString()+' rows × '+headers.length+' columns');
+      activateDashboard(name,name+' — '+rows.length.toLocaleString()+' rows × '+headers.length+' columns (sheet: '+sheetName+')');
       renderTableDashboard(colMeta,rows);
     } catch(e){showError('Excel parse error: '+e.message);}
   }
@@ -489,7 +630,7 @@ bar('cCT',${J(ctypes.map(c=>c[0]))},${J(ctypes.map(c=>c[1]))},'#ec4899',true);`;
 
   function downloadHtml() {
     if (!state.mode) return;
-    const html=state.mode==='rules'?buildSnortHtml():buildTableHtml();
+    const html = state.mode === 'table' ? buildTableHtml() : buildSnortHtml();
     const blob=new Blob([html],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=Object.assign(document.createElement('a'),{href:url,download:'dashboard-'+state.fileName.replace(/\.[^.]+$/,'')+'-'+new Date().toISOString().slice(0,10)+'.html'});

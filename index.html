@@ -1079,6 +1079,63 @@
     .dash-drop-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; pointer-events: none; }
     .dash-drop-sub   { color: var(--muted); font-size: 0.9rem; margin-bottom: 5px; pointer-events: none; }
     .dash-drop-hint  { color: var(--muted-2); font-size: 0.78rem; pointer-events: none; }
+    .dash-card-wide  { grid-column: 1 / -1; }
+    .dash-ch-wrap    { position: relative; }
+
+    /* ── Dashboard Light Mode ──────────────────────────────────────── */
+    #dashboardView {
+      --bg: #ffffff; --bg-elev: #f8fafc; --bg-elev-2: #f1f5f9;
+      --panel: #ffffff; --panel-2: #f8fafc;
+      --border: #e2e8f0; --border-soft: #cbd5e1;
+      --primary: #0369a1;
+      --text: #0f172a; --muted: #475569; --muted-2: #64748b;
+      --cyan-light: #0284c7; --cyan-soft: #0369a1;
+      --code-text: #1e293b;
+    }
+    #dashboardView > .panel {
+      background: #ffffff !important;
+      border-color: #e2e8f0 !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important;
+    }
+    #dashboardView h3       { color: #0f172a !important; }
+    #dashboardView p        { color: #475569 !important; }
+    #dashboardView code     { background:rgba(3,105,161,.08) !important; border-color:rgba(3,105,161,.25) !important; color:#0369a1 !important; }
+    #dashboardView .dash-drop-zone {
+      background: #f8fafc !important; border-color: #cbd5e1 !important;
+    }
+    #dashboardView .dash-drop-zone:hover,
+    #dashboardView .dash-drop-zone.drag-over {
+      background: #eff6ff !important; border-color: #3b82f6 !important;
+    }
+    #dashboardView .dash-drop-title { color: #0f172a !important; }
+    #dashboardView .dash-drop-sub,
+    #dashboardView .dash-drop-hint  { color: #64748b !important; }
+    #dashboardView .mig-kpi-card    {
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.07) !important;
+    }
+    #dashboardView .kpi-lbl { color: #64748b !important; }
+    #dashboardView #dashFileInfo {
+      background: #eff6ff !important; border-color: #bfdbfe !important; color: #1d4ed8 !important;
+    }
+    #dashboardView .dash-card {
+      background: #f8fafc !important; border-color: #e2e8f0 !important;
+    }
+    #dashboardView .dash-card-title { color: #0369a1 !important; }
+    #dashboardView .panel { background: #ffffff !important; border-color: #e2e8f0 !important; }
+    #dashboardView table th {
+      background: #eff6ff !important; color: #1e40af !important;
+      border-color: #c7d2fe !important;
+    }
+    #dashboardView table td  { color: #1e293b !important; border-color: #e2e8f0 !important; }
+    #dashboardView table tbody tr:nth-child(even) { background: #f8fafc !important; }
+    #dashboardView table tbody tr:nth-child(odd)  { background: #ffffff !important; }
+    #dashboardView table tbody tr:hover           { background: #eff6ff !important; }
+    #dashboardView .btn.secondary {
+      background: linear-gradient(180deg,#f1f5f9,#e2e8f0) !important;
+      border-color: #94a3b8 !important; color: #374151 !important;
+    }
 
     .dash-grid {
       display: grid;
