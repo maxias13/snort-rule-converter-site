@@ -2161,40 +2161,13 @@ python3 trigger_rules.py --delay 1
         <div id="dashContent" style="display:none;">
           <div class="mig-kpi-bar" id="dashKpiBar"></div>
 
-          <div class="dash-grid">
-            <div class="dash-card">
-              <div class="dash-card-title">Action Distribution</div>
-              <div class="dash-ch-wrap" style="height:220px;"><canvas id="dashChartAction"></canvas></div>
-            </div>
-            <div class="dash-card">
-              <div class="dash-card-title">Protocol Distribution</div>
-              <div class="dash-ch-wrap" style="height:220px;"><canvas id="dashChartProtocol"></canvas></div>
-            </div>
-            <div class="dash-card dash-card-wide">
-              <div class="dash-card-title">Top 20 Categories</div>
-              <div class="dash-ch-wrap" style="height:520px;"><canvas id="dashChartCategory"></canvas></div>
-            </div>
-            <div class="dash-card">
-              <div class="dash-card-title">SID Range Distribution</div>
-              <div class="dash-ch-wrap" style="height:260px;"><canvas id="dashChartSid"></canvas></div>
-            </div>
-            <div class="dash-card">
-              <div class="dash-card-title">GID Distribution</div>
-              <div class="dash-ch-wrap" style="height:260px;"><canvas id="dashChartGid"></canvas></div>
-            </div>
-            <div class="dash-card dash-card-wide">
-              <div class="dash-card-title">Top 15 Classtypes</div>
-              <div class="dash-ch-wrap" style="height:420px;"><canvas id="dashChartClasstype"></canvas></div>
-            </div>
-          </div>
+          <div class="dash-grid" id="dashChartsGrid"></div>
 
           <div class="panel" style="margin-top:14px;">
-            <div class="dash-card-title" style="margin-bottom:10px;">Category Details — Top 50</div>
+            <div class="dash-card-title" style="margin-bottom:10px;" id="dashTableTitle">Details</div>
             <div class="table-scroll">
-              <table id="dashCategoryTable">
-                <thead>
-                  <tr><th>#</th><th>Category</th><th>Count</th><th>%</th><th>Top Action</th><th>Top Protocol</th></tr>
-                </thead>
+              <table id="dashDataTable">
+                <thead></thead>
                 <tbody></tbody>
               </table>
             </div>
