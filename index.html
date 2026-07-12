@@ -1061,6 +1061,48 @@
     .guide-tag.important { background: rgba(255,170,0,0.15); color: #ffc84d; border: 1px solid #7a5200; }
     .guide-tag.tip { background: rgba(0,212,255,0.1); color: var(--cyan-light); border: 1px solid var(--border-soft); }
 
+    .dash-drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 52px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: rgba(0,188,235,0.02);
+    }
+    .dash-drop-zone:hover,
+    .dash-drop-zone.drag-over {
+      border-color: var(--primary);
+      background: rgba(0,188,235,0.06);
+    }
+    .dash-drop-icon  { font-size: 2.6rem; margin-bottom: 12px; pointer-events: none; }
+    .dash-drop-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; pointer-events: none; }
+    .dash-drop-sub   { color: var(--muted); font-size: 0.9rem; margin-bottom: 5px; pointer-events: none; }
+    .dash-drop-hint  { color: var(--muted-2); font-size: 0.78rem; pointer-events: none; }
+
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 14px;
+    }
+    .dash-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      background: rgba(10,17,34,0.9);
+    }
+    .dash-card-wide  { grid-column: 1 / -1; }
+    .dash-card-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+    .dash-ch-wrap    { position: relative; }
+
     @media (max-width: 1000px) {
       .split, .diff-grid { grid-template-columns: 1fr; }
       .textarea { min-height: 260px; }
@@ -1679,6 +1721,7 @@
 
       <button class="tab-btn" data-view="sruView"><span class="icon" aria-hidden="true">🔄</span><span class="label">Snort 2 SRU Updates</span></button>
       <button class="tab-btn" data-view="lspView"><span class="icon" aria-hidden="true">📋</span><span class="label">Snort 3 LSP Updates</span></button>
+      <button class="tab-btn" data-view="dashboardView"><span class="icon" aria-hidden="true">📊</span><span class="label">Rules Dashboard</span></button>
       <button class="tab-btn" data-view="tsAnalyzerView"><span class="icon" aria-hidden="true">🔬</span><span class="label">Analysis TS File</span></button>
 
       <button class="tab-btn feedback-btn" data-view="feedbackView"><span class="icon" aria-hidden="true">💬</span><span class="label">Feedback</span></button>
@@ -2086,6 +2129,76 @@ python3 trigger_rules.py --delay 1
         </div>
         <div id="lspResults" class="result-card muted" style="min-height:120px;">
           Click <b>Load Latest</b> to fetch this week's LSP release notes (Snort 3 rules: new / modified / deleted).
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Rules Dashboard ─────────────────────────────────────────────── -->
+    <section id="dashboardView" class="view">
+      <div class="panel">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">📊 Rules Dashboard</h3>
+            <p style="margin:4px 0 0;color:var(--muted);font-size:0.85rem;">Upload a <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.rules</code> file to visualize rule distribution — action, protocol, category, SID ranges and more.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn cyan" id="dashUploadBtn">📁 Upload .rules</button>
+            <input type="file" id="dashFileInput" accept=".rules,.txt" style="display:none">
+            <button class="btn success" id="dashDownloadBtn" style="display:none;">⬇ Download HTML</button>
+            <button class="btn secondary" id="dashResetBtn" style="display:none;">↺ Reset</button>
+          </div>
+        </div>
+
+        <div id="dashFileInfo" style="display:none;margin-bottom:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.82rem;color:var(--muted);background:rgba(0,188,235,.04);"></div>
+
+        <div id="dashDropZone" class="dash-drop-zone">
+          <div class="dash-drop-icon">📂</div>
+          <div class="dash-drop-title">Drop your .rules file here</div>
+          <div class="dash-drop-sub">or click <b>Upload .rules</b> above</div>
+          <div class="dash-drop-hint">Supports Snort 2 / Snort 3 local rules format</div>
+        </div>
+
+        <div id="dashContent" style="display:none;">
+          <div class="mig-kpi-bar" id="dashKpiBar"></div>
+
+          <div class="dash-grid">
+            <div class="dash-card">
+              <div class="dash-card-title">Action Distribution</div>
+              <div class="dash-ch-wrap" style="height:220px;"><canvas id="dashChartAction"></canvas></div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-title">Protocol Distribution</div>
+              <div class="dash-ch-wrap" style="height:220px;"><canvas id="dashChartProtocol"></canvas></div>
+            </div>
+            <div class="dash-card dash-card-wide">
+              <div class="dash-card-title">Top 20 Categories</div>
+              <div class="dash-ch-wrap" style="height:520px;"><canvas id="dashChartCategory"></canvas></div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-title">SID Range Distribution</div>
+              <div class="dash-ch-wrap" style="height:260px;"><canvas id="dashChartSid"></canvas></div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-title">GID Distribution</div>
+              <div class="dash-ch-wrap" style="height:260px;"><canvas id="dashChartGid"></canvas></div>
+            </div>
+            <div class="dash-card dash-card-wide">
+              <div class="dash-card-title">Top 15 Classtypes</div>
+              <div class="dash-ch-wrap" style="height:420px;"><canvas id="dashChartClasstype"></canvas></div>
+            </div>
+          </div>
+
+          <div class="panel" style="margin-top:14px;">
+            <div class="dash-card-title" style="margin-bottom:10px;">Category Details — Top 50</div>
+            <div class="table-scroll">
+              <table id="dashCategoryTable">
+                <thead>
+                  <tr><th>#</th><th>Category</th><th>Count</th><th>%</th><th>Top Action</th><th>Top Protocol</th></tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -11197,5 +11310,7 @@ ${optRules.join("\n")}
   <script src="scripts/ts-analyzer/parser.js"></script>
   <script src="scripts/ts-analyzer/renderer.js"></script>
   <script src="scripts/ts-analyzer/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="scripts/dashboard/app.js"></script>
 </body>
 </html>
