@@ -1431,4 +1431,598 @@ function renderLocalTab(lr,filter,page){
     dropZone?.addEventListener('click', ()=>fileInput.click());
   });
 
+  const dualState = {
+    builtinText: '', localText: '', builtinName: '', localName: '',
+    builtinRules: [], localRules: [], duplicates: [], syntaxErrors: [],
+    dupFilter: 'all', synFilter: 'all', dualCharts: {}
+  };
+
+  function parseSnortRulesFull(text) {
+    const rules = [];
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const raw = lines[i].trim();
+      if (!raw || raw.startsWith('#')) continue;
+      const ACTIONS = /^(alert|block|drop|log|pass|react|reject|rewrite|activate|dynamic|sdrop)\s/i;
+      if (!ACTIONS.test(raw)) continue;
+      const parenIdx = raw.indexOf('(');
+      const headerStr = parenIdx >= 0 ? raw.slice(0, parenIdx).trim() : raw;
+      const optStr    = parenIdx >= 0 ? raw.slice(parenIdx + 1).replace(/\)\s*$/, '') : '';
+      const hParts    = headerStr.split(/\s+/);
+      const getOpt = (key) => (optStr.match(new RegExp('\\b' + key + '\\s*:\\s*"([^"]*)"','i')) || [])[1] ?? null;
+      const getOptN = (key) => parseInt((optStr.match(new RegExp('\\b' + key + '\\s*:\\s*(\\d+)','i')) || [])[1] || '0', 10);
+      const getOptRaw = (key) => ((optStr.match(new RegExp('\\b' + key + '\\s*:\\s*([^;]+)','i')) || [])[1] || '').trim();
+      const contents = [...optStr.matchAll(/\bcontent\s*:\s*"((?:[^"\\]|\\.)*)"/gi)].map(m => m[1]);
+      const pcres    = [...optStr.matchAll(/\bpcre\s*:\s*"([^"]+)"/gi)].map(m => m[1]);
+      const buffers  = [];
+      ['http_uri','http_raw_uri','http_header','http_raw_header','http_cookie','http_client_body','http_raw_body','http_method','file_data','base64_data'].forEach(b => {
+        if (new RegExp('\\b' + b + '\\s*[;:]').test(optStr)) buffers.push(b);
+      });
+      rules.push({
+        raw, lineNum: i + 1,
+        action:    (hParts[0] || '').toLowerCase(),
+        protocol:  (hParts[1] || '').toLowerCase(),
+        srcIp:     hParts[2] || '', srcPort: hParts[3] || '',
+        direction: hParts[4] || '', dstIp: hParts[5] || '', dstPort: hParts[6] || '',
+        msg:       getOpt('msg') || '',
+        sid:       getOptN('sid'),
+        rev:       getOptN('rev'),
+        gid:       getOptN('gid') || 1,
+        classtype: getOptRaw('classtype') || '(none)',
+        contents, pcres, buffers, optStr
+      });
+    }
+    return rules;
+  }
+
+  function computeFingerprint(r) {
+    const c = r.contents.slice().sort().join('|').toLowerCase();
+    const p = r.pcres.slice().sort().join('|').toLowerCase();
+    const b = r.buffers.slice().sort().join(',');
+    const key = [r.protocol, r.direction, c, p, b].join('__');
+    return (c || p) ? key : '';
+  }
+
+  function analyzeDuplicates(builtinRules, localRules) {
+    const bySid  = new Map(builtinRules.filter(r => r.sid > 0).map(r => [r.sid, r]));
+    const byMsg  = new Map(builtinRules.filter(r => r.msg).map(r => [r.msg.toLowerCase().trim(), r]));
+    const byFP   = new Map();
+    for (const r of builtinRules) {
+      const fp = computeFingerprint(r);
+      if (!fp) continue;
+      if (!byFP.has(fp)) byFP.set(fp, []);
+      byFP.get(fp).push(r);
+    }
+    const byContent = new Map();
+    for (const r of builtinRules) {
+      if (!r.contents.length) continue;
+      const k = r.contents.slice().sort().join('|').toLowerCase();
+      if (!byContent.has(k)) byContent.set(k, []);
+      byContent.get(k).push(r);
+    }
+    const results = [];
+    for (const loc of localRules) {
+      const reasons = []; let matched = null;
+      if (loc.sid > 0 && bySid.has(loc.sid)) {
+        matched = bySid.get(loc.sid);
+        reasons.push({ type:'SID', cls:'sid', label:`SID ${loc.sid} 완전 일치`, detail:`Built-in "${matched.msg}" (SID ${matched.sid})와 동일 SID`, sev:'exact', icon:'🔴' });
+      }
+      if (loc.msg) {
+        const mk = loc.msg.toLowerCase().trim();
+        if (byMsg.has(mk)) { const b = byMsg.get(mk); if (!matched) matched = b;
+          reasons.push({ type:'MSG', cls:'msg', label:'msg 메시지 완전 일치', detail:`"${loc.msg.slice(0,60)}"`, sev:'high', icon:'🟠' }); }
+      }
+      const fp = computeFingerprint(loc);
+      if (fp && byFP.has(fp)) { const arr = byFP.get(fp); if (!matched) matched = arr[0];
+        reasons.push({ type:'FP', cls:'fp', label:'탐지 패턴(시그니처) 동일', detail:`Built-in ${arr.map(b=>'SID '+b.sid).join(', ')}와 동일 패턴`, sev:'high', icon:'🟡' }); }
+      if (loc.contents.length) {
+        const ck = loc.contents.slice().sort().join('|').toLowerCase();
+        if (byContent.has(ck) && !reasons.find(r=>r.type==='FP')) { const arr = byContent.get(ck); if (!matched) matched = arr[0];
+          reasons.push({ type:'CONTENT', cls:'content', label:'content 패턴 일치', detail:`"${loc.contents.slice(0,2).join('", "')}"`, sev:'medium', icon:'🟡' }); }
+      }
+      if (reasons.length && matched) {
+        results.push({ localRule: loc, builtinRule: matched, reasons, severity: reasons.some(r=>r.sev==='exact')?'exact':'likely' });
+      }
+    }
+    return results;
+  }
+
+  function splitOptTokens(optStr) {
+    const tokens = []; let cur = '', depth = 0, inQ = false;
+    for (let i = 0; i < optStr.length; i++) {
+      const ch = optStr[i];
+      if (ch === '\\' && inQ) { cur += ch + (optStr[++i]||''); continue; }
+      if (ch === '"') { inQ = !inQ; cur += ch; continue; }
+      if (!inQ && ch === '(') { depth++; cur += ch; continue; }
+      if (!inQ && ch === ')') { depth--; cur += ch; continue; }
+      if (!inQ && depth === 0 && ch === ';') { tokens.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    if (cur.trim()) tokens.push(cur.trim());
+    return tokens;
+  }
+
+  function validateLocalRuleSyntax(rules) {
+    const VALID_ACTIONS   = ['alert','block','drop','log','pass','react','reject','rewrite','activate','dynamic','sdrop'];
+    const VALID_PROTOS    = ['tcp','udp','icmp','ip','http','ftp','smtp','ssh','telnet','dns','tls','ssl','dcerpc','smb','gre','pkthdr','file'];
+    const LEGACY_OPTS     = ['uricontent','threshold','logto','session','rawbytes','http_encode','sameip'];
+    const PORT_RE         = /^(!?)(\[.*\]|any|\d+|\d+:\d*|\d*:\d+|\d+:\d+|\$\w+)$/;
+    const errors = [];
+    for (const rule of rules) {
+      const errs = []; const { raw, lineNum, action, protocol, direction, srcPort, dstPort, optStr, sid, msg, rev, contents } = rule;
+      if (!VALID_ACTIONS.includes(action))
+        errs.push({ code:'H001', sev:'critical', msg:`잘못된 action: '${action}'`, fix:`유효 action: ${VALID_ACTIONS.slice(0,6).join(', ')} 등` });
+      if (!VALID_PROTOS.includes(protocol))
+        errs.push({ code:'H004', sev:'warning', msg:`알 수 없는 프로토콜: '${protocol}'`, fix:'tcp, udp, icmp, ip 등 사용' });
+      if (direction !== '->' && direction !== '<>')
+        errs.push({ code:'H007', sev:'critical', msg:`잘못된 방향 연산자: '${direction||"없음"}'`, fix:"'->' 또는 '<>' 사용" });
+      if (!PORT_RE.test(srcPort))
+        errs.push({ code:'H006', sev:'warning', msg:`소스 포트 의심: '${srcPort}'`, fix:'80 / 1024:65535 / any 형식' });
+      if (!PORT_RE.test(dstPort))
+        errs.push({ code:'H009', sev:'warning', msg:`목적지 포트 의심: '${dstPort}'`, fix:'80 / 1024:65535 / any 형식' });
+      if (!raw.includes('(') || !raw.includes(')'))
+        errs.push({ code:'O001', sev:'critical', msg:'옵션 블록 괄호 () 없음', fix:'룰 끝에 (msg:".."; sid:N; rev:1;) 형식 추가' });
+      if (sid === 0 || !optStr.match(/\bsid\s*:\s*\d+\s*;/))
+        errs.push({ code:'O003a', sev:'critical', msg:'sid 옵션 없음 (필수)', fix:'sid:1000001; 추가 (로컬 룰 1,000,000 이상 권장)' });
+      else if (sid < 1000000)
+        errs.push({ code:'S001', sev:'warning', msg:`로컬 룰 SID ${sid} < 1,000,000`, fix:`sid:${sid + 1000000}; 로 변경 권장` });
+      if (!msg || !optStr.match(/\bmsg\s*:\s*"[^"]+"\s*;/))
+        errs.push({ code:'O003b', sev:'critical', msg:'msg 옵션 없음 또는 따옴표 오류', fix:'msg:"Rule Description Here"; 추가' });
+      if (rev === 0 || !optStr.match(/\brev\s*:\s*\d+\s*;/))
+        errs.push({ code:'O003c', sev:'warning', msg:'rev 옵션 없음 (권장)', fix:'rev:1; 추가' });
+      for (const opt of LEGACY_OPTS) {
+        if (new RegExp('\\b' + opt + '\\s*[;:]').test(optStr))
+          errs.push({ code:'S004', sev:'warning', msg:`Snort 2 전용 옵션 '${opt}' 사용`, fix:`'${opt}'은 Snort 3 미지원. 마이그레이션 필요.` });
+      }
+      const pcreM = optStr.match(/\bpcre\s*:\s*"([^"]+)"/);
+      if (pcreM && !/^\/.*\/[imscABCDEGHIMOPQRSUVWYZ]*$/i.test(pcreM[1]))
+        errs.push({ code:'O010', sev:'critical', msg:`PCRE 패턴 구문 오류: ${pcreM[1].slice(0,40)}`, fix:'/pattern/flags 형식 필요: pcre:"/abc/i";' });
+      const tokens = splitOptTokens(optStr);
+      for (const tok of tokens) {
+        if (!tok) continue;
+        const ci = tok.indexOf(':');
+        if (ci >= 0) {
+          const val = tok.slice(ci + 1);
+          const qCount = (val.match(/(?<!\\)"/g) || []).length;
+          if (qCount % 2 !== 0)
+            errs.push({ code:'O002', sev:'critical', msg:`따옴표 불균형: ...${tok.slice(0, 30)}...`, fix:'문자열 값 닫기: key:"value";' });
+        }
+      }
+      if (contents.length === 1 && contents[0].replace(/\|[0-9a-fA-F ]+\|/g,'').replace(/\s/g,'').length <= 4)
+        errs.push({ code:'O005', sev:'warning', msg:'단일 content 패턴이 너무 짧음 (오탐 위험)', fix:'더 구체적인 패턴 추가 또는 다른 옵션과 조합' });
+      if (errs.length) {
+        const fixedRule = buildFixedRule(rule, errs);
+        errors.push({ lineNum, raw, errors: errs, fixedRule });
+      }
+    }
+    return errors;
+  }
+
+  function buildFixedRule(rule, errs) {
+    let fixed = rule.raw;
+    let optStr = rule.optStr;
+    let modified = false;
+    if (errs.find(e => e.code === 'O003a') && rule.sid === 0) {
+      optStr += ' sid:1000001; rev:1;'; modified = true;
+    } else if (errs.find(e => e.code === 'S001') && rule.sid > 0 && rule.sid < 1000000) {
+      optStr = optStr.replace(/\bsid\s*:\s*\d+\s*;/, `sid:${rule.sid + 1000000};`); modified = true;
+    }
+    if (errs.find(e => e.code === 'O003b') && !rule.msg) {
+      optStr = 'msg:"Local Rule Description"; ' + optStr; modified = true;
+    }
+    if (errs.find(e => e.code === 'O003c') && rule.rev === 0) {
+      if (!optStr.match(/\brev\s*:\s*\d+\s*;/)) { optStr += ' rev:1;'; modified = true; }
+    }
+    if (errs.find(e => e.code === 'H007') && rule.direction !== '->' && rule.direction !== '<>') {
+      fixed = fixed.replace(/\s+[^\s(]+\s+(?=\S+\s+\S+\s*\()/, ' -> '); modified = true;
+    }
+    if (modified) {
+      const pi = fixed.indexOf('(');
+      if (pi >= 0) fixed = fixed.slice(0, pi + 1) + optStr + ')';
+    }
+    return modified ? fixed : null;
+  }
+
+  function renderDualKpis(builtinRules, localRules, duplicates, syntaxErrors) {
+    const el = document.getElementById('dualKpiRow');
+    if (!el) return;
+    const exactDup = duplicates.filter(d => d.severity === 'exact').length;
+    const likelyDup = duplicates.filter(d => d.severity === 'likely').length;
+    const critErr = syntaxErrors.filter(e => e.errors.some(x => x.sev === 'critical')).length;
+    const warnErr = syntaxErrors.filter(e => !e.errors.some(x => x.sev === 'critical') && e.errors.some(x => x.sev === 'warning')).length;
+    const cleanLocal = Math.max(0, localRules.length - duplicates.length - syntaxErrors.length);
+    el.innerHTML = [
+      { v: builtinRules.length.toLocaleString(), l: 'Built-in 룰', c: 'c-blue' },
+      { v: localRules.length.toLocaleString(),   l: 'Local 룰',    c: 'c-cyan' },
+      { v: exactDup + likelyDup,                  l: '중복 룰',     c: 'c-amber' },
+      { v: critErr,                                l: '문법 오류 (Critical)', c: 'c-red' },
+      { v: warnErr,                                l: '문법 경고',  c: 'c-purple' },
+      { v: cleanLocal,                             l: '이상 없음',  c: 'c-green' }
+    ].map(k => `<div class="dual-kpi-card ${k.c}"><div class="dual-kpi-val">${k.v}</div><div class="dual-kpi-lbl">${k.l}</div></div>`).join('');
+
+    const total = localRules.length || 1;
+    const pDup  = ((duplicates.length / total) * 100).toFixed(1);
+    const pErr  = ((syntaxErrors.length / total) * 100).toFixed(1);
+    const pOk   = Math.max(0, 100 - +pDup - +pErr).toFixed(1);
+    document.getElementById('dualProgWrap').innerHTML = `
+      <div style="margin-bottom:6px;font-size:.8rem;color:var(--muted);">Local 룰 분석 현황</div>
+      <div class="dual-prog-bar">
+        ${+pDup > 0 ? `<div class="dual-prog-seg s-dup" style="flex:${pDup}">${pDup}%</div>` : ''}
+        ${+pErr > 0 ? `<div class="dual-prog-seg s-err" style="flex:${pErr}">${pErr}%</div>` : ''}
+        <div class="dual-prog-seg s-ok" style="flex:${pOk}">${pOk}%</div>
+      </div>
+      <div class="dual-legend">
+        <div class="dual-leg-item"><div class="dual-leg-dot" style="background:#f59e0b"></div>중복 (${pDup}%)</div>
+        <div class="dual-leg-item"><div class="dual-leg-dot" style="background:#ef4444"></div>문법 오류 (${pErr}%)</div>
+        <div class="dual-leg-item"><div class="dual-leg-dot" style="background:#22c55e"></div>이상 없음 (${pOk}%)</div>
+      </div>`;
+  }
+
+  function destroyDualCharts() {
+    Object.values(dualState.dualCharts).forEach(c => { try { c.destroy(); } catch(_){} });
+    dualState.dualCharts = {};
+  }
+
+  function renderDualCharts(builtinRules, localRules, duplicates, syntaxErrors) {
+    const grid = document.getElementById('dualChartsGrid');
+    if (!grid || typeof Chart === 'undefined') return;
+    destroyDualCharts();
+
+    const tally = (arr, fn) => { const m = new Map(); arr.forEach(x => { const k=fn(x); m.set(k,(m.get(k)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1]); };
+    const bActions   = tally(builtinRules, r => r.action.toUpperCase());
+    const lActions   = tally(localRules,   r => r.action.toUpperCase());
+    const bProtos    = tally(builtinRules, r => r.protocol.toUpperCase()).slice(0,8);
+    const lProtos    = tally(localRules,   r => r.protocol.toUpperCase()).slice(0,8);
+    const dupTypes   = tally(duplicates.flatMap(d => d.reasons), r => r.type);
+    const errTypes   = tally(syntaxErrors.flatMap(e => e.errors), e => e.code);
+    const classtypes = tally(localRules, r => r.classtype).slice(0,10);
+    const dupSev     = [['완전 일치(SID)', duplicates.filter(d=>d.severity==='exact').length], ['유사 일치', duplicates.filter(d=>d.severity==='likely').length]].filter(x=>x[1]>0);
+    const errSev     = [
+      ['Critical', syntaxErrors.filter(e=>e.errors.some(x=>x.sev==='critical')).length],
+      ['Warning',  syntaxErrors.filter(e=>!e.errors.some(x=>x.sev==='critical')&&e.errors.some(x=>x.sev==='warning')).length]
+    ].filter(x=>x[1]>0);
+    const cleanL = Math.max(0, localRules.length - duplicates.length - syntaxErrors.length);
+    const overallData = [['이상 없음', cleanL], ['중복', duplicates.length], ['문법 오류', syntaxErrors.length]].filter(x=>x[1]>0);
+
+    const LIGHT = document.getElementById('dashboardView')?.querySelector('#dualChartsGrid');
+    const GR = '#d1d5db', TK = '#374151', LB = '#1e293b';
+
+    const mkDot = (id, labels, data, colors) => {
+      const el = document.getElementById(id); if (!el) return null;
+      return new Chart(el, { type:'doughnut', data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'bb'),borderColor:colors,borderWidth:1}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:LB,font:{size:11},boxWidth:14,padding:8}},tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw}`}}}} });
+    };
+    const mkBar = (id, labels, data, color, horiz=false) => {
+      const el = document.getElementById(id); if (!el) return null;
+      return new Chart(el, { type:'bar', data:{labels,datasets:[{data,backgroundColor:color+'bb',borderColor:color,borderWidth:1,borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:horiz?'y':'x',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw}`}}},
+          scales:{x:{ticks:{color:horiz?TK:LB,font:{size:10}},grid:{color:GR}},y:{ticks:{color:horiz?LB:TK,font:{size:10}},grid:{color:GR}}}} });
+    };
+    const mkGroupBar = (id, labels, datasets) => {
+      const el = document.getElementById(id); if (!el) return null;
+      return new Chart(el, { type:'bar', data:{labels,datasets},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:LB,font:{size:11}}}},
+          scales:{x:{ticks:{color:LB,font:{size:10}},grid:{color:GR}},y:{ticks:{color:TK,font:{size:10}},grid:{color:GR}}}} });
+    };
+
+    grid.innerHTML = `
+      <div class="dual-chart-card"><div class="dual-chart-title">📊 Local 룰 전체 분석 현황</div>
+        <div style="height:200px"><canvas id="dcOverall"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">🔴 중복 유형 분포</div>
+        <div style="height:200px"><canvas id="dcDupType"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">⚠️ 문법 오류 심각도</div>
+        <div style="height:200px"><canvas id="dcErrSev"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">🔴 중복 심각도</div>
+        <div style="height:200px"><canvas id="dcDupSev"></canvas></div></div>
+      <div class="dual-chart-card wide"><div class="dual-chart-title">⚡ Built-in vs Local — Action 분포 비교</div>
+        <div style="height:200px"><canvas id="dcActionCmp"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">📡 Built-in 프로토콜 분포</div>
+        <div style="height:220px"><canvas id="dcBProto"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">📡 Local 프로토콜 분포</div>
+        <div style="height:220px"><canvas id="dcLProto"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">🏷️ Local Classtype 분포</div>
+        <div style="height:260px"><canvas id="dcClasstype"></canvas></div></div>
+      <div class="dual-chart-card"><div class="dual-chart-title">🔑 문법 오류 코드별</div>
+        <div style="height:260px"><canvas id="dcErrCode"></canvas></div></div>
+      <div class="dual-chart-card wide"><div class="dual-chart-title">📋 Local 룰 SID 분포</div>
+        <div style="height:200px"><canvas id="dcSidDist"></canvas></div></div>`;
+
+    const allActions = [...new Set([...bActions.map(a=>a[0]), ...lActions.map(a=>a[0])])];
+    const bActMap = Object.fromEntries(bActions); const lActMap = Object.fromEntries(lActions);
+    const sidBkts = (() => { const m = new Map(); localRules.forEach(r => { const b = Math.floor(r.sid/100000)*100000; const k = b.toLocaleString()+'~'+(b+99999).toLocaleString(); m.set(k,(m.get(k)||0)+1); }); return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])); })();
+
+    requestAnimationFrame(() => {
+      dualState.dualCharts.overall    = mkDot('dcOverall',   overallData.map(x=>x[0]),  overallData.map(x=>x[1]),  ['#22c55e','#f59e0b','#ef4444']);
+      dualState.dualCharts.dupType    = mkDot('dcDupType',   dupTypes.map(x=>x[0]),     dupTypes.map(x=>x[1]),     ['#ef4444','#f59e0b','#3b82f6','#a855f7']);
+      dualState.dualCharts.errSev     = mkDot('dcErrSev',    errSev.map(x=>x[0]),       errSev.map(x=>x[1]),       ['#ef4444','#f59e0b']);
+      dualState.dualCharts.dupSev     = mkDot('dcDupSev',    dupSev.map(x=>x[0]),       dupSev.map(x=>x[1]),       ['#ef4444','#f59e0b']);
+      dualState.dualCharts.actionCmp  = mkGroupBar('dcActionCmp', allActions, [
+        { label:'Built-in', data:allActions.map(a=>bActMap[a]||0), backgroundColor:'#00bcebbb', borderColor:'#00bceb', borderWidth:1, borderRadius:4 },
+        { label:'Local',    data:allActions.map(a=>lActMap[a]||0), backgroundColor:'#f59e0bbb', borderColor:'#f59e0b', borderWidth:1, borderRadius:4 }
+      ]);
+      dualState.dualCharts.bProto     = mkDot('dcBProto',    bProtos.map(p=>p[0]),      bProtos.map(p=>p[1]),      PALETTE.slice(0,bProtos.length));
+      dualState.dualCharts.lProto     = mkDot('dcLProto',    lProtos.map(p=>p[0]),      lProtos.map(p=>p[1]),      PALETTE.slice(0,lProtos.length));
+      dualState.dualCharts.classtype  = mkBar('dcClasstype',  classtypes.map(c=>c[0]),   classtypes.map(c=>c[1]),   '#00bceb', true);
+      dualState.dualCharts.errCode    = mkBar('dcErrCode',    errTypes.map(e=>e[0]),     errTypes.map(e=>e[1]),     '#ef4444', true);
+      dualState.dualCharts.sidDist    = mkBar('dcSidDist',    sidBkts.map(s=>s[0]),      sidBkts.map(s=>s[1]),      '#3b82f6', false);
+    });
+  }
+
+  function renderDuplicates(duplicates, filter) {
+    filter = filter || 'all';
+    dualState.dupFilter = filter;
+    const filtered = filter === 'all' ? duplicates : filter === 'exact' ? duplicates.filter(d=>d.severity==='exact') : duplicates.filter(d=>d.severity==='likely');
+    const exactC  = duplicates.filter(d=>d.severity==='exact').length;
+    const likelyC = duplicates.filter(d=>d.severity==='likely').length;
+    const fb = document.getElementById('dupFilterBar');
+    if (fb) fb.innerHTML = [
+      { f:'all',    l:`전체 (${duplicates.length})` },
+      { f:'exact',  l:`🔴 완전 일치 (${exactC})` },
+      { f:'likely', l:`🟡 유사 일치 (${likelyC})` }
+    ].map(b=>`<button class="filter-btn${filter===b.f?' active':''}" onclick="window.__dupFlt('${b.f}')">${b.l}</button>`).join('');
+
+    const thead = document.querySelector('#dupTable thead');
+    const tbody = document.querySelector('#dupTable tbody');
+    if (!thead || !tbody) return;
+    thead.innerHTML = '<tr><th>#</th><th>심각도</th><th>Local SID</th><th>Local msg</th><th>중복 이유</th><th>Built-in SID</th><th>Built-in msg</th><th>Local 룰</th></tr>';
+    tbody.innerHTML = filtered.map((d,i) => `
+      <tr>
+        <td style="text-align:center;font-size:.78rem">${i+1}</td>
+        <td><span class="sev-badge ${d.severity}">${d.severity==='exact'?'완전 일치':'유사 일치'}</span></td>
+        <td style="font-family:Consolas;font-weight:700;color:#0369a1">${d.localRule.sid||'없음'}</td>
+        <td style="font-size:.78rem;max-width:160px">${esc(d.localRule.msg.slice(0,80))}</td>
+        <td>${d.reasons.map(r=>`<span class="dup-tag ${r.cls}" title="${esc(r.detail)}">${r.icon} ${r.label}</span>`).join('')}</td>
+        <td style="font-family:Consolas;font-weight:700;color:#0369a1">${d.builtinRule.sid}</td>
+        <td style="font-size:.78rem;max-width:160px">${esc(d.builtinRule.msg.slice(0,80))}</td>
+        <td class="rule-code-cell">${esc(d.localRule.raw.slice(0,120))}${d.localRule.raw.length>120?'…':''}</td>
+      </tr>`).join('');
+    window.__dupFlt = f => renderDuplicates(dualState.duplicates, f);
+  }
+
+  function renderSyntaxErrors(syntaxErrors, filter) {
+    filter = filter || 'all';
+    dualState.synFilter = filter;
+    const critC = syntaxErrors.filter(e=>e.errors.some(x=>x.sev==='critical')).length;
+    const warnC = syntaxErrors.filter(e=>!e.errors.some(x=>x.sev==='critical')&&e.errors.some(x=>x.sev==='warning')).length;
+    const filtered = filter === 'all' ? syntaxErrors : filter === 'critical' ? syntaxErrors.filter(e=>e.errors.some(x=>x.sev==='critical')) : syntaxErrors.filter(e=>!e.errors.some(x=>x.sev==='critical'));
+    const fb = document.getElementById('synFilterBar');
+    if (fb) fb.innerHTML = [
+      { f:'all',      l:`전체 (${syntaxErrors.length})` },
+      { f:'critical', l:`🔴 Critical (${critC})` },
+      { f:'warning',  l:`🟡 Warning only (${warnC})` }
+    ].map(b=>`<button class="filter-btn${filter===b.f?' active':''}" onclick="window.__synFlt('${b.f}')">${b.l}</button>`).join('');
+
+    const list = document.getElementById('synErrorList');
+    if (!list) return;
+    list.innerHTML = filtered.map((e,idx) => {
+      const hasCrit = e.errors.some(x=>x.sev==='critical');
+      const errLabel = hasCrit ? `🔴 Critical (${e.errors.filter(x=>x.sev==='critical').length})` : `🟡 Warning (${e.errors.length})`;
+      return `
+      <div class="syn-card" id="synCard${idx}">
+        <div class="syn-card-hdr" onclick="toggleSynCard(${idx})">
+          <span class="syn-line-badge">Line ${e.lineNum}</span>
+          <span style="font-size:.82rem;color:var(--text);font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(e.raw)}">${esc(e.raw.slice(0,60))}${e.raw.length>60?'…':''}</span>
+          <span class="syn-err-count">${errLabel}</span>
+          <span class="syn-card-chev">▼</span>
+        </div>
+        <div class="syn-raw">${esc(e.raw)}</div>
+        <div class="syn-card-body">
+          ${e.errors.map(err => `
+            <div class="syn-err-item">
+              <div class="syn-err-icon ${err.sev}">${err.sev==='critical'?'!':err.sev==='warning'?'⚠':'i'}</div>
+              <div class="syn-err-text">
+                <span class="syn-err-code ${err.sev}">${err.code}</span>
+                <span class="syn-err-msg">${esc(err.msg)}</span>
+                <div class="syn-fix-box"><span class="syn-fix-label">💡 수정 방법</span>${esc(err.fix)}</div>
+              </div>
+            </div>`).join('')}
+          ${e.fixedRule ? `
+            <div style="margin-top:10px;">
+              <div class="syn-fix-label" style="margin-bottom:4px;">✅ 자동 수정 룰 (제안)</div>
+              <div class="syn-fix-box" style="font-size:.75rem;">${esc(e.fixedRule)}</div>
+            </div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    if (!filtered.length) list.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted);">해당 조건의 문법 오류가 없습니다 ✅</div>';
+    window.__synFlt = f => renderSyntaxErrors(dualState.syntaxErrors, f);
+    window.toggleSynCard = idx => {
+      const card = document.getElementById('synCard' + idx);
+      if (card) card.classList.toggle('open');
+    };
+  }
+
+  function generateDualReportHTML(builtinRules, localRules, duplicates, syntaxErrors, builtinName, localName) {
+    const ts = new Date().toLocaleString('ko-KR');
+    const cleanL = Math.max(0, localRules.length - duplicates.length - syntaxErrors.length);
+    const exactDup = duplicates.filter(d=>d.severity==='exact').length;
+    const critErr  = syntaxErrors.filter(e=>e.errors.some(x=>x.sev==='critical')).length;
+    const dupRows  = duplicates.map((d,i) => `<tr>
+      <td>${i+1}</td>
+      <td><span style="padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:800;${d.severity==='exact'?'background:#fee2e2;color:#b91c1c;':'background:#fef9c3;color:#854d0e;'}">${d.severity==='exact'?'완전일치':'유사일치'}</span></td>
+      <td style="font-family:monospace">${d.localRule.sid}</td>
+      <td>${d.localRule.msg.replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</td>
+      <td>${d.reasons.map(r=>r.label).join('<br>')}</td>
+      <td style="font-family:monospace">${d.builtinRule.sid}</td>
+      <td>${d.builtinRule.msg.replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]))}</td>
+    </tr>`).join('');
+    const synRows = syntaxErrors.map((e,i) => `<tr>
+      <td>${i+1}</td><td>${e.lineNum}</td>
+      <td>${e.errors.some(x=>x.sev==='critical')?'<span style="color:#b91c1c;font-weight:700">🔴 Critical</span>':'<span style="color:#854d0e;font-weight:700">🟡 Warning</span>'}</td>
+      <td style="font-family:monospace;font-size:.75rem;max-width:300px;overflow:hidden">${e.raw.replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])).slice(0,120)}${e.raw.length>120?'…':''}</td>
+      <td>${e.errors.map(x=>`<b>[${x.code}]</b> ${x.msg.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}`).join('<br>')}</td>
+      <td style="font-family:monospace;font-size:.73rem;color:#166534;background:#f0fdf4;padding:4px 6px;border-radius:4px">${e.fixedRule ? e.fixedRule.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])).slice(0,120) : '—'}</td>
+    </tr>`).join('');
+    return `<!DOCTYPE html><html lang="ko"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Snort Rules Analysis Report — ${ts}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:0;font-family:Inter,'Segoe UI',system-ui,sans-serif;background:#f1f5f9;color:#0f172a}
+.wrap{max-width:1300px;margin:0 auto;padding:24px 20px}
+.report-hdr{background:linear-gradient(135deg,#0369a1,#0ea5e9);color:#fff;border-radius:14px;padding:28px 32px;margin-bottom:24px}
+.report-hdr h1{margin:0 0 6px;font-size:1.6rem;font-weight:800}
+.report-hdr p{margin:0;opacity:.85;font-size:.9rem}
+.kpi-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.kpi{flex:1;min-width:120px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center}
+.kpi-v{font-size:2.2rem;font-weight:800;line-height:1}
+.kpi-l{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:#64748b;margin-top:5px}
+.kpi.blue{border-top:4px solid #3b82f6}.kpi.blue .kpi-v{color:#3b82f6}
+.kpi.cyan{border-top:4px solid #0284c7}.kpi.cyan .kpi-v{color:#0284c7}
+.kpi.amber{border-top:4px solid #d97706}.kpi.amber .kpi-v{color:#d97706}
+.kpi.red{border-top:4px solid #dc2626}.kpi.red .kpi-v{color:#dc2626}
+.kpi.green{border-top:4px solid #16a34a}.kpi.green .kpi-v{color:#16a34a}
+.section{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:20px}
+.section h2{margin:0 0 14px;font-size:1.1rem;color:#0369a1;border-bottom:2px solid #e2e8f0;padding-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{background:#eff6ff;color:#1e40af;border:1px solid #c7d2fe;padding:9px 10px;text-align:left;font-weight:700;white-space:nowrap}
+td{border:1px solid #e2e8f0;padding:8px 10px;vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+tr:hover td{background:#eff6ff}
+.badge-exact{padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:800;background:#fee2e2;color:#b91c1c}
+.badge-likely{padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:800;background:#fef9c3;color:#854d0e}
+.footer{text-align:center;color:#94a3b8;font-size:.78rem;margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0}
+</style></head><body><div class="wrap">
+<div class="report-hdr">
+  <h1>📊 Snort Rules Analysis Report</h1>
+  <p>생성: ${ts} · Built-in: ${builtinName} · Local: ${localName}</p>
+</div>
+<div class="kpi-row">
+  <div class="kpi blue"><div class="kpi-v">${builtinRules.length.toLocaleString()}</div><div class="kpi-l">Built-in 룰</div></div>
+  <div class="kpi cyan"><div class="kpi-v">${localRules.length.toLocaleString()}</div><div class="kpi-l">Local 룰</div></div>
+  <div class="kpi amber"><div class="kpi-v">${duplicates.length}</div><div class="kpi-l">중복 룰 (${exactDup} 완전)</div></div>
+  <div class="kpi red"><div class="kpi-v">${syntaxErrors.length}</div><div class="kpi-l">문법 오류 (${critErr} Critical)</div></div>
+  <div class="kpi green"><div class="kpi-v">${cleanL}</div><div class="kpi-l">이상 없음</div></div>
+</div>
+<div class="section">
+  <h2>🔴 중복 룰 분석 (총 ${duplicates.length}건 — Built-in 기준)</h2>
+  ${duplicates.length ? `<div style="overflow:auto"><table><thead><tr><th>#</th><th>심각도</th><th>Local SID</th><th>Local msg</th><th>중복 이유</th><th>Built-in SID</th><th>Built-in msg</th></tr></thead><tbody>${dupRows}</tbody></table></div>` : '<p style="color:#64748b">중복 룰 없음 ✅</p>'}
+</div>
+<div class="section">
+  <h2>⚠️ 문법 오류 분석 (총 ${syntaxErrors.length}건)</h2>
+  ${syntaxErrors.length ? `<div style="overflow:auto"><table><thead><tr><th>#</th><th>Line</th><th>심각도</th><th>룰 (요약)</th><th>오류 내용</th><th>수정 제안</th></tr></thead><tbody>${synRows}</tbody></table></div>` : '<p style="color:#64748b">문법 오류 없음 ✅</p>'}
+</div>
+<div class="footer">Snort Rules Analyzer — https://maxias13.github.io/snort-rule-converter-site/ — Not official Cisco information</div>
+</div></body></html>`;
+  }
+
+  function runDualAnalysis() {
+    const { builtinText, localText, builtinName, localName } = dualState;
+    const statusTxt = document.getElementById('dualStatusTxt');
+    if (statusTxt) statusTxt.textContent = '분석 중...';
+    setTimeout(() => {
+      const builtinRules = parseSnortRulesFull(builtinText);
+      const localRules   = parseSnortRulesFull(localText);
+      const duplicates   = analyzeDuplicates(builtinRules, localRules);
+      const syntaxErrors = validateLocalRuleSyntax(localRules);
+      dualState.builtinRules = builtinRules; dualState.localRules = localRules;
+      dualState.duplicates = duplicates; dualState.syntaxErrors = syntaxErrors;
+
+      document.getElementById('tbDuplicates').textContent = duplicates.length;
+      document.getElementById('tbSyntax').textContent = syntaxErrors.length;
+
+      const results = document.getElementById('dualResults');
+      if (results) results.style.display = '';
+      renderDualKpis(builtinRules, localRules, duplicates, syntaxErrors);
+      renderDualCharts(builtinRules, localRules, duplicates, syntaxErrors);
+      renderDuplicates(duplicates, 'all');
+      renderSyntaxErrors(syntaxErrors, 'all');
+
+      ['dualDownloadBtn','dualResetBtn'].forEach(id => { const e = document.getElementById(id); if(e) e.style.display = 'inline-flex'; });
+      if (statusTxt) statusTxt.textContent = `완료 — Built-in ${builtinRules.length}개, Local ${localRules.length}개 분석`;
+    }, 50);
+  }
+
+  function initDualMode() {
+    const builtinBox   = document.getElementById('builtinDropBox');
+    const localBox     = document.getElementById('localDropBox');
+    const builtinInput = document.getElementById('builtinFileInput');
+    const localInput   = document.getElementById('localFileInput');
+    const analyzeBtn   = document.getElementById('dualAnalyzeBtn');
+    const stdBtn       = document.getElementById('dashModeStdBtn');
+    const dualBtn      = document.getElementById('dashModeDualBtn');
+    if (!builtinBox || !localBox) return;
+
+    const loadFile = (file, type) => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const text = String(e.target.result || '');
+        if (type === 'builtin') {
+          dualState.builtinText = text; dualState.builtinName = file.name;
+          builtinBox.classList.add('has-file');
+          const st = document.getElementById('builtinStatus');
+          if (st) { st.textContent = `✅ ${file.name} (${parseSnortRulesFull(text).length}개 룰)`; st.className = 'dual-box-status ready'; }
+        } else {
+          dualState.localText = text; dualState.localName = file.name;
+          localBox.classList.add('has-file');
+          const st = document.getElementById('localStatus');
+          if (st) { st.textContent = `✅ ${file.name} (${parseSnortRulesFull(text).length}개 룰)`; st.className = 'dual-box-status ready'; }
+        }
+        if (dualState.builtinText && dualState.localText) {
+          if (analyzeBtn) analyzeBtn.disabled = false;
+          const st = document.getElementById('dualStatusTxt');
+          if (st) st.textContent = '두 파일 준비 완료 — 분석 시작 버튼을 눌러주세요';
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    const setupBox = (box, input, type) => {
+      box.addEventListener('click', () => input.click());
+      input.addEventListener('change', e => { const f = e.target.files?.[0]; if(f) loadFile(f, type); });
+      box.addEventListener('dragover',  e => { e.preventDefault(); box.classList.add('drag-over'); });
+      box.addEventListener('dragleave', () => box.classList.remove('drag-over'));
+      box.addEventListener('drop', e => { e.preventDefault(); box.classList.remove('drag-over'); const f = e.dataTransfer.files?.[0]; if(f) loadFile(f, type); });
+    };
+    setupBox(builtinBox, builtinInput, 'builtin');
+    setupBox(localBox,   localInput,   'local');
+
+    if (analyzeBtn) analyzeBtn.addEventListener('click', runDualAnalysis);
+
+    const tabBar = document.getElementById('dualTabBar');
+    if (tabBar) tabBar.addEventListener('click', e => {
+      const btn = e.target.closest('.anal-tab-btn');
+      if (!btn) return;
+      const tab = btn.dataset.tab;
+      tabBar.querySelectorAll('.anal-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.anal-tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === tab));
+    });
+
+    const dlBtn = document.getElementById('dualDownloadBtn');
+    if (dlBtn) dlBtn.addEventListener('click', () => {
+      const html = generateDualReportHTML(dualState.builtinRules, dualState.localRules, dualState.duplicates, dualState.syntaxErrors, dualState.builtinName, dualState.localName);
+      const a = document.createElement('a'); a.href = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+      a.download = `snort_analysis_${new Date().toISOString().slice(0,10)}.html`; a.click();
+    });
+
+    const resetDual = () => {
+      dualState.builtinText=''; dualState.localText=''; dualState.builtinName=''; dualState.localName='';
+      dualState.builtinRules=[]; dualState.localRules=[]; dualState.duplicates=[]; dualState.syntaxErrors=[];
+      destroyDualCharts();
+      [builtinBox, localBox].forEach(b => b.classList.remove('has-file'));
+      ['builtinStatus','localStatus'].forEach(id => { const e = document.getElementById(id); if(e){e.textContent='파일 없음';e.className='dual-box-status';} });
+      if (analyzeBtn) analyzeBtn.disabled = true;
+      const st = document.getElementById('dualStatusTxt'); if(st) st.textContent = '두 파일을 모두 업로드 후 분석하세요';
+      const res = document.getElementById('dualResults'); if(res) res.style.display = 'none';
+      ['dualDownloadBtn','dualResetBtn'].forEach(id => { const e = document.getElementById(id); if(e) e.style.display='none'; });
+      [builtinInput, localInput].forEach(i => { i.value=''; });
+    };
+    const resetBtn = document.getElementById('dualResetBtn');
+    if (resetBtn) resetBtn.addEventListener('click', resetDual);
+
+    const switchMode = mode => {
+      const isDual = mode === 'dual';
+      document.getElementById('dashStdSection').style.display  = isDual ? 'none' : '';
+      document.getElementById('dashDualSection').style.display = isDual ? '' : 'none';
+      document.getElementById('dashUploadLbl').style.display   = isDual ? 'none' : '';
+      document.getElementById('dashDownloadBtn').style.display = isDual ? 'none' : (isDual ? 'none' : (document.getElementById('dashDownloadBtn').dataset.vis||'none'));
+      document.getElementById('dashResetBtn').style.display    = isDual ? 'none' : (isDual ? 'none' : (document.getElementById('dashResetBtn').dataset.vis||'none'));
+      stdBtn.classList.toggle('active',  !isDual);
+      dualBtn.classList.toggle('active',  isDual);
+    };
+    if (stdBtn)  stdBtn.addEventListener('click',  () => switchMode('standard'));
+    if (dualBtn) dualBtn.addEventListener('click',  () => switchMode('dual'));
+  }
+
+  document.addEventListener('DOMContentLoaded', () => { initDualMode(); });
+
 })();

@@ -1805,7 +1805,158 @@
     .v7-issue-msg   { color:#374151; font-weight:600; }
     .v7-issue-rd    { font-family:Consolas,monospace; font-size:0.7rem; color:#64748b; word-break:break-all; margin-top:4px; line-height:1.5; }
     .v7-issue-reason{ margin-top:5px; font-size:0.75rem; font-weight:600; }
- </style>
+
+    /* ══════════════════════════════════════════════════════
+       DUAL ANALYSIS — Built-in + Local Rules
+    ══════════════════════════════════════════════════════ */
+    .dash-mode-bar{display:flex;gap:4px;padding:5px;background:rgba(0,188,235,.06);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;}
+    .dash-mode-btn{flex:1;padding:8px 14px;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--muted);font-family:inherit;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;line-height:1.3;text-align:center;}
+    .dash-mode-btn.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 10px rgba(0,188,235,.35);}
+    #dashboardView .dash-mode-bar{background:rgba(3,105,161,.06);border-color:#e2e8f0;}
+    #dashboardView .dash-mode-btn{color:#475569;}
+    #dashboardView .dash-mode-btn.active{background:#0369a1;color:#fff;border-color:#0369a1;}
+
+    .dual-upload-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+    .dual-upload-box{position:relative;border:2px dashed var(--border);border-radius:12px;padding:28px 20px;text-align:center;background:rgba(0,188,235,.02);transition:all .2s;cursor:pointer;}
+    .dual-upload-box:hover{border-color:var(--primary);background:rgba(0,188,235,.05);}
+    .dual-upload-box.has-file{border-color:#22c55e;background:rgba(34,197,94,.04);border-style:solid;}
+    .dual-upload-box.drag-over{border-color:var(--primary);background:rgba(0,188,235,.08);}
+    .dual-box-icon{font-size:2.2rem;margin-bottom:8px;pointer-events:none;}
+    .dual-box-type{font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:5px;pointer-events:none;}
+    .dual-box-title{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:4px;pointer-events:none;}
+    .dual-box-hint{font-size:.78rem;color:var(--muted-2);pointer-events:none;}
+    .dual-box-status{margin-top:10px;font-size:.8rem;color:var(--muted);pointer-events:none;}
+    .dual-box-status.ready{color:#22c55e;font-weight:700;}
+    .dual-upload-box.has-file .dual-box-hint{display:none;}
+    #dashboardView .dual-upload-box{background:#f8fafc;border-color:#cbd5e1;}
+    #dashboardView .dual-upload-box:hover{border-color:#0369a1;background:#eff6ff;}
+    #dashboardView .dual-upload-box.has-file{border-color:#22c55e;background:#f0fdf4;}
+    #dashboardView .dual-box-type{color:#94a3b8;}
+    #dashboardView .dual-box-title{color:#0f172a;}
+    #dashboardView .dual-box-hint{color:#94a3b8;}
+    #dashboardView .dual-box-status{color:#64748b;}
+    #dashboardView .dual-box-status.ready{color:#16a34a;}
+
+    .dual-analyze-bar{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+    .dual-status-txt{font-size:.82rem;color:var(--muted);}
+    #dashboardView .dual-status-txt{color:#475569;}
+
+    /* KPI cards */
+    .dual-kpi-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+    .dual-kpi-card{flex:1;min-width:110px;padding:14px 16px;border:1px solid var(--border);border-radius:10px;background:var(--panel);text-align:center;}
+    .dual-kpi-val{font-size:2rem;font-weight:800;line-height:1;}
+    .dual-kpi-lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:5px;}
+    .dual-kpi-card.c-blue{border-top:4px solid #3b82f6;}.dual-kpi-card.c-blue .dual-kpi-val{color:#3b82f6;}
+    .dual-kpi-card.c-cyan{border-top:4px solid #00bceb;}.dual-kpi-card.c-cyan .dual-kpi-val{color:#00bceb;}
+    .dual-kpi-card.c-green{border-top:4px solid #22c55e;}.dual-kpi-card.c-green .dual-kpi-val{color:#22c55e;}
+    .dual-kpi-card.c-red{border-top:4px solid #ef4444;}.dual-kpi-card.c-red .dual-kpi-val{color:#ef4444;}
+    .dual-kpi-card.c-amber{border-top:4px solid #f59e0b;}.dual-kpi-card.c-amber .dual-kpi-val{color:#f59e0b;}
+    .dual-kpi-card.c-purple{border-top:4px solid #a855f7;}.dual-kpi-card.c-purple .dual-kpi-val{color:#a855f7;}
+    #dashboardView .dual-kpi-card{background:#fff;border-color:#e2e8f0;}
+    #dashboardView .dual-kpi-lbl{color:#64748b;}
+
+    /* Analysis tabs */
+    .anal-tab-bar{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto;}
+    .anal-tab-btn{padding:9px 18px;border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:.87rem;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .15s;}
+    .anal-tab-btn:hover{color:var(--text);}
+    .anal-tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);}
+    .anal-tab-badge{display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.1);border-radius:999px;padding:1px 7px;font-size:.7rem;margin-left:6px;font-weight:700;}
+    .anal-tab-btn.active .anal-tab-badge{background:var(--primary);color:#fff;}
+    .anal-tab-panel{display:none;}
+    .anal-tab-panel.active{display:block;}
+    #dashboardView .anal-tab-bar{border-color:#e2e8f0;}
+    #dashboardView .anal-tab-btn.active{color:#0369a1;border-bottom-color:#0369a1;}
+    #dashboardView .anal-tab-btn.active .anal-tab-badge{background:#0369a1;}
+
+    /* Chart grid */
+    .dual-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+    .dual-chart-card{border:1px solid var(--border);border-radius:10px;padding:14px;background:rgba(10,17,34,.9);}
+    .dual-chart-card.wide{grid-column:1/-1;}
+    .dual-chart-title{font-size:.75rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;}
+    #dashboardView .dual-chart-card{background:#f8fafc;border-color:#e2e8f0;}
+    #dashboardView .dual-chart-title{color:#0369a1;}
+    #dashboardView .dual-chart-card table th{background:#eff6ff!important;color:#1e40af!important;border-color:#c7d2fe!important;}
+    #dashboardView .dual-chart-card table td{color:#1e293b!important;border-color:#e2e8f0!important;}
+    #dashboardView .dual-chart-card table tr:nth-child(even) td{background:#f8fafc!important;}
+    #dashboardView .dual-chart-card table tr:hover td{background:#eff6ff!important;}
+
+    /* Summary progress bar */
+    .dual-prog-bar{display:flex;height:18px;border-radius:9px;overflow:hidden;margin:10px 0;}
+    .dual-prog-seg{display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff;transition:flex .4s;min-width:0;overflow:hidden;}
+    .dual-prog-seg.s-ok{background:#22c55e;}
+    .dual-prog-seg.s-dup{background:#f59e0b;}
+    .dual-prog-seg.s-err{background:#ef4444;}
+    .dual-legend{display:flex;flex-wrap:wrap;gap:10px;font-size:.78rem;margin-top:8px;}
+    .dual-leg-item{display:flex;align-items:center;gap:5px;}
+    .dual-leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+
+    /* Duplicate table */
+    .dup-tbl-wrap{overflow:auto;max-height:520px;}
+    .dup-tbl{width:100%;border-collapse:collapse;font-size:.82rem;}
+    .dup-tbl th{background:rgba(0,102,204,.15);color:var(--primary);border:1px solid var(--border);padding:9px 10px;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;white-space:nowrap;}
+    .dup-tbl td{border:1px solid var(--border);padding:8px 10px;vertical-align:top;}
+    .dup-tbl tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+    .dup-tbl tr:hover td{background:rgba(0,188,235,.04);}
+    #dashboardView .dup-tbl th{background:#eff6ff;color:#1e40af;border-color:#c7d2fe;}
+    #dashboardView .dup-tbl td{border-color:#e2e8f0;color:#1e293b;}
+    #dashboardView .dup-tbl tr:nth-child(even) td{background:#f8fafc;}
+    #dashboardView .dup-tbl tr:hover td{background:#eff6ff;}
+    .dup-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;font-size:.7rem;font-weight:700;border:1px solid;margin:2px;white-space:nowrap;}
+    .dup-tag.sid{color:#ef4444;border-color:#fca5a5;background:rgba(239,68,68,.1);}
+    .dup-tag.msg{color:#f59e0b;border-color:#fcd34d;background:rgba(245,158,11,.1);}
+    .dup-tag.fp{color:#3b82f6;border-color:#93c5fd;background:rgba(59,130,246,.1);}
+    .dup-tag.content{color:#a855f7;border-color:#d8b4fe;background:rgba(168,85,247,.1);}
+    .sev-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:800;letter-spacing:.05em;}
+    .sev-badge.exact{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid #fca5a5;}
+    .sev-badge.likely{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid #fcd34d;}
+    .rule-code-cell{font-family:Consolas,Monaco,Menlo,monospace;font-size:.72rem;color:var(--cyan-soft);word-break:break-all;max-width:260px;}
+    #dashboardView .rule-code-cell{color:#0369a1;}
+
+    /* Syntax error cards */
+    .syn-card{border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden;background:rgba(10,17,34,.7);}
+    #dashboardView .syn-card{background:#fff;border-color:#e2e8f0;}
+    .syn-card-hdr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;background:rgba(239,68,68,.07);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;}
+    #dashboardView .syn-card-hdr{background:#fff5f5;border-color:#fecaca;}
+    .syn-card-hdr:hover{background:rgba(239,68,68,.12);}
+    #dashboardView .syn-card-hdr:hover{background:#fee2e2;}
+    .syn-line-badge{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,.15);color:#ef4444;border:1px solid #fca5a5;white-space:nowrap;}
+    .syn-err-count{font-size:.72rem;color:var(--muted);white-space:nowrap;}
+    #dashboardView .syn-err-count{color:#64748b;}
+    .syn-card-chev{margin-left:auto;font-size:.75rem;color:var(--muted);transition:transform .2s;}
+    .syn-card.open .syn-card-chev{transform:rotate(180deg);}
+    .syn-raw{font-family:Consolas,Monaco,Menlo,monospace;font-size:.76rem;padding:8px 14px;background:rgba(0,0,0,.3);color:var(--text);overflow-x:auto;white-space:pre-wrap;word-break:break-all;border-bottom:1px solid var(--border);}
+    #dashboardView .syn-raw{background:#f8fafc;color:#1e293b;border-color:#e2e8f0;}
+    .syn-card-body{display:none;padding:12px 14px;}
+    .syn-card.open .syn-card-body{display:block;}
+    .syn-err-item{display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid rgba(30,58,95,.3);}
+    #dashboardView .syn-err-item{border-color:#f1f5f9;}
+    .syn-err-item:last-child{border-bottom:none;}
+    .syn-err-icon{flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;margin-top:1px;}
+    .syn-err-icon.critical{background:rgba(239,68,68,.2);color:#ef4444;}
+    .syn-err-icon.warning{background:rgba(245,158,11,.2);color:#f59e0b;}
+    .syn-err-icon.info{background:rgba(59,130,246,.2);color:#3b82f6;}
+    .syn-err-text{flex:1;}
+    .syn-err-code{font-size:.68rem;font-weight:800;padding:1px 6px;border-radius:3px;margin-right:5px;font-family:Consolas,monospace;}
+    .syn-err-code.critical{background:rgba(239,68,68,.15);color:#ef4444;}
+    .syn-err-code.warning{background:rgba(245,158,11,.15);color:#f59e0b;}
+    .syn-err-code.info{background:rgba(59,130,246,.15);color:#3b82f6;}
+    .syn-err-msg{font-size:.83rem;color:var(--text);}
+    #dashboardView .syn-err-msg{color:#1e293b;}
+    .syn-fix-box{margin-top:6px;padding:6px 10px;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.25);border-radius:6px;font-family:Consolas,Monaco,Menlo,monospace;font-size:.76rem;color:#22c55e;white-space:pre-wrap;word-break:break-all;}
+    #dashboardView .syn-fix-box{background:#f0fdf4;border-color:#bbf7d0;color:#16a34a;}
+    .syn-fix-label{font-family:inherit;font-size:.7rem;font-weight:700;color:var(--muted);display:block;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em;}
+    #dashboardView .syn-fix-label{color:#64748b;}
+
+    /* Filter bar */
+    .filter-bar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;padding:8px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;}
+    #dashboardView .filter-bar{background:#f8fafc;border-color:#e2e8f0;}
+    .filter-btn{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:transparent;color:var(--muted);font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s;}
+    .filter-btn:hover{border-color:var(--primary);color:var(--text);}
+    .filter-btn.active{background:var(--primary);border-color:var(--primary);color:#fff;}
+    #dashboardView .filter-btn{border-color:#cbd5e1;color:#475569;}
+    #dashboardView .filter-btn.active{background:#0369a1;border-color:#0369a1;color:#fff;}
+    #dashboardView .filter-btn:hover{border-color:#0369a1;color:#0f172a;}
+  </style>
 
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
@@ -2251,40 +2402,100 @@ python3 trigger_rules.py --delay 1
     <!-- ── Rules Dashboard ─────────────────────────────────────────────── -->
     <section id="dashboardView" class="view">
       <div class="panel">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <!-- Title row -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;">
           <div>
             <h3 style="margin:0;">📊 Rules Dashboard</h3>
-            <p style="margin:4px 0 0;color:var(--muted);font-size:0.85rem;">Upload any file — <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.rules</code> for Snort analysis, <code style="background:rgba(0,188,235,.1);border:1px solid rgba(0,188,235,.25);border-radius:4px;padding:1px 6px;color:var(--primary)">.xlsx/.csv</code> for tabular data dashboard.</p>
+            <p style="margin:4px 0 0;color:var(--muted);font-size:.85rem;">Standard: .rules / .xlsx / .csv — Dual: Built-in + Local 비교 분석</p>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <label for="dashFileInput" class="btn cyan" style="cursor:pointer;">📁 Upload file</label>
+          <div id="dashActionBtns" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <!-- Standard mode btns -->
+            <label for="dashFileInput" class="btn cyan" id="dashUploadLbl" style="cursor:pointer;">📁 Upload file</label>
             <input type="file" id="dashFileInput" style="display:none">
             <button class="btn success" id="dashDownloadBtn" style="display:none;">⬇ Download HTML</button>
             <button class="btn secondary" id="dashResetBtn" style="display:none;">↺ Reset</button>
+            <!-- Dual mode btns -->
+            <button class="btn success" id="dualDownloadBtn" style="display:none;">⬇ Report 다운로드</button>
+            <button class="btn secondary" id="dualResetBtn" style="display:none;">↺ 초기화</button>
           </div>
         </div>
 
-        <div id="dashFileInfo" style="display:none;margin-bottom:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:0.82rem;color:var(--muted);background:rgba(0,188,235,.04);"></div>
-
-        <div id="dashDropZone" class="dash-drop-zone">
-          <div class="dash-drop-icon">📂</div>
-          <div class="dash-drop-title">Drop your file here</div>
-          <div class="dash-drop-sub">or click <b>Upload file</b> above</div>
-          <div class="dash-drop-hint">.rules · .csv · .tsv · .xlsx · .xls · any text file</div>
+        <!-- Mode toggle -->
+        <div class="dash-mode-bar">
+          <button class="dash-mode-btn active" id="dashModeStdBtn">📄 Standard Analysis</button>
+          <button class="dash-mode-btn" id="dashModeDualBtn">🔍 Built-in + Local 비교 분석</button>
         </div>
 
-        <div id="dashContent" style="display:none;">
-          <div class="mig-kpi-bar" id="dashKpiBar"></div>
+        <!-- ── STANDARD MODE ─────────────────────────────── -->
+        <div id="dashStdSection">
+          <div id="dashFileInfo" style="display:none;margin-bottom:12px;padding:6px 12px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;color:var(--muted);background:rgba(0,188,235,.04);"></div>
+          <div id="dashDropZone" class="dash-drop-zone">
+            <div class="dash-drop-icon">📂</div>
+            <div class="dash-drop-title">Drop your file here</div>
+            <div class="dash-drop-sub">or click <b>Upload file</b> above</div>
+            <div class="dash-drop-hint">.rules · .csv · .tsv · .xlsx · .xls · any text file</div>
+          </div>
+          <div id="dashContent" style="display:none;">
+            <div class="mig-kpi-bar" id="dashKpiBar"></div>
+            <div class="dash-grid" id="dashChartsGrid"></div>
+            <div class="panel" style="margin-top:14px;">
+              <div class="dash-card-title" style="margin-bottom:10px;" id="dashTableTitle">Details</div>
+              <div class="table-scroll"><table id="dashDataTable"><thead></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+        </div>
 
-          <div class="dash-grid" id="dashChartsGrid"></div>
+        <!-- ── DUAL MODE ─────────────────────────────────── -->
+        <div id="dashDualSection" style="display:none;">
+          <!-- Upload boxes -->
+          <div class="dual-upload-grid">
+            <div class="dual-upload-box" id="builtinDropBox">
+              <input type="file" id="builtinFileInput" accept=".rules,.txt,.conf" style="display:none">
+              <div class="dual-box-icon">📋</div>
+              <div class="dual-box-type">Built-in Rules (기준)</div>
+              <div class="dual-box-title">Built-in 룰 파일 업로드</div>
+              <div class="dual-box-hint">.rules 파일을 드래그하거나 클릭</div>
+              <div class="dual-box-status" id="builtinStatus">파일 없음</div>
+            </div>
+            <div class="dual-upload-box" id="localDropBox">
+              <input type="file" id="localFileInput" accept=".rules,.txt,.conf" style="display:none">
+              <div class="dual-box-icon">📝</div>
+              <div class="dual-box-type">Local Rules (검사 대상)</div>
+              <div class="dual-box-title">Local 룰 파일 업로드</div>
+              <div class="dual-box-hint">.rules 파일을 드래그하거나 클릭</div>
+              <div class="dual-box-status" id="localStatus">파일 없음</div>
+            </div>
+          </div>
+          <div class="dual-analyze-bar">
+            <button class="btn success" id="dualAnalyzeBtn" disabled>🔍 분석 시작</button>
+            <span class="dual-status-txt" id="dualStatusTxt">두 파일을 모두 업로드 후 분석하세요</span>
+          </div>
 
-          <div class="panel" style="margin-top:14px;">
-            <div class="dash-card-title" style="margin-bottom:10px;" id="dashTableTitle">Details</div>
-            <div class="table-scroll">
-              <table id="dashDataTable">
-                <thead></thead>
-                <tbody></tbody>
-              </table>
+          <!-- Results -->
+          <div id="dualResults" style="display:none;">
+            <!-- KPI row -->
+            <div class="dual-kpi-row" id="dualKpiRow"></div>
+            <!-- Progress bar -->
+            <div id="dualProgWrap" style="margin-bottom:14px;"></div>
+            <!-- Tabs -->
+            <div class="anal-tab-bar" id="dualTabBar">
+              <button class="anal-tab-btn active" data-tab="overview">📊 Overview<span class="anal-tab-badge" id="tbOverview"></span></button>
+              <button class="anal-tab-btn" data-tab="duplicates">🔴 중복 룰<span class="anal-tab-badge" id="tbDuplicates">0</span></button>
+              <button class="anal-tab-btn" data-tab="syntax">⚠️ 문법 오류<span class="anal-tab-badge" id="tbSyntax">0</span></button>
+            </div>
+            <!-- Overview tab -->
+            <div class="anal-tab-panel active" data-tab="overview" id="dualTabOverview">
+              <div class="dual-charts-grid" id="dualChartsGrid"></div>
+            </div>
+            <!-- Duplicates tab -->
+            <div class="anal-tab-panel" data-tab="duplicates" id="dualTabDuplicates">
+              <div class="filter-bar" id="dupFilterBar"></div>
+              <div class="dup-tbl-wrap"><table class="dup-tbl" id="dupTable"><thead></thead><tbody></tbody></table></div>
+            </div>
+            <!-- Syntax tab -->
+            <div class="anal-tab-panel" data-tab="syntax" id="dualTabSyntax">
+              <div class="filter-bar" id="synFilterBar"></div>
+              <div id="synErrorList"></div>
             </div>
           </div>
         </div>
