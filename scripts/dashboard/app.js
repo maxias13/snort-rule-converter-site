@@ -1052,9 +1052,338 @@ bar('cCT',${J(ctypes.map(c=>c[0]))},${J(ctypes.map(c=>c[1]))},'#ec4899',true);`;
     return htmlShell('Data Dashboard — '+fname, body, chartScript);
   }
 
+  function buildV7Html() {
+    const allRules  = state.rules;
+    const localRules = state.v7LocalRules;
+    const fname  = state.fileName;
+    const J      = JSON.stringify;
+    const total  = allRules.length;
+    const locTotal = localRules.length;
+
+    // ── Pre-compute chart data ──────────────────────────────────
+    const actions  = tally(allRules, r=>r.action);
+    const statuses = tally(allRules, r=>r.status);
+    const typeDist = tally(allRules, r=>r.type==='B'?'Built-in':'Local');
+    const protos   = tally(allRules, r=>r.protocol).slice(0,10);
+    const cats     = tally(allRules, r=>snortCategory(r.msg));
+    const cat20    = cats.slice(0,20);
+    const sidBkts  = tally(allRules, r=>sidBucket(r.sid));
+    const ctypes   = tally(allRules, r=>r.classtype).slice(0,15);
+    const groups   = tally(allRules, r=>r.groups).filter(g=>g[0]!=='—').slice(0,15);
+    const gids     = tally(allRules, r=>String(r.gid));
+
+    const dupC   = localRules.filter(r=>r.isDuplicate).length;
+    const synC   = localRules.filter(r=>r.syntaxErrors.length>0).length;
+    const delC   = localRules.filter(r=>r.deleteRecommended).length;
+    const revC   = state.v7Stats?.reviewCount || localRules.filter(r=>r.isReviewNeeded).length;
+    const cleanC = Math.max(0, locTotal - delC - revC);
+    const builtins = allRules.filter(r=>r.type==='B').length;
+    const active   = allRules.filter(r=>r.status==='Active').length;
+    const disabled = allRules.filter(r=>r.status==='Disabled').length;
+    const localAna = [['이상 없음',cleanC],['삭제 권고',delC],['검토 필요',revC],['Built-in 중복',dupC],['문법 오류',synC]].filter(x=>x[1]>0);
+    const anaColors = ['#22c55e','#ef4444','#3b82f6','#f59e0b','#a855f7'];
+
+    const pDel = locTotal?(delC/locTotal*100).toFixed(1):'0';
+    const pRev = locTotal?(revC/locTotal*100).toFixed(1):'0';
+    const pDup = locTotal?Math.max(0,(dupC-delC)/locTotal*100).toFixed(1):'0';
+    const pSyn = locTotal?Math.max(0,(synC-delC)/locTotal*100).toFixed(1):'0';
+    const pOk  = Math.max(0,100-+pDel-+pRev-+pDup-+pSyn).toFixed(1);
+
+    // ── Category table rows ─────────────────────────────────────
+    const catTableRows = cats.slice(0,50).map((c,i)=>{
+      const sub = allRules.filter(r=>snortCategory(r.msg)===c[0]);
+      const bl  = sub.filter(r=>r.action==='BLOCK').length;
+      const al  = sub.filter(r=>r.action==='ALERT').length;
+      const bi  = sub.filter(r=>r.type==='B').length;
+      const lo  = sub.filter(r=>r.type==='L').length;
+      return `<tr><td>${i+1}</td><td class="hl">${esc(c[0])}</td><td>${c[1].toLocaleString()}</td><td>${((c[1]/total)*100).toFixed(1)}%</td><td>${bl}</td><td>${al}</td><td>${bi}</td><td>${lo}</td></tr>`;
+    }).join('');
+
+    // ── Issues accordion HTML (static, no JS needed) ────────────
+    const delRules = localRules.filter(r=>r.deleteRecommended);
+    const dupRules = localRules.filter(r=>r.isDuplicate);
+    const synRules = localRules.filter(r=>r.syntaxErrors.length>0);
+    const revRules = localRules.filter(r=>r.isReviewNeeded);
+
+    const issueItem = (r, bodyHtml) => `
+      <div class="iitem">
+        <div><span class="isid">SID ${r.sid}</span><span class="imsg">${esc((r.msg||'').slice(0,100))}</span></div>
+        <div class="ird">${esc((r.ruleData||'').slice(0,320))}${(r.ruleData||'').length>320?'…':''}</div>
+        <div class="ireason">${bodyHtml}</div>
+      </div>`;
+
+    const issueSection = (title, bgColor, textColor, items, bodyFn) => {
+      if (!items.length) return '';
+      return `<div class="isec">
+        <div class="ihdr" style="background:${bgColor};color:${textColor}" onclick="const b=this.nextElementSibling;const o=b.style.display!=='none';b.style.display=o?'none':'';this.querySelector('.chev').textContent=o?'▼':'▲'">
+          <span>${title} <strong>(${items.length}건)</strong></span><span class="chev">▼</span>
+        </div>
+        <div class="ibody" style="display:none">${items.map(r=>issueItem(r,bodyFn(r))).join('')}</div>
+      </div>`;
+    };
+
+    const issuesHtml = `
+      <p class="isub">총 <strong>${delC+revC}</strong>건의 조치 필요 룰이 있습니다.</p>
+      ${issueSection('🗑 삭제 권고 룰','#fff5f5','#b91c1c',delRules,r=>`<span style="color:#b91c1c">${esc(r.deleteReason.slice(0,200))}</span>`)}
+      ${issueSection('✔ Built-in 중복 룰','#fefce8','#a16207',dupRules,r=>`중복 Built-in SID: <strong>${esc(r.dupBuiltinSid)}</strong>`)}
+      ${issueSection('⚠ 문법 오류 룰','#f5f3ff','#7e22ce',synRules,r=>r.syntaxErrors.map((e,i)=>`[${i+1}] ${esc(e)}`).join('<br>'))}
+      ${issueSection('👁 검토 필요 룰','#eff6ff','#1d4ed8',revRules,r=>r.unnecessaryReasons.map((e,i)=>`[${i+1}] ${esc(e)}`).join('<br>'))}`;
+
+    // ── Embed only needed fields of localRules (trim size) ───────
+    const localEmbed = localRules.map(r=>({
+      sid:r.sid, msg:r.msg, action:r.action, status:r.status,
+      ruleData:r.ruleData||'',
+      isDuplicate:r.isDuplicate, dupBuiltinSid:r.dupBuiltinSid||'',
+      syntaxErrors:r.syntaxErrors,
+      deleteRecommended:r.deleteRecommended, deleteReason:r.deleteReason||'',
+      isReviewNeeded:r.isReviewNeeded,
+      unnecessaryReasons:r.unnecessaryReasons||[],
+    }));
+
+    const P = JSON.stringify(PALETTE);
+
+    return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>v7 Rules Dashboard — ${esc(fname)}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"><\/script>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#061128;--panel:#0a1838;--border:#1a2d55;--primary:#00bceb;--text:#fff;--muted:#8fa4c8}
+body{margin:0;padding:20px 24px;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;font-size:14px}
+h1{color:var(--primary);font-size:1.4rem;margin:0 0 4px;font-weight:800}
+.sub{color:var(--muted);font-size:.82rem;margin-bottom:16px}
+/* KPIs */
+.krow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.kcard{flex:1;min-width:110px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+.kval{font-size:1.7rem;font-weight:800;line-height:1}.klbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.kcard.c1{border-top:4px solid #00bceb}.kcard.c1 .kval{color:#00bceb}
+.kcard.c2{border-top:4px solid #3070E7}.kcard.c2 .kval{color:#60a5fa}
+.kcard.c3{border-top:4px solid #22C55E}.kcard.c3 .kval{color:#4ade80}
+.kcard.c4{border-top:4px solid #FF9000}.kcard.c4 .kval{color:#fb923c}
+.kcard.c5{border-top:4px solid #64748B}.kcard.c5 .kval{color:#94a3b8}
+.kcard.cv1{border-top:4px solid #f59e0b}.kcard.cv1 .kval{color:#f59e0b}
+.kcard.cv2{border-top:4px solid #a855f7}.kcard.cv2 .kval{color:#a855f7}
+.kcard.cv3{border-top:4px solid #ef4444}.kcard.cv3 .kval{color:#ef4444}
+.kcard.cv4{border-top:4px solid #3b82f6}.kcard.cv4 .kval{color:#3b82f6}
+.kcard.cv5{border-top:4px solid #14b8a6}.kcard.cv5 .kval{color:#14b8a6}
+/* Analysis Banner */
+.abanner{background:rgba(20,184,166,.09);border:1px solid rgba(20,184,166,.25);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.atitle{font-size:.78rem;font-weight:700;color:#5eead4;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.barwrap{height:20px;border-radius:5px;overflow:hidden;display:flex;background:#1a2d55}
+.bseg{height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden}
+.bseg.del{background:#ef4444}.bseg.rev{background:#3b82f6}.bseg.dup{background:#f59e0b}.bseg.syn{background:#a855f7}.bseg.ok{background:#22c55e}
+.aleg{display:flex;flex-wrap:wrap;gap:8px;margin-top:7px}
+.aleg-i{display:flex;align-items:center;gap:4px;font-size:.73rem;color:var(--muted)}
+.aleg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+/* Tabs */
+.tabbar{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:14px;flex-wrap:wrap}
+.tabbtn{padding:8px 16px;font-size:.82rem;font-weight:600;border:none;background:transparent;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s}
+.tabbtn.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tabpanel{display:none}.tabpanel.active{display:block}
+/* Charts grid */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px}
+.card.wide{grid-column:1/-1}
+.ct{font-size:.75rem;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.ch{position:relative}
+/* Table */
+.tblwrap{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+th,td{border:1px solid var(--border);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:rgba(0,102,204,.2);color:#9bd7ff;position:sticky;top:0}
+tr:nth-child(even){background:rgba(255,255,255,.02)}
+.hl{font-weight:600;color:var(--primary)}
+/* Filter bar */
+.fbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.fbtn{padding:4px 12px;border-radius:20px;font-size:.76rem;font-weight:600;border:1px solid var(--border);background:var(--panel);cursor:pointer;color:var(--muted);transition:all .15s}
+.fbtn:hover{border-color:#8fa4c8;color:#fff}
+.fbtn.active{background:#00bceb;color:#000;border-color:#00bceb}
+.fbtn.fa.active{background:#f59e0b;border-color:#f59e0b;color:#000}
+.fbtn.fb.active{background:#a855f7;border-color:#a855f7}
+.fbtn.fc.active{background:#ef4444;border-color:#ef4444}
+.fbtn.fd.active{background:#3b82f6;border-color:#3b82f6}
+.fbtn.fe.active{background:#22c55e;border-color:#22c55e;color:#000}
+/* Local table */
+.ltbl{font-size:.78rem;width:100%;border-collapse:collapse}
+.ltbl td,.ltbl th{padding:5px 7px;border:1px solid var(--border)}
+.ltbl th{background:rgba(0,102,204,.2);color:#9bd7ff;position:sticky;top:0}
+.rd{font-family:Consolas,monospace;font-size:.68rem;max-width:260px;word-break:break-all}
+.rd-del td{background:rgba(239,68,68,.08)!important}
+.rd-syn td{background:rgba(168,85,247,.08)!important}
+.rd-dup td{background:rgba(245,158,11,.07)!important}
+.rd-rev td{background:rgba(59,130,246,.07)!important}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.7rem;font-weight:700;margin:1px}
+.bd{background:rgba(239,68,68,.2);color:#fca5a5}.bs{background:rgba(168,85,247,.2);color:#d8b4fe}
+.bu{background:rgba(245,158,11,.2);color:#fcd34d}.br{background:rgba(59,130,246,.2);color:#93c5fd}.bo{background:rgba(34,197,94,.2);color:#86efac}
+/* Pagination */
+.pgbar{display:flex;gap:4px;align-items:center;justify-content:flex-end;padding:8px 0 0;font-size:.78rem;color:var(--muted);flex-wrap:wrap}
+.pgbtn{padding:3px 9px;border-radius:6px;border:1px solid var(--border);background:var(--panel);cursor:pointer;font-size:.76rem;color:var(--muted)}
+.pgbtn:hover{border-color:var(--primary);color:var(--primary)}
+.pgbtn.active{background:var(--primary);color:#000;border-color:var(--primary)}
+/* Issues */
+.isub{font-size:.83rem;color:var(--muted);margin:0 0 12px}
+.isec{margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.ihdr{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-weight:700;font-size:.82rem;user-select:none}
+.ihdr:hover{opacity:.9}.chev{flex-shrink:0;margin-left:8px}
+.ibody{padding:0 12px 12px}
+.iitem{margin-top:8px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:.78rem}
+.isid{font-weight:700;color:var(--primary);margin-right:8px;font-family:Consolas,monospace}
+.imsg{color:#e2e8f0;font-weight:600}
+.ird{font-family:Consolas,monospace;font-size:.68rem;color:var(--muted);word-break:break-all;margin-top:4px;line-height:1.5}
+.ireason{margin-top:5px;font-size:.74rem;font-weight:600}
+/* Footer */
+.footer{margin-top:20px;color:var(--muted);font-size:.74rem;text-align:center;padding-top:12px;border-top:1px solid var(--border)}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.card.wide{grid-column:1}}
+</style>
+</head>
+<body>
+<h1>📊 Rules Dashboard — v7 Analysis</h1>
+<div class="sub">File: <strong>${esc(fname)}</strong> · Generated: ${new Date().toLocaleString()}</div>
+
+<!-- KPI Row 1: Overall -->
+<div class="krow">
+  <div class="kcard c1"><div class="kval">${total.toLocaleString()}</div><div class="klbl">Total Rules</div></div>
+  <div class="kcard c2"><div class="kval">${builtins.toLocaleString()}</div><div class="klbl">Built-in</div></div>
+  <div class="kcard c3"><div class="kval">${locTotal.toLocaleString()}</div><div class="klbl">Local</div></div>
+  <div class="kcard c4"><div class="kval">${active.toLocaleString()}</div><div class="klbl">Active</div></div>
+  <div class="kcard c5"><div class="kval">${disabled.toLocaleString()}</div><div class="klbl">Disabled</div></div>
+</div>
+
+<!-- Analysis Banner -->
+<div class="abanner">
+  <div class="atitle">🔬 로컬 룰 분석 (v7) — ${locTotal.toLocaleString()}개 로컬 룰</div>
+  <div class="krow" style="margin-bottom:10px">
+    <div class="kcard cv1"><div class="kval">${dupC}</div><div class="klbl">✔ Built-in 중복</div></div>
+    <div class="kcard cv2"><div class="kval">${synC}</div><div class="klbl">⚠ 문법 오류</div></div>
+    <div class="kcard cv3"><div class="kval">${delC}</div><div class="klbl">🗑 삭제 권고</div></div>
+    <div class="kcard cv4"><div class="kval">${revC}</div><div class="klbl">👁 검토 필요</div></div>
+    <div class="kcard cv5"><div class="kval">${cleanC}</div><div class="klbl">✅ 이상 없음</div></div>
+  </div>
+  <div class="barwrap">
+    ${+pDel>0?`<div class="bseg del" style="flex:${pDel}">${pDel}%</div>`:''}
+    ${+pRev>0?`<div class="bseg rev" style="flex:${pRev}">${pRev}%</div>`:''}
+    ${+pDup>0?`<div class="bseg dup" style="flex:${pDup}">${pDup}%</div>`:''}
+    ${+pSyn>0?`<div class="bseg syn" style="flex:${pSyn}">${pSyn}%</div>`:''}
+    <div class="bseg ok" style="flex:${pOk}">${pOk}%</div>
+  </div>
+  <div class="aleg">
+    <div class="aleg-i"><div class="aleg-dot" style="background:#ef4444"></div>삭제 권고</div>
+    <div class="aleg-i"><div class="aleg-dot" style="background:#3b82f6"></div>검토 필요</div>
+    <div class="aleg-i"><div class="aleg-dot" style="background:#f59e0b"></div>Built-in 중복</div>
+    <div class="aleg-i"><div class="aleg-dot" style="background:#a855f7"></div>문법 오류</div>
+    <div class="aleg-i"><div class="aleg-dot" style="background:#22c55e"></div>이상 없음</div>
+  </div>
+</div>
+
+<!-- Tab Bar -->
+<div class="tabbar">
+  <button class="tabbtn active" onclick="switchTab('ov',this)">📊 Overview</button>
+  <button class="tabbtn" onclick="switchTab('lo',this)">🔍 Local Analysis <span style="background:rgba(255,255,255,.1);border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px">${locTotal}</span></button>
+  <button class="tabbtn" onclick="switchTab('is',this)">⚠ Issues <span style="background:rgba(239,68,68,.25);color:#fca5a5;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px">${delC+revC}</span></button>
+</div>
+
+<!-- Tab: Overview -->
+<div id="tab-ov" class="tabpanel active">
+  <div class="grid">
+    <div class="card"><div class="ct">Rule Action</div><div class="ch" style="height:180px"><canvas id="cA"></canvas></div></div>
+    <div class="card"><div class="ct">Status</div><div class="ch" style="height:180px"><canvas id="cS"></canvas></div></div>
+    <div class="card"><div class="ct">Built-in vs Local</div><div class="ch" style="height:180px"><canvas id="cT"></canvas></div></div>
+    <div class="card"><div class="ct">Protocol</div><div class="ch" style="height:180px"><canvas id="cP"></canvas></div></div>
+    <div class="card"><div class="ct">🔬 로컬 룰 분석 현황</div><div class="ch" style="height:180px"><canvas id="cLA"></canvas></div></div>
+    <div class="card"><div class="ct">GID</div><div class="ch" style="height:180px"><canvas id="cG"></canvas></div></div>
+    <div class="card wide"><div class="ct">Top 20 Categories</div><div class="ch" style="height:520px"><canvas id="cCat"></canvas></div></div>
+    <div class="card wide"><div class="ct">Top 15 Classtypes</div><div class="ch" style="height:420px"><canvas id="cCT"></canvas></div></div>
+    <div class="card"><div class="ct">SID Range</div><div class="ch" style="height:300px"><canvas id="cSid"></canvas></div></div>
+    <div class="card wide"><div class="ct">Top 15 Assigned Groups</div><div class="ch" style="height:420px"><canvas id="cGrp"></canvas></div></div>
+  </div>
+  <div class="tblwrap">
+    <div class="ct" style="margin-bottom:8px">Category Details — Top 50</div>
+    <table><thead><tr><th>#</th><th>Category</th><th>Total</th><th>%</th><th>BLOCK</th><th>ALERT</th><th>Built-in</th><th>Local</th></tr></thead>
+    <tbody>${catTableRows}</tbody></table>
+  </div>
+</div>
+
+<!-- Tab: Local Analysis (interactive) -->
+<div id="tab-lo" class="tabpanel">
+  <div class="fbar" id="fbar"></div>
+  <div class="tblwrap" id="ltbl-wrap"></div>
+</div>
+
+<!-- Tab: Issues (static) -->
+<div id="tab-is" class="tabpanel">
+  ${issuesHtml}
+</div>
+
+<div class="footer">Generated by Snort Rule Converter · v7 Dashboard · ${new Date().toLocaleString()}</div>
+
+<script>(function(){
+const P=${P};
+const G='#1a2d55',TC='#8fa4c8',LC='#e2e8f0';
+function bar(id,lbl,dat,col,h){const c=document.getElementById(id);if(!c||typeof Chart==='undefined')return;new Chart(c,{type:'bar',data:{labels:lbl,datasets:[{data:dat,backgroundColor:col+'bb',borderColor:col,borderWidth:1,borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:h?'y':'x',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>' '+Number(ctx.raw).toLocaleString()}}},scales:{x:{ticks:{color:h?TC:LC,font:{size:10}},grid:{color:G}},y:{ticks:{color:h?LC:TC,font:{size:10}},grid:{color:G}}}}});}
+function donut(id,lbl,dat,cols){const c=document.getElementById(id);if(!c||typeof Chart==='undefined')return;new Chart(c,{type:'doughnut',data:{labels:lbl,datasets:[{data:dat,backgroundColor:cols.map(x=>x+'bb'),borderColor:cols,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:LC,font:{size:11},boxWidth:14,padding:8}},tooltip:{callbacks:{label:ctx=>' '+ctx.label+': '+Number(ctx.raw).toLocaleString()}}}}});}
+
+bar('cA',${J(actions.map(a=>a[0]))},${J(actions.map(a=>a[1]))},'#00bceb',true);
+donut('cS',${J(statuses.map(s=>s[0]))},${J(statuses.map(s=>s[1]))},['#22c55e','#94a3b8','#ff7e3f'].slice(0,${statuses.length}));
+donut('cT',${J(typeDist.map(t=>t[0]))},${J(typeDist.map(t=>t[1]))},['#00bceb','#f59e0b']);
+donut('cP',${J(protos.map(p=>p[0]))},${J(protos.map(p=>p[1]))},P.slice(0,${protos.length}));
+donut('cLA',${J(localAna.map(x=>x[0]))},${J(localAna.map(x=>x[1]))},${J(anaColors.slice(0,localAna.length))});
+donut('cG',${J(gids.map(g=>'GID '+g[0]))},${J(gids.map(g=>g[1]))},P.slice(0,${gids.length}));
+bar('cCat',${J(cat20.map(c=>c[0]))},${J(cat20.map(c=>c[1]))},'#00bceb',true);
+bar('cCT',${J(ctypes.map(c=>c[0]))},${J(ctypes.map(c=>c[1]))},'#ec4899',true);
+bar('cSid',${J(sidBkts.map(s=>s[0]))},${J(sidBkts.map(s=>s[1]))},'#3070E7',false);
+bar('cGrp',${J(groups.map(g=>g[0]))},${J(groups.map(g=>g[1]))},'#a855f7',true);
+})();
+
+// Global helpers for inline onclick handlers
+var LR=${J(localEmbed)};
+var _curFilter='all', _curPage=0;
+function switchTab(id,btn){
+  document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='lo'&&!document.querySelector('#fbar .fbtn'))renderLocalTab(LR,'all',0);
+}
+function renderLocalTab(lr,filter,page){
+  _curFilter=filter; _curPage=page;
+  var PER=50;
+  var fmap={all:function(){return true},a:function(r){return r.isDuplicate},b:function(r){return r.syntaxErrors.length>0},c:function(r){return r.deleteRecommended},d:function(r){return r.isReviewNeeded},e:function(r){return !r.isDuplicate&&!r.syntaxErrors.length&&!r.deleteRecommended&&!r.isReviewNeeded}};
+  var fil=lr.filter(fmap[filter]||fmap.all);
+  var maxP=Math.max(0,Math.ceil(fil.length/PER)-1);
+  page=Math.min(page,maxP);
+  var pg=fil.slice(page*PER,(page+1)*PER);
+  var dupN=lr.filter(function(r){return r.isDuplicate}).length;
+  var synN=lr.filter(function(r){return r.syntaxErrors.length>0}).length;
+  var delN=lr.filter(function(r){return r.deleteRecommended}).length;
+  var revN=lr.filter(function(r){return r.isReviewNeeded}).length;
+  var okN=lr.filter(function(r){return !r.isDuplicate&&!r.syntaxErrors.length&&!r.deleteRecommended&&!r.isReviewNeeded}).length;
+  var filters=[['all','전체 ('+lr.length+')',''],['a','✔ 중복 ('+dupN+')','fa'],['b','⚠ 문법오류 ('+synN+')','fb'],['c','🗑 삭제권고 ('+delN+')','fc'],['d','👁 검토필요 ('+revN+')','fd'],['e','✅ 이상없음 ('+okN+')','fe']];
+  document.getElementById('fbar').innerHTML=filters.map(function(x){var f=x[0],l=x[1],c=x[2];return '<button class="fbtn '+c+(filter===f?' active':'')+'" onclick="renderLocalTab(LR,\''+f+'\',0)">'+l+'</button>';}).join('');
+  function rc(r){return r.deleteRecommended?'rd-del':r.syntaxErrors.length?'rd-syn':r.isDuplicate?'rd-dup':r.isReviewNeeded?'rd-rev':'';}
+  function bdg(r){var b=[];if(r.isDuplicate)b.push('<span class="badge bu">중복</span>');if(r.syntaxErrors.length)b.push('<span class="badge bs">문법오류</span>');if(r.deleteRecommended)b.push('<span class="badge bd">삭제권고</span>');if(r.isReviewNeeded)b.push('<span class="badge br">검토필요</span>');if(!b.length)b.push('<span class="badge bo">OK</span>');return b.join('');}
+  function esc2(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  var rows=pg.map(function(r,i){return '<tr class="'+rc(r)+'"><td style="text-align:center">'+(page*PER+i+1)+'</td><td style="font-family:Consolas;font-weight:700;color:#00bceb;white-space:nowrap">'+r.sid+'</td><td style="max-width:200px;font-size:.75rem">'+esc2(r.msg)+'</td><td style="white-space:nowrap">'+esc2(r.action)+'</td><td style="white-space:nowrap;font-size:.75rem">'+esc2(r.status)+'</td><td style="white-space:nowrap">'+bdg(r)+'</td><td style="font-size:.7rem;color:#d8b4fe;max-width:220px">'+(r.syntaxErrors.length?r.syntaxErrors.slice(0,3).map(function(e){return esc2(e.slice(0,80));}).join('<br>'):r.deleteReason?esc2(r.deleteReason.slice(0,120)):r.unnecessaryReasons.slice(0,2).map(function(x){return esc2(x.slice(0,80));}).join('<br>'))+'</td><td class="rd">'+esc2((r.ruleData||'').slice(0,200))+((r.ruleData||'').length>200?'…':'')+'</td></tr>';}).join('');
+  var pgCount=Math.ceil(fil.length/PER);
+  var pgH='';
+  if(pgCount>1){
+    var pgNums='';var s=Math.max(0,Math.min(page-3,pgCount-7));var e=Math.min(pgCount,s+7);
+    for(var i=s;i<e;i++){pgNums+='<button class="pgbtn'+(i===page?' active':'')+'" onclick="renderLocalTab(LR,\''+filter+'\','+i+')">'+(i+1)+'</button>';}
+    pgH='<div class="pgbar"><span>'+fil.length.toLocaleString()+' 건 · '+(page+1)+'/'+pgCount+' 페이지</span>'+(page>0?'<button class="pgbtn" onclick="renderLocalTab(LR,\''+filter+'\','+(page-1)+')">‹</button>':'')+pgNums+(page<pgCount-1?'<button class="pgbtn" onclick="renderLocalTab(LR,\''+filter+'\','+(page+1)+')">›</button>':'')+'</div>';
+  }
+  document.getElementById('ltbl-wrap').innerHTML='<div style="overflow:auto"><table class="ltbl"><thead><tr><th>#</th><th>SID</th><th>Message</th><th>Action</th><th>Status</th><th>분석</th><th>근거/오류</th><th>Rule Details</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+pgH;
+}
+</body></html>`;
+  }
+
   function downloadHtml() {
     if (!state.mode) return;
-    const html = state.mode === 'table' ? buildTableHtml() : buildSnortHtml();
+    let html;
+    if (state.mode === 'snort-v7') html = buildV7Html();
+    else if (state.mode === 'table') html = buildTableHtml();
+    else html = buildSnortHtml();
     const blob=new Blob([html],{type:'text/html;charset=utf-8'});
     const url=URL.createObjectURL(blob);
     const a=Object.assign(document.createElement('a'),{href:url,download:'dashboard-'+state.fileName.replace(/\.[^.]+$/,'')+'-'+new Date().toISOString().slice(0,10)+'.html'});
