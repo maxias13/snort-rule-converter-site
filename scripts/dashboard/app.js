@@ -11,6 +11,12 @@
   let state = {
     mode: null,
     rules: [],
+    localRules: [],
+    v7Stats: null,
+    v7LocalRules: [],
+    v7Filter: 'all',
+    v7Page: 0,
+    v7ActiveTab: 'overview',
     table: { headers: [], rows: [], colMeta: [], selectedCols: [] },
     fileName: '',
     charts: {},
@@ -175,6 +181,412 @@
       });
   }
 
+  // ── v7 Multi-sheet Excel detection ────────────────────────────────────
+
+  function isSnortV7Format(wb) {
+    const n = new Set(wb.SheetNames);
+    return n.has('All Rules') && n.has('Local') && n.has('Built-in');
+  }
+
+  function detectUnnecessaryJS(rule) {
+    const reasons = [];
+    const rd = rule.ruleData || '';
+    if (rule.status === 'Disabled') reasons.push('비활성화 상태 룰');
+    const detPtns = [/content\s*:/i,/pcre\s*:/i,/byte_test\s*:/i,/byte_jump\s*:/i,
+      /byte_extract\s*:/i,/isdataat\s*:/i,/dsize\s*:/i,/file_data\s*[;:]/i];
+    const hasDet = detPtns.some(p => p.test(rd));
+    if (!hasDet) reasons.push('탐지 내용 없음 (content/pcre 등 미사용)');
+    if (hasDet) {
+      const cts = [...rd.matchAll(/content\s*:\s*"([^"]*)"/gi)].map(m => m[1]);
+      const hexStripped = cts.length === 1 ? cts[0].replace(/\|[0-9a-f\s]+\|/gi,'').replace(/\s+/g,'') : '';
+      if (hexStripped.length <= 6 && cts.length === 1 && !/pcre\s*:/i.test(rd))
+        reasons.push('단일 탐지 content 너무 짧음 (오탐 위험)');
+    }
+    const sidM = rd.match(/\bsid\s*:\s*(\d+)/i);
+    if (sidM && [0,999999,1234567,9999998,9999999].includes(+sidM[1]))
+      reasons.push('테스트/임시 SID: ' + sidM[1]);
+    const m = rule.msg || '';
+    if (!m || ['','-','n/a','test','test rule','unknown'].includes(m.toLowerCase()))
+      reasons.push('메시지 없음/임시값');
+    return reasons;
+  }
+
+  function parseLocalV7Xlsx(headers, rows) {
+    const col = {};
+    headers.forEach((h, i) => { col[String(h).trim()] = i; });
+    const get = (r, k) => String(r[col[k]] ?? '').trim();
+    return rows
+      .filter(r => get(r,'SID') && get(r,'SID') !== '0')
+      .map(r => {
+        const ruleData = get(r,'Rule Details');
+        const opts = ruleData.includes('(') ? ruleData.slice(ruleData.lastIndexOf('(') + 1).replace(/\)\s*$/, '') : '';
+        const protoM = ruleData.match(/^\s*\w+\s+(\w+)\s+/);
+        const ctM    = opts.match(/\bclasstype\s*:\s*([^;,)]+)/);
+        const dupCell = get(r,'중복 여부');
+        const synCell = get(r,'문법 오류');
+        const delCell = get(r,'삭제 권고');
+        const rule = {
+          type:'L', gid:parseInt(get(r,'GID'))||1, sid:parseInt(get(r,'SID'))||0,
+          msg:get(r,'Message'), ruleData,
+          action:get(r,'Rule Action').toUpperCase(), status:get(r,'Status'),
+          groups:get(r,'Assigned Groups')||'—',
+          protocol:protoM?protoM[1].toUpperCase():'(Unknown)',
+          classtype:ctM?ctM[1].trim():'(none)',
+          isDuplicate:dupCell.includes('중복'),
+          dupBuiltinSid:get(r,'중복 Built-in SID'),
+          syntaxErrors:synCell?synCell.split('\n').map(s=>s.trim()).filter(Boolean):[],
+          deleteRecommended:delCell.includes('권고'),
+          deleteReason:get(r,'삭제/검토 근거'),
+        };
+        const unR = detectUnnecessaryJS(rule);
+        rule.unnecessaryReasons = unR;
+        rule.isReviewNeeded = unR.length > 0 && !rule.deleteRecommended
+          && !rule.isDuplicate && rule.syntaxErrors.length === 0;
+        return rule;
+      });
+  }
+
+  function extractV7ReviewCount(data) {
+    for (const row of data) {
+      const c0 = String(row[0] || '');
+      if (c0.includes('검토 필요') && !isNaN(Number(row[1])) && Number(row[1]) > 0)
+        return Number(row[1]);
+    }
+    return 0;
+  }
+
+  function parseSnortV7Excel(buffer) {
+    const wb = XLSX.read(new Uint8Array(buffer), { type:'array' });
+    const allData = XLSX.utils.sheet_to_json(wb.Sheets['All Rules'], { header:1, defval:'' });
+    const allH   = allData[0].map(String);
+    const allRows = allData.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>r.map(String));
+    const allRules = parseSnortXlsx(allH, allRows);
+
+    const locData  = XLSX.utils.sheet_to_json(wb.Sheets['Local'], { header:1, defval:'' });
+    const locH     = locData[0].map(String);
+    const locRows  = locData.slice(1).filter(r=>r.some(v=>v!=='')).map(r=>r.map(String));
+    const localRules = parseLocalV7Xlsx(locH, locRows);
+
+    let reviewCount = localRules.filter(r=>r.isReviewNeeded).length;
+    if (wb.SheetNames.includes('로컬 룰 분석')) {
+      const aData = XLSX.utils.sheet_to_json(wb.Sheets['로컬 룰 분석'], { header:1, defval:'' });
+      const ext = extractV7ReviewCount(aData);
+      if (ext > 0) reviewCount = ext;
+    }
+    return { allRules, localRules, v7Stats:{ reviewCount } };
+  }
+
+  // ── v7 Local Rules tab ─────────────────────────────────────────────────
+
+  function renderV7LocalPanel(localRules, filter, page) {
+    filter = filter || state.v7Filter || 'all';
+    page   = (page !== undefined) ? page : (state.v7Page || 0);
+    state.v7Filter = filter; state.v7Page = page;
+
+    const dupC = localRules.filter(r=>r.isDuplicate).length;
+    const synC = localRules.filter(r=>r.syntaxErrors.length>0).length;
+    const delC = localRules.filter(r=>r.deleteRecommended).length;
+    const revC = localRules.filter(r=>r.isReviewNeeded).length;
+    const okC  = localRules.filter(r=>!r.isDuplicate&&r.syntaxErrors.length===0&&!r.deleteRecommended&&!r.isReviewNeeded).length;
+    const fMap = {
+      all:r=>true, dup:r=>r.isDuplicate, syn:r=>r.syntaxErrors.length>0,
+      del:r=>r.deleteRecommended, rev:r=>r.isReviewNeeded,
+      ok: r=>!r.isDuplicate&&r.syntaxErrors.length===0&&!r.deleteRecommended&&!r.isReviewNeeded,
+    };
+    const filtered  = localRules.filter(fMap[filter]||fMap.all);
+    const PER_PAGE  = 50;
+    const maxPage   = Math.max(0, Math.ceil(filtered.length/PER_PAGE)-1);
+    page = Math.min(page, maxPage);
+    const pageRules = filtered.slice(page*PER_PAGE, (page+1)*PER_PAGE);
+
+    const rowCls = r => r.deleteRecommended?'v7-row-del':r.syntaxErrors.length>0?'v7-row-syn':r.isDuplicate?'v7-row-dup':r.isReviewNeeded?'v7-row-rev':'';
+    const badges  = r => {
+      const b=[];
+      if(r.isDuplicate)              b.push('<span class="v7-badge dup">중복</span>');
+      if(r.syntaxErrors.length>0)    b.push('<span class="v7-badge syn">문법오류</span>');
+      if(r.deleteRecommended)        b.push('<span class="v7-badge del">삭제권고</span>');
+      if(r.isReviewNeeded)           b.push('<span class="v7-badge rev">검토필요</span>');
+      if(!b.length)                  b.push('<span class="v7-badge ok">OK</span>');
+      return b.join(' ');
+    };
+    const pgCount = Math.ceil(filtered.length/PER_PAGE);
+    const pgNums  = pgCount<=1?'':(() => {
+      const start = Math.max(0, Math.min(page-3, pgCount-7));
+      const end   = Math.min(pgCount, start+7);
+      return [...Array(end-start)].map((_,i)=>{
+        const p=start+i;
+        return `<button class="v7-pg-btn${p===page?' active':''}" onclick="window.__v7pg(${p})">${p+1}</button>`;
+      }).join('');
+    })();
+    const pgHtml = pgCount<=1?'': `
+      <div class="v7-pg-bar">
+        <span>${filtered.length.toLocaleString()} 건 · ${page+1}/${pgCount} 페이지</span>
+        ${page>0?`<button class="v7-pg-btn" onclick="window.__v7pg(${page-1})">‹ 이전</button>`:''}
+        ${pgNums}
+        ${page<pgCount-1?`<button class="v7-pg-btn" onclick="window.__v7pg(${page+1})">다음 ›</button>`:''}
+      </div>`;
+
+    document.getElementById('v7TabLocal').innerHTML = `
+      <div class="v7-filter-bar">
+        <button class="v7-filter-btn${filter==='all'?' active':''}" onclick="window.__v7flt('all')">전체 (${localRules.length})</button>
+        <button class="v7-filter-btn f-dup${filter==='dup'?' active':''}" onclick="window.__v7flt('dup')">✔ 중복 (${dupC})</button>
+        <button class="v7-filter-btn f-syn${filter==='syn'?' active':''}" onclick="window.__v7flt('syn')">⚠ 문법오류 (${synC})</button>
+        <button class="v7-filter-btn f-del${filter==='del'?' active':''}" onclick="window.__v7flt('del')">🗑 삭제권고 (${delC})</button>
+        <button class="v7-filter-btn f-rev${filter==='rev'?' active':''}" onclick="window.__v7flt('rev')">👁 검토필요 (${revC})</button>
+        <button class="v7-filter-btn f-ok${filter==='ok'?' active':''}" onclick="window.__v7flt('ok')">✅ 이상없음 (${okC})</button>
+      </div>
+      <div class="table-scroll">
+        <table class="v7-local-tbl">
+          <thead><tr>
+            <th>#</th><th>SID</th><th>Message</th><th>Action</th><th>Status</th>
+            <th>분석</th><th>근거 / 오류</th><th>Rule Details</th>
+          </tr></thead>
+          <tbody>
+            ${pageRules.map((r,i)=>`<tr class="${rowCls(r)}">
+              <td style="text-align:center">${page*PER_PAGE+i+1}</td>
+              <td style="font-family:Consolas;font-weight:700;color:#0369a1;white-space:nowrap">${r.sid}</td>
+              <td style="max-width:200px;font-size:.78rem">${esc(r.msg)}</td>
+              <td style="text-align:center;white-space:nowrap">${esc(r.action)}</td>
+              <td style="text-align:center;font-size:.75rem;white-space:nowrap">${esc(r.status)}</td>
+              <td style="white-space:nowrap">${badges(r)}</td>
+              <td style="font-size:.74rem;color:#7c3aed;max-width:220px">
+                ${r.syntaxErrors.length>0
+                  ? r.syntaxErrors.slice(0,3).map(e=>esc(e.slice(0,80))).join('<br>')
+                  : r.deleteReason
+                    ? esc(r.deleteReason.slice(0,120))
+                    : r.unnecessaryReasons.slice(0,2).map(x=>esc(x.slice(0,80))).join('<br>')}
+              </td>
+              <td class="rd-cell">${esc((r.ruleData||'').slice(0,200))}${(r.ruleData||'').length>200?'…':''}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${pgHtml}`;
+
+    window.__v7pg  = p => renderV7LocalPanel(state.v7LocalRules, state.v7Filter, p);
+    window.__v7flt = f => renderV7LocalPanel(state.v7LocalRules, f, 0);
+  }
+
+  // ── v7 Issues tab ──────────────────────────────────────────────────────
+
+  function renderV7IssuesPanel(localRules) {
+    const delRules = localRules.filter(r=>r.deleteRecommended);
+    const dupRules = localRules.filter(r=>r.isDuplicate);
+    const synRules = localRules.filter(r=>r.syntaxErrors.length>0);
+    const revRules = localRules.filter(r=>r.isReviewNeeded);
+
+    const issueItem = (r, bodyHtml) => `
+      <div class="v7-issue-item">
+        <div>
+          <span class="v7-issue-sid">SID ${r.sid}</span>
+          <span class="v7-issue-msg">${esc(r.msg.slice(0,100))}</span>
+        </div>
+        <div class="v7-issue-rd">${esc((r.ruleData||'').slice(0,320))}${(r.ruleData||'').length>320?'…':''}</div>
+        <div class="v7-issue-reason">${bodyHtml}</div>
+      </div>`;
+
+    const section = (title, bgColor, textColor, items, bodyFn) => {
+      if (!items.length) return '';
+      return `
+        <div class="v7-issue-group">
+          <div class="v7-issue-hdr" style="background:${bgColor};color:${textColor}"
+            onclick="const b=this.nextElementSibling;const open=b.style.display!=='none';b.style.display=open?'none':'';this.querySelector('.v7-chev').textContent=open?'▼':'▲'">
+            <span>${title} &nbsp;<strong>(${items.length}건)</strong></span>
+            <span class="v7-chev">▼</span>
+          </div>
+          <div class="v7-issue-body" style="display:none">
+            ${items.map(r=>issueItem(r, bodyFn(r))).join('')}
+          </div>
+        </div>`;
+    };
+
+    document.getElementById('v7TabIssues').innerHTML = `
+      <p style="font-size:.85rem;color:#64748b;margin:0 0 12px;">총 <strong>${delRules.length+revRules.length}</strong>건의 조치 필요 룰이 있습니다. 항목 클릭 시 상세 목록이 펼쳐집니다.</p>
+      ${section('🗑 삭제 권고 룰','#fff5f5','#b91c1c', delRules,
+        r=>`<span style="color:#b91c1c">${esc(r.deleteReason.slice(0,200))}</span>`)}
+      ${section('✔ Built-in 중복 룰 (삭제 권고 포함)','#fefce8','#a16207', dupRules,
+        r=>`중복 Built-in SID: <strong>${esc(r.dupBuiltinSid)}</strong>`)}
+      ${section('⚠ 문법 오류 룰','#f5f3ff','#7e22ce', synRules,
+        r=>r.syntaxErrors.map((e,i)=>`[${i+1}] ${esc(e)}`).join('<br>'))}
+      ${section('👁 검토 필요 룰 (불필요 의심)','#eff6ff','#1d4ed8', revRules,
+        r=>r.unnecessaryReasons.map((e,i)=>`[${i+1}] ${esc(e)}`).join('<br>'))}`;
+  }
+
+  // ── v7 Overview charts ─────────────────────────────────────────────────
+
+  function renderSnortV7Overview(allRules, localRules, dupC, synC, delC, revC) {
+    const total    = allRules.length;
+    const locTotal = localRules.length;
+    const actions  = tally(allRules, r=>r.action);
+    const statuses = tally(allRules, r=>r.status);
+    const typeDist = tally(allRules, r=>r.type==='B'?'Built-in':'Local');
+    const cats     = tally(allRules, r=>snortCategory(r.msg)).slice(0,20);
+    const protos   = tally(allRules, r=>r.protocol).slice(0,10);
+    const sidBkts  = tally(allRules, r=>sidBucket(r.sid));
+    const ctypes   = tally(allRules, r=>r.classtype).slice(0,15);
+    const groups   = tally(allRules, r=>r.groups).filter(g=>g[0]!=='—').slice(0,15);
+    const gids     = tally(allRules, r=>String(r.gid));
+    const cleanC   = Math.max(0, locTotal - delC - revC);
+    const localAna = [['이상 없음',cleanC],['삭제 권고',delC],['검토 필요',revC],['Built-in 중복',dupC],['문법 오류',synC]].filter(x=>x[1]>0);
+
+    document.getElementById('dashChartsGrid').innerHTML = `
+      <div class="dash-card"><div class="dash-card-title">Rule Action</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXA"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Status</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXS"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Built-in vs Local</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXT"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">Protocol</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXP"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">🔬 로컬 룰 분석 현황</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXLA"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">GID Distribution</div>
+        <div class="dash-ch-wrap" style="height:180px"><canvas id="dXG"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 20 Categories</div>
+        <div class="dash-ch-wrap" style="height:520px"><canvas id="dXCat"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 15 Classtypes</div>
+        <div class="dash-ch-wrap" style="height:420px"><canvas id="dXCT"></canvas></div></div>
+      <div class="dash-card"><div class="dash-card-title">SID Range Distribution</div>
+        <div class="dash-ch-wrap" style="height:300px"><canvas id="dXSid"></canvas></div></div>
+      <div class="dash-card dash-card-wide"><div class="dash-card-title">Top 15 Assigned Groups</div>
+        <div class="dash-ch-wrap" style="height:420px"><canvas id="dXGrp"></canvas></div></div>`;
+
+    const anaColors = ['#22c55e','#ef4444','#3b82f6','#f59e0b','#a855f7'];
+    requestAnimationFrame(()=>{
+      state.charts.xa  = makeDoughnut('dXA',  actions.map(a=>a[0]),   actions.map(a=>a[1]),  ['#3070E7','#00bceb','#9ca3af'].slice(0,actions.length));
+      state.charts.xs  = makeDoughnut('dXS',  statuses.map(s=>s[0]),  statuses.map(s=>s[1]), ['#22c55e','#94a3b8','#ff7e3f'].slice(0,statuses.length));
+      state.charts.xt  = makeDoughnut('dXT',  typeDist.map(t=>t[0]),  typeDist.map(t=>t[1]), ['#00bceb','#f59e0b']);
+      state.charts.xp  = makeDoughnut('dXP',  protos.map(p=>p[0]),    protos.map(p=>p[1]),   PALETTE.slice(0,protos.length));
+      state.charts.xla = makeDoughnut('dXLA', localAna.map(x=>x[0]),  localAna.map(x=>x[1]), anaColors.slice(0,localAna.length));
+      state.charts.xg  = makeDoughnut('dXG',  gids.map(g=>'GID '+g[0]),gids.map(g=>g[1]),    PALETTE.slice(0,gids.length));
+      state.charts.xc  = makeBar('dXCat', cats.map(c=>c[0]),    cats.map(c=>c[1]),   '#00bceb', true);
+      state.charts.xct = makeBar('dXCT',  ctypes.map(c=>c[0]),  ctypes.map(c=>c[1]), '#ec4899', true);
+      state.charts.xsi = makeBar('dXSid', sidBkts.map(s=>s[0]),sidBkts.map(s=>s[1]),'#3070E7', false);
+      state.charts.xgr = makeBar('dXGrp', groups.map(g=>g[0]), groups.map(g=>g[1]),  '#a855f7', true);
+    });
+
+    const catList = tally(allRules, r=>snortCategory(r.msg));
+    document.querySelector('#dashDataTable thead').innerHTML =
+      `<tr><th>#</th><th>Category</th><th>Total</th><th>%</th><th>BLOCK</th><th>ALERT</th><th>Built-in</th><th>Local</th></tr>`;
+    document.querySelector('#dashDataTable tbody').innerHTML = catList.slice(0,50).map((c,i)=>{
+      const sub=allRules.filter(r=>snortCategory(r.msg)===c[0]);
+      const bl=sub.filter(r=>r.action==='BLOCK').length;
+      const al=sub.filter(r=>r.action==='ALERT').length;
+      const bi=sub.filter(r=>r.type==='B').length;
+      const lo=sub.filter(r=>r.type==='L').length;
+      return `<tr><td>${i+1}</td>
+        <td style="font-weight:600;color:var(--primary)">${esc(c[0])}</td>
+        <td>${c[1].toLocaleString()}</td><td>${((c[1]/total)*100).toFixed(1)}%</td>
+        <td>${bl.toLocaleString()}</td><td>${al.toLocaleString()}</td>
+        <td>${bi.toLocaleString()}</td><td>${lo.toLocaleString()}</td></tr>`;
+    }).join('');
+    document.getElementById('dashTableTitle').textContent = 'Category Details — Top 50';
+    const tblPnl = document.querySelector('#dashContent > .panel');
+    if (tblPnl) tblPnl.style.display = '';
+  }
+
+  // ── v7 Main Dashboard ─────────────────────────────────────────────────
+
+  function renderSnortV7Dashboard(allRules, localRules, v7Stats) {
+    const total    = allRules.length;
+    const builtins = allRules.filter(r=>r.type==='B').length;
+    const locTotal = localRules.length;
+    const active   = allRules.filter(r=>r.status==='Active').length;
+    const disabled = allRules.filter(r=>r.status==='Disabled').length;
+    const dupC     = localRules.filter(r=>r.isDuplicate).length;
+    const synC     = localRules.filter(r=>r.syntaxErrors.length>0).length;
+    const delC     = localRules.filter(r=>r.deleteRecommended).length;
+    const revC     = v7Stats.reviewCount || localRules.filter(r=>r.isReviewNeeded).length;
+    const cleanC   = Math.max(0, locTotal - delC - revC);
+
+    renderKpis([
+      {v:total.toLocaleString(),    l:'Total Rules', cls:'cyan'},
+      {v:builtins.toLocaleString(), l:'Built-in',    cls:'blue'},
+      {v:locTotal.toLocaleString(), l:'Local',       cls:'green'},
+      {v:active.toLocaleString(),   l:'Active',      cls:'orange'},
+      {v:disabled.toLocaleString(), l:'Disabled',    cls:'gray'},
+    ]);
+
+    const pDel = locTotal?(delC/locTotal*100).toFixed(1):'0';
+    const pRev = locTotal?(revC/locTotal*100).toFixed(1):'0';
+    const pDup = locTotal?Math.max(0,(dupC-delC)/locTotal*100).toFixed(1):'0';
+    const pSyn = locTotal?Math.max(0,(synC-delC)/locTotal*100).toFixed(1):'0';
+    const pOk  = Math.max(0, 100 - +pDel - +pRev - +pDup - +pSyn).toFixed(1);
+
+    const kpiBar = document.getElementById('dashKpiBar');
+    const banner = document.createElement('div');
+    banner.id = 'v7AnalysisBanner';
+    banner.className = 'v7-analysis-banner';
+    banner.innerHTML = `
+      <div class="v7-analysis-title">🔬 로컬 룰 분석 (v7) — ${locTotal.toLocaleString()}개 로컬 룰</div>
+      <div class="mig-kpi-bar" style="margin-bottom:12px;">
+        <div class="mig-kpi-card" style="border-top:4px solid #f59e0b;flex:1;min-width:100px;background:#fffbeb">
+          <div class="kpi-val" style="color:#f59e0b">${dupC}</div><div class="kpi-lbl">✔ Built-in 중복</div>
+        </div>
+        <div class="mig-kpi-card purple" style="flex:1;min-width:100px">
+          <div class="kpi-val">${synC}</div><div class="kpi-lbl">⚠ 문법 오류</div>
+        </div>
+        <div class="mig-kpi-card red" style="flex:1;min-width:100px">
+          <div class="kpi-val">${delC}</div><div class="kpi-lbl">🗑 삭제 권고</div>
+        </div>
+        <div class="mig-kpi-card blue" style="flex:1;min-width:100px">
+          <div class="kpi-val">${revC}</div><div class="kpi-lbl">👁 검토 필요</div>
+        </div>
+        <div class="mig-kpi-card teal" style="flex:1;min-width:100px">
+          <div class="kpi-val">${cleanC}</div><div class="kpi-lbl">✅ 이상 없음</div>
+        </div>
+      </div>
+      <div class="v7-bar-wrap">
+        ${+pDel>0?`<div class="v7-seg del" style="flex:${pDel}">${pDel}%</div>`:''}
+        ${+pRev>0?`<div class="v7-seg rev" style="flex:${pRev}">${pRev}%</div>`:''}
+        ${+pDup>0?`<div class="v7-seg dup" style="flex:${pDup}">${pDup}%</div>`:''}
+        ${+pSyn>0?`<div class="v7-seg syn" style="flex:${pSyn}">${pSyn}%</div>`:''}
+        <div class="v7-seg clean" style="flex:${pOk}">${pOk}%</div>
+      </div>
+      <div class="v7-legend">
+        <div class="v7-leg-item"><div class="v7-leg-dot" style="background:#ef4444"></div>삭제 권고</div>
+        <div class="v7-leg-item"><div class="v7-leg-dot" style="background:#3b82f6"></div>검토 필요</div>
+        <div class="v7-leg-item"><div class="v7-leg-dot" style="background:#f59e0b"></div>Built-in 중복</div>
+        <div class="v7-leg-item"><div class="v7-leg-dot" style="background:#a855f7"></div>문법 오류</div>
+        <div class="v7-leg-item"><div class="v7-leg-dot" style="background:#22c55e"></div>이상 없음</div>
+      </div>`;
+    kpiBar.parentNode.insertBefore(banner, kpiBar.nextSibling);
+
+    const grid = document.getElementById('dashChartsGrid');
+    const tabBarDiv = document.createElement('div');
+    tabBarDiv.className = 'v7-tab-bar'; tabBarDiv.id = 'v7TabBar';
+    tabBarDiv.innerHTML = `
+      <button class="v7-tab-btn active" data-tab="overview">📊 Overview</button>
+      <button class="v7-tab-btn" data-tab="local">🔍 Local Analysis <span style="background:#e2e8f0;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px">${locTotal}</span></button>
+      <button class="v7-tab-btn" data-tab="issues">⚠ Issues <span style="background:#fee2e2;color:#b91c1c;border-radius:10px;padding:1px 7px;font-size:.7rem;margin-left:4px">${delC+revC}</span></button>`;
+    grid.parentNode.insertBefore(tabBarDiv, grid);
+
+    grid.className = 'v7-tab-panel dash-grid'; grid.dataset.tab = 'overview';
+    grid.insertAdjacentHTML('afterend',
+      '<div id="v7TabLocal" class="v7-tab-panel" data-tab="local" style="display:none;"></div>' +
+      '<div id="v7TabIssues" class="v7-tab-panel" data-tab="issues" style="display:none;"></div>');
+
+    tabBarDiv.addEventListener('click', e => {
+      const btn = e.target.closest('.v7-tab-btn');
+      if (!btn) return;
+      const tab = btn.dataset.tab;
+      tabBarDiv.querySelectorAll('.v7-tab-btn').forEach(b=>b.classList.toggle('active',b===btn));
+      document.querySelectorAll('.v7-tab-panel').forEach(p=>p.style.display=p.dataset.tab===tab?'':'none');
+      const tblPnl = document.querySelector('#dashContent > .panel');
+      if (tblPnl) tblPnl.style.display = tab==='overview'?'':'none';
+      state.v7ActiveTab = tab;
+      if (tab==='local'  && !document.querySelector('#v7TabLocal .v7-filter-bar'))
+        renderV7LocalPanel(state.v7LocalRules);
+      if (tab==='issues' && !document.querySelector('#v7TabIssues .v7-issue-group'))
+        renderV7IssuesPanel(state.v7LocalRules);
+    });
+
+    state.v7LocalRules = localRules;
+    const tblPnl = document.querySelector('#dashContent > .panel');
+    if (tblPnl) tblPnl.style.display = '';
+    renderSnortV7Overview(allRules, localRules, dupC, synC, delC, revC);
+  }
+
   // ── Snort Excel Export dashboard ───────────────────────────────────────
 
   function renderSnortXlsxDashboard(rules) {
@@ -321,7 +733,7 @@
     if (!el) return;
     const cls=['cyan','blue','green','orange','gray'];
     el.innerHTML=kpis.map((k,i)=>`
-      <div class="mig-kpi-card ${cls[i%cls.length]}">
+      <div class="mig-kpi-card ${k.cls||cls[i%cls.length]}">
         <div class="kpi-val">${k.v}</div><div class="kpi-lbl">${k.l}</div>
       </div>`).join('');
   }
@@ -474,6 +886,19 @@
 
   function processBuffer(buffer, name) {
     try {
+      if (typeof XLSX === 'undefined') throw new Error('SheetJS not loaded');
+      const wb = XLSX.read(new Uint8Array(buffer), { type:'array' });
+
+      if (isSnortV7Format(wb)) {
+        const { allRules, localRules, v7Stats } = parseSnortV7Excel(buffer);
+        if (!allRules.length) { showError('No rules found in v7 Excel'); return; }
+        state.mode='snort-v7'; state.rules=allRules; state.localRules=localRules; state.v7Stats=v7Stats;
+        destroyCharts();
+        activateDashboard(name, name+' — v7 · '+allRules.length.toLocaleString()+' rules · Local '+localRules.length.toLocaleString());
+        renderSnortV7Dashboard(allRules, localRules, v7Stats);
+        return;
+      }
+
       const {headers,rows,sheetName}=parseExcel(buffer);
       if (!headers.length){showError('Excel file appears empty');return;}
 
@@ -481,8 +906,7 @@
         const rules = parseSnortXlsx(headers, rows);
         if (!rules.length){showError('No rule rows found in this Excel file');return;}
         state.mode='snort-xlsx'; state.rules=rules; destroyCharts();
-        activateDashboard(name,
-          name+' — '+rules.length.toLocaleString()+' rules (sheet: '+sheetName+')');
+        activateDashboard(name, name+' — '+rules.length.toLocaleString()+' rules (sheet: '+sheetName+')');
         renderSnortXlsxDashboard(rules);
         return;
       }
@@ -648,7 +1072,9 @@ bar('cCT',${J(ctypes.map(c=>c[0]))},${J(ctypes.map(c=>c[1]))},'#ec4899',true);`;
     dlBtn?.addEventListener('click', downloadHtml);
 
     resetBtn?.addEventListener('click', () => {
-      state.mode=null; state.rules=[]; state.fileName='';
+      state.mode=null; state.rules=[]; state.localRules=[]; state.v7Stats=null;
+      state.v7LocalRules=[]; state.v7Filter='all'; state.v7Page=0; state.v7ActiveTab='overview';
+      state.fileName='';
       state.table={headers:[],rows:[],colMeta:[],selectedCols:[]};
       destroyCharts();
       ['dashContent','dashFileInfo'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});
@@ -656,6 +1082,13 @@ bar('cCT',${J(ctypes.map(c=>c[0]))},${J(ctypes.map(c=>c[1]))},'#ec4899',true);`;
       const dz=document.getElementById('dashDropZone');
       if (dz){dz.style.display='';dz.querySelector('.dash-drop-title').textContent='Drop your file here';dz.querySelector('.dash-drop-sub').textContent='or click Upload file above';}
       fileInput.value='';
+      ['v7AnalysisBanner','v7TabBar','v7TabLocal','v7TabIssues'].forEach(id=>{const e=document.getElementById(id);if(e)e.remove();});
+      const grid=document.getElementById('dashChartsGrid');
+      if(grid){grid.className='dash-grid';grid.removeAttribute('data-tab');grid.style.display='';}
+      const tblPnl=document.querySelector('#dashContent > .panel');
+      if(tblPnl)tblPnl.style.display='';
+      if(typeof window.__v7pg!=='undefined')delete window.__v7pg;
+      if(typeof window.__v7flt!=='undefined')delete window.__v7flt;
     });
 
     fileInput.addEventListener('change', e=>{const f=e.target.files?.[0];if(f)handleFile(f);});
